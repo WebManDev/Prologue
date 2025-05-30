@@ -1,7 +1,6 @@
 "use client"
 
-import type React from "react"
-
+import React from "react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -16,13 +15,20 @@ import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveA
 
 export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false)
+  const [isSignUp, setIsSignUp] = useState(false)
 
   const handleLoginClick = () => {
     setShowLogin(true)
+    setIsSignUp(false)
+  }
+
+  const handleSignUpClick = () => {
+    setShowLogin(true)
+    setIsSignUp(true)
   }
 
   if (showLogin) {
-    return <LoginPage onBack={() => setShowLogin(false)} />
+    return <LoginPage onBack={() => setShowLogin(false)} initialIsSignUp={isSignUp} />
   }
 
   return (
@@ -56,7 +62,7 @@ export default function LandingPage() {
             <Button variant="ghost" onClick={handleLoginClick} className="text-blue-600 hover:text-blue-700">
               Log in
             </Button>
-            <Button onClick={() => setShowLogin(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
+            <Button onClick={handleSignUpClick} className="bg-orange-500 hover:bg-orange-600 text-white">
               Sign up
             </Button>
           </div>
@@ -76,7 +82,7 @@ export default function LandingPage() {
             </p>
             <Button
               size="lg"
-              onClick={() => setShowLogin(true)}
+              onClick={handleSignUpClick}
               className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4 text-lg"
             >
               Get Started Now
@@ -188,7 +194,7 @@ export default function LandingPage() {
 
               <Button
                 size="lg"
-                onClick={() => setShowLogin(true)}
+                onClick={handleSignUpClick}
                 className="bg-orange-500 hover:bg-orange-600 text-white"
               >
                 Submit Your Clip Now
@@ -373,7 +379,7 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
               size="lg"
-              onClick={() => setShowLogin(true)}
+              onClick={handleSignUpClick}
               className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-4"
             >
               Get Started Now
@@ -488,9 +494,9 @@ export default function LandingPage() {
   )
 }
 
-function LoginPage({ onBack }: { onBack: () => void }) {
+function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsSignUp: boolean }) {
   const [showDashboard, setShowDashboard] = useState<string | null>(null)
-  const [isSignUp, setIsSignUp] = useState(false)
+  const [isSignUp, setIsSignUp] = useState(initialIsSignUp)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [showRoleSelection, setShowRoleSelection] = useState(true)
   const [email, setEmail] = useState("")
