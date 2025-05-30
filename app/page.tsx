@@ -541,11 +541,14 @@ function LoginPage({ onBack }: { onBack: () => void }) {
       } else if (userRole === "athlete") {
         // Check if athlete has completed their profile
         const profile = await getAthleteProfile(userCredential.user.uid)
-        if (profile && profile.name && profile.bio && profile.specialties?.length > 0) {
+        if (!profile) {
+          // No profile exists, show onboarding
+          setShowDashboard("athlete")
+        } else if (profile.name && profile.bio && profile.specialties?.length > 0) {
           // Profile is complete, go straight to dashboard
           setShowDashboard("athlete-dashboard")
         } else {
-          // Profile is incomplete, show onboarding
+          // Profile exists but is incomplete, show onboarding
           setShowDashboard("athlete")
         }
       }
