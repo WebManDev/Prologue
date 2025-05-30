@@ -1,0 +1,413 @@
+"use client"
+
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { ArrowLeft, Send, Paperclip, Video, Phone, MoreVertical, Star, Calendar, Clock } from "lucide-react"
+
+interface MemberMessagingInterfaceProps {
+  coach: any
+  onBack: () => void
+}
+
+export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInterfaceProps) {
+  const [message, setMessage] = useState("")
+  const [activeTab, setActiveTab] = useState("chat")
+
+  const messages = [
+    {
+      id: 1,
+      sender: "coach",
+      content: "Hi Marcus! I've reviewed your tennis serve video. Overall, great improvement from last week!",
+      time: "2 hours ago",
+      type: "text",
+    },
+    {
+      id: 2,
+      sender: "coach",
+      content:
+        "Here are the key areas to focus on: 1) Ball toss consistency - aim for the same spot every time, 2) Follow through - make sure you're snapping your wrist down",
+      time: "2 hours ago",
+      type: "text",
+    },
+    {
+      id: 3,
+      sender: "member",
+      content:
+        "Thank you Coach! I've been practicing the ball toss like you suggested. Should I focus more on power or accuracy right now?",
+      time: "1 hour ago",
+      type: "text",
+    },
+    {
+      id: 4,
+      sender: "coach",
+      content:
+        "Definitely focus on accuracy first. Power will come naturally once you have consistent placement. Try the wall practice drill I showed you.",
+      time: "45 minutes ago",
+      type: "text",
+    },
+    {
+      id: 5,
+      sender: "member",
+      content: "Perfect! I'll work on that this week and send you another video on Friday.",
+      time: "30 minutes ago",
+      type: "text",
+    },
+  ]
+
+  const coachInfo = {
+    name: coach.coach || coach.name,
+    sport: coach.sport || "Tennis",
+    rating: 4.9,
+    students: 128,
+    responseTime: "Usually responds within 2 hours",
+    specialties: ["Serve Technique", "Mental Game", "Competition Prep"],
+    availability: "Mon-Fri 9AM-6PM EST",
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 p-4">
+        <div className="container mx-auto flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <Button variant="ghost" onClick={onBack}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Messages
+            </Button>
+            <div className="flex items-center space-x-3">
+              <img
+                src={coach.coachAvatar || coach.avatar || "/placeholder.svg"}
+                alt={coachInfo.name}
+                className="w-10 h-10 rounded-full"
+              />
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">{coachInfo.name}</h1>
+                <div className="flex items-center space-x-2">
+                  <Badge variant="outline">{coachInfo.sport}</Badge>
+                  <span className="text-sm text-gray-600">Online</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" size="sm">
+              <Video className="h-4 w-4 mr-2" />
+              Video Call
+            </Button>
+            <Button variant="outline" size="sm">
+              <Phone className="h-4 w-4 mr-2" />
+              Voice Call
+            </Button>
+            <Button variant="ghost" size="sm">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto p-4">
+        <div className="grid lg:grid-cols-4 gap-6">
+          {/* Chat Area */}
+          <div className="lg:col-span-3">
+            <Card className="h-[600px] flex flex-col">
+              {/* Chat Header */}
+              <CardHeader className="border-b">
+                <div className="flex items-center justify-between">
+                  <div className="flex space-x-4">
+                    <button
+                      onClick={() => setActiveTab("chat")}
+                      className={`pb-2 px-1 border-b-2 transition-colors ${
+                        activeTab === "chat"
+                          ? "border-blue-600 text-blue-600"
+                          : "border-transparent text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      Chat
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("feedback")}
+                      className={`pb-2 px-1 border-b-2 transition-colors ${
+                        activeTab === "feedback"
+                          ? "border-blue-600 text-blue-600"
+                          : "border-transparent text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      Video Feedback
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("schedule")}
+                      className={`pb-2 px-1 border-b-2 transition-colors ${
+                        activeTab === "schedule"
+                          ? "border-blue-600 text-blue-600"
+                          : "border-transparent text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      Schedule Session
+                    </button>
+                  </div>
+                </div>
+              </CardHeader>
+
+              {/* Chat Messages */}
+              {activeTab === "chat" && (
+                <>
+                  <CardContent className="flex-1 p-6 overflow-y-auto">
+                    <div className="space-y-4">
+                      {messages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={`flex ${msg.sender === "member" ? "justify-end" : "justify-start"}`}
+                        >
+                          <div className="flex items-start space-x-2 max-w-xs lg:max-w-md">
+                            {msg.sender === "coach" && (
+                              <img
+                                src={coach.coachAvatar || coach.avatar || "/placeholder.svg"}
+                                alt={coachInfo.name}
+                                className="w-8 h-8 rounded-full"
+                              />
+                            )}
+                            <div
+                              className={`px-4 py-2 rounded-lg ${
+                                msg.sender === "member" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-900"
+                              }`}
+                            >
+                              <p className="text-sm">{msg.content}</p>
+                              <p
+                                className={`text-xs mt-1 ${
+                                  msg.sender === "member" ? "text-blue-100" : "text-gray-500"
+                                }`}
+                              >
+                                {msg.time}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+
+                  {/* Message Input */}
+                  <div className="border-t p-4">
+                    <div className="flex space-x-2">
+                      <Button variant="ghost" size="sm">
+                        <Paperclip className="h-4 w-4" />
+                      </Button>
+                      <Input
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        placeholder="Type your message..."
+                        className="flex-1"
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter") {
+                            // Send message logic
+                            setMessage("")
+                          }
+                        }}
+                      />
+                      <Button className="bg-blue-600 hover:bg-blue-700">
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Video Feedback Tab */}
+              {activeTab === "feedback" && (
+                <CardContent className="flex-1 p-6">
+                  <div className="space-y-6">
+                    <div className="text-center">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Request Video Feedback</h3>
+                      <p className="text-gray-600">
+                        Upload a video and get personalized feedback from {coachInfo.name}
+                      </p>
+                    </div>
+
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                      <Video className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-lg font-medium text-gray-900 mb-2">Upload Training Video</p>
+                      <p className="text-sm text-gray-600">MP4, MOV, AVI up to 100MB</p>
+                      <Button className="mt-4">Choose File</Button>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        What would you like feedback on?
+                      </label>
+                      <Textarea
+                        placeholder="Describe what you're working on and specific areas you'd like feedback on..."
+                        rows={4}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="border rounded-lg p-3 text-center">
+                        <div className="font-medium text-sm">Standard</div>
+                        <div className="text-xs text-gray-600">3-5 days</div>
+                        <div className="text-sm font-medium text-green-600">Free</div>
+                      </div>
+                      <div className="border rounded-lg p-3 text-center bg-blue-50 border-blue-200">
+                        <div className="font-medium text-sm">Priority</div>
+                        <div className="text-xs text-gray-600">1-2 days</div>
+                        <div className="text-sm font-medium text-blue-600">$9.99</div>
+                      </div>
+                      <div className="border rounded-lg p-3 text-center">
+                        <div className="font-medium text-sm">Express</div>
+                        <div className="text-xs text-gray-600">24 hours</div>
+                        <div className="text-sm font-medium text-orange-600">$19.99</div>
+                      </div>
+                    </div>
+
+                    <Button className="w-full bg-orange-500 hover:bg-orange-600">Submit for Feedback</Button>
+                  </div>
+                </CardContent>
+              )}
+
+              {/* Schedule Session Tab */}
+              {activeTab === "schedule" && (
+                <CardContent className="flex-1 p-6">
+                  <div className="space-y-6">
+                    <div className="text-center">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Schedule 1-on-1 Session</h3>
+                      <p className="text-gray-600">Book a private session with {coachInfo.name}</p>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div>
+                        <h4 className="font-medium text-gray-900 mb-3">Session Types</h4>
+                        <div className="space-y-3">
+                          {[
+                            { type: "Video Analysis", duration: "30 min", price: "$49" },
+                            { type: "Live Training", duration: "60 min", price: "$89" },
+                            { type: "Strategy Session", duration: "45 min", price: "$69" },
+                          ].map((session, index) => (
+                            <div key={index} className="border rounded-lg p-3 cursor-pointer hover:bg-gray-50">
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <div className="font-medium">{session.type}</div>
+                                  <div className="text-sm text-gray-600">{session.duration}</div>
+                                </div>
+                                <div className="font-bold text-green-600">{session.price}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="font-medium text-gray-900 mb-3">Available Times</h4>
+                        <div className="space-y-2">
+                          {[
+                            "Today 2:00 PM",
+                            "Tomorrow 10:00 AM",
+                            "Tomorrow 3:00 PM",
+                            "Friday 11:00 AM",
+                            "Friday 4:00 PM",
+                          ].map((time, index) => (
+                            <button
+                              key={index}
+                              className="w-full text-left p-2 border rounded hover:bg-blue-50 hover:border-blue-200"
+                            >
+                              {time}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Book Session
+                    </Button>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+          </div>
+
+          {/* Coach Info Sidebar */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Coach Profile</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-center">
+                  <img
+                    src={coach.coachAvatar || coach.avatar || "/placeholder.svg"}
+                    alt={coachInfo.name}
+                    className="w-20 h-20 rounded-full mx-auto mb-3"
+                  />
+                  <h3 className="font-semibold text-lg">{coachInfo.name}</h3>
+                  <p className="text-gray-600">{coachInfo.sport} Specialist</p>
+                  <div className="flex items-center justify-center space-x-1 mt-2">
+                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                    <span className="font-medium">{coachInfo.rating}</span>
+                    <span className="text-gray-600">({coachInfo.students} students)</span>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Specialties</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {coachInfo.specialties.map((specialty, index) => (
+                      <Badge key={index} variant="outline" className="text-xs">
+                        {specialty}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Availability</h4>
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <Clock className="h-4 w-4" />
+                    <span>{coachInfo.availability}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">{coachInfo.responseTime}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Recent Feedback</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {[
+                    {
+                      video: "Serve Practice #3",
+                      rating: 4.5,
+                      date: "2 days ago",
+                    },
+                    {
+                      video: "Forehand Drill",
+                      rating: 4.0,
+                      date: "1 week ago",
+                    },
+                  ].map((feedback, index) => (
+                    <div key={index} className="border rounded-lg p-3">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-medium text-sm">{feedback.video}</span>
+                        <div className="flex items-center space-x-1">
+                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                          <span className="text-xs">{feedback.rating}</span>
+                        </div>
+                      </div>
+                      <span className="text-xs text-gray-500">{feedback.date}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

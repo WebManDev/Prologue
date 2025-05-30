@@ -1,0 +1,849 @@
+"use client"
+
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
+import {
+  Play,
+  Target,
+  Star,
+  Video,
+  TrendingUp,
+  Search,
+  Users,
+  MessageSquare,
+  Plus,
+  Eye,
+  Lock,
+  FileText,
+  CreditCard,
+} from "lucide-react"
+import Image from "next/image"
+import { MemberMessagingInterface } from "./member-messaging-interface"
+import { SubscriptionCheckout } from "./subscription-checkout"
+
+interface MemberDashboardProps {
+  onLogout: () => void
+}
+
+export function MemberDashboard({ onLogout }: MemberDashboardProps) {
+  const [activeTab, setActiveTab] = useState("dashboard")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [viewingCourse, setViewingCourse] = useState<any>(null)
+  const [messagingCoach, setMessagingCoach] = useState<any>(null)
+  const [viewingAthleteProfile, setViewingAthleteProfile] = useState<any>(null)
+  const [showSubscriptionCheckout, setShowSubscriptionCheckout] = useState<any>(null)
+
+  // Current user data (would come from auth)
+  const currentUser = {
+    email: "marcus@example.com",
+    name: "Marcus Hill",
+    customerId: "cus_member_123",
+  }
+
+  // Sample subscribed athletes data with subscription info
+  const subscribedAthletes = [
+    {
+      id: 1,
+      name: "Sarah Johnson",
+      sport: "Tennis",
+      bio: "Former college tennis player with 8 years of coaching experience. Specializing in serve technique and mental game strategies.",
+      profilePic: "/placeholder.svg?height=60&width=60",
+      subscribers: 47,
+      posts: 23,
+      rating: 4.9,
+      stripeAccountId: "acct_sarah_123",
+      subscriptionId: "sub_sarah_member_123",
+      subscriptionStatus: "active",
+      recentPosts: [
+        {
+          id: 1,
+          title: "Perfect Your Tennis Serve",
+          description: "Learn the key mechanics for a powerful and accurate serve.",
+          content:
+            "In this comprehensive workout, we'll break down the tennis serve into its fundamental components. Start with proper stance, focus on ball toss consistency, and develop a smooth follow-through motion...",
+          videoLink: "https://youtube.com/watch?v=example1",
+          type: "workout",
+          views: 156,
+          createdAt: "2 days ago",
+          subscribersOnly: true,
+        },
+        {
+          id: 2,
+          title: "Mental Game: Staying Focused",
+          description: "Develop mental toughness and focus techniques.",
+          content:
+            "Mental preparation is just as important as physical training. Here are my top strategies for maintaining focus during high-pressure situations...",
+          videoLink: "",
+          type: "blog",
+          views: 89,
+          createdAt: "5 days ago",
+          subscribersOnly: true,
+        },
+      ],
+    },
+    {
+      id: 2,
+      name: "Marcus Rodriguez",
+      sport: "Soccer",
+      bio: "Professional soccer coach with experience training youth and college teams. Focus on ball control, passing, and tactical awareness.",
+      profilePic: "/placeholder.svg?height=60&width=60",
+      subscribers: 32,
+      posts: 18,
+      rating: 4.7,
+      stripeAccountId: "acct_marcus_123",
+      subscriptionId: "sub_marcus_member_123",
+      subscriptionStatus: "active",
+      recentPosts: [
+        {
+          id: 3,
+          title: "Ball Control Mastery",
+          description: "Improve your first touch and ball control skills.",
+          content:
+            "Ball control is the foundation of great soccer. Practice these drills daily to improve your first touch and overall ball handling...",
+          videoLink: "https://youtube.com/watch?v=example3",
+          type: "workout",
+          views: 124,
+          createdAt: "1 day ago",
+          subscribersOnly: true,
+        },
+      ],
+    },
+  ]
+
+  // Available athletes to discover (not subscribed)
+  const availableAthletes = [
+    {
+      id: 4,
+      name: "Coach Thompson",
+      sport: "Basketball",
+      bio: "Former college basketball player turned coach. Specializing in shooting mechanics, defensive strategies, and team play.",
+      profilePic: "/placeholder.svg?height=60&width=60",
+      subscribers: 156,
+      posts: 42,
+      rating: 4.6,
+      stripeAccountId: "acct_thompson_123",
+      previewPosts: [
+        {
+          id: 10,
+          title: "Perfect Your Jump Shot",
+          description: "Master the fundamentals of shooting form and consistency.",
+          type: "workout",
+          subscribersOnly: true,
+        },
+        {
+          id: 11,
+          title: "Basketball IQ: Reading the Game",
+          description: "Develop court vision and basketball intelligence.",
+          type: "blog",
+          subscribersOnly: true,
+        },
+      ],
+    },
+    {
+      id: 5,
+      name: "Lisa Park",
+      sport: "Volleyball",
+      bio: "Professional volleyball coach with 10+ years experience. Expert in serving, spiking, and team coordination.",
+      profilePic: "/placeholder.svg?height=60&width=60",
+      subscribers: 89,
+      posts: 31,
+      rating: 4.8,
+      stripeAccountId: "acct_lisa_123",
+      previewPosts: [
+        {
+          id: 12,
+          title: "Spike Technique Fundamentals",
+          description: "Learn proper approach and hitting technique.",
+          type: "workout",
+          subscribersOnly: true,
+        },
+      ],
+    },
+  ]
+
+  const filteredAthletes = availableAthletes.filter(
+    (athlete) =>
+      athlete.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      athlete.sport.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
+
+  const handleSubscribe = (athlete: any) => {
+    setShowSubscriptionCheckout(athlete)
+  }
+
+  const handleSubscriptionSuccess = () => {
+    setShowSubscriptionCheckout(null)
+    // In real app, refresh subscribed athletes list
+    alert("Successfully subscribed! You now have access to all content.")
+  }
+
+  // Show subscription checkout
+  if (showSubscriptionCheckout) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <SubscriptionCheckout
+          athlete={showSubscriptionCheckout}
+          memberEmail={currentUser.email}
+          memberName={currentUser.name}
+          onSuccess={handleSubscriptionSuccess}
+          onCancel={() => setShowSubscriptionCheckout(null)}
+        />
+      </div>
+    )
+  }
+
+  // Show athlete profile if viewing one
+  if (viewingAthleteProfile) {
+    return (
+      <AthleteProfileView
+        athlete={viewingAthleteProfile}
+        isSubscribed={subscribedAthletes.some((sub) => sub.id === viewingAthleteProfile.id)}
+        onBack={() => setViewingAthleteProfile(null)}
+        onMessage={setMessagingCoach}
+        onSubscribe={handleSubscribe}
+      />
+    )
+  }
+
+  // Show messaging interface
+  if (messagingCoach) {
+    return <MemberMessagingInterface coach={messagingCoach} onBack={() => setMessagingCoach(null)} />
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-xl">P</span>
+            </div>
+            <span className="text-2xl font-bold text-blue-600">PROLOGUE</span>
+          </div>
+
+          <nav className="hidden md:flex items-center space-x-8">
+            <button
+              onClick={() => setActiveTab("dashboard")}
+              className={`transition-colors ${activeTab === "dashboard" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => setActiveTab("athletes")}
+              className={`transition-colors ${activeTab === "athletes" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
+            >
+              My Athletes
+            </button>
+            <button
+              onClick={() => setActiveTab("discover")}
+              className={`transition-colors ${activeTab === "discover" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
+            >
+              Discover
+            </button>
+            <button
+              onClick={() => setActiveTab("messages")}
+              className={`transition-colors ${activeTab === "messages" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
+            >
+              Messages
+            </button>
+          </nav>
+
+          <Button onClick={onLogout} variant="outline">
+            Logout
+          </Button>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 py-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsContent value="dashboard">
+            {/* Welcome Section */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, Marcus!</h1>
+              <p className="text-gray-600">
+                Continue learning from your subscribed athletes and discover new training content.
+              </p>
+            </div>
+
+            <div className="grid lg:grid-cols-3 gap-8">
+              {/* Main Content */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Quick Actions */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Target className="h-5 w-5 text-orange-500" />
+                      <span>Quick Actions</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <Button
+                        onClick={() => setActiveTab("discover")}
+                        className="h-20 bg-orange-500 hover:bg-orange-600 text-white flex flex-col items-center justify-center space-y-2"
+                      >
+                        <Plus className="h-6 w-6" />
+                        <span>Find Athletes</span>
+                      </Button>
+                      <Button
+                        onClick={() => setActiveTab("athletes")}
+                        variant="outline"
+                        className="h-20 flex flex-col items-center justify-center space-y-2"
+                      >
+                        <Users className="h-6 w-6" />
+                        <span>My Athletes</span>
+                      </Button>
+                      <Button
+                        onClick={() => setActiveTab("messages")}
+                        variant="outline"
+                        className="h-20 flex flex-col items-center justify-center space-y-2"
+                      >
+                        <MessageSquare className="h-6 w-6" />
+                        <span>Messages</span>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Latest Content from Subscribed Athletes */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center space-x-2">
+                        <Lock className="h-5 w-5 text-blue-600" />
+                        <span>Latest Exclusive Content</span>
+                      </span>
+                      <Button variant="ghost" size="sm" onClick={() => setActiveTab("athletes")}>
+                        View All
+                      </Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {subscribedAthletes.flatMap((athlete) =>
+                        athlete.recentPosts.slice(0, 1).map((post) => (
+                          <div key={post.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                            <div className="flex items-start space-x-3 mb-3">
+                              <Image
+                                src={athlete.profilePic || "/placeholder.svg"}
+                                alt={athlete.name}
+                                width={40}
+                                height={40}
+                                className="rounded-full"
+                              />
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <h4 className="font-semibold text-gray-900">{athlete.name}</h4>
+                                  <Badge variant="outline" className="text-xs">
+                                    {athlete.sport}
+                                  </Badge>
+                                  <Badge
+                                    variant={post.type === "workout" ? "default" : "secondary"}
+                                    className="text-xs"
+                                  >
+                                    {post.type === "workout" ? "Workout" : "Blog"}
+                                  </Badge>
+                                </div>
+                                <h3 className="font-medium text-gray-900 mb-1">{post.title}</h3>
+                                <p className="text-sm text-gray-600 mb-2">{post.description}</p>
+                              </div>
+                              <span className="text-xs text-gray-500">{post.createdAt}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                <span className="flex items-center space-x-1">
+                                  <Eye className="h-4 w-4" />
+                                  <span>{post.views}</span>
+                                </span>
+                                <span className="flex items-center space-x-1">
+                                  {post.type === "workout" ? (
+                                    <Video className="h-4 w-4" />
+                                  ) : (
+                                    <FileText className="h-4 w-4" />
+                                  )}
+                                  <span>{post.type === "workout" ? "Watch" : "Read"}</span>
+                                </span>
+                              </div>
+                              <Button size="sm" variant="outline" onClick={() => setMessagingCoach(athlete)}>
+                                <MessageSquare className="h-4 w-4 mr-2" />
+                                Message
+                              </Button>
+                            </div>
+                          </div>
+                        )),
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Sidebar */}
+              <div className="space-y-6">
+                {/* Stats Overview */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <TrendingUp className="h-5 w-5 text-green-600" />
+                      <span>Your Subscriptions</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-blue-600 mb-1">{subscribedAthletes.length}</div>
+                        <div className="text-sm text-gray-600">Active Subscriptions</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-orange-500 mb-1">
+                          {subscribedAthletes.reduce((sum, athlete) => sum + athlete.posts, 0)}
+                        </div>
+                        <div className="text-sm text-gray-600">Total Content</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-green-600 mb-1">${subscribedAthletes.length * 10}</div>
+                        <div className="text-sm text-gray-600">Monthly Cost</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Subscribed Athletes Quick View */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Your Athletes</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {subscribedAthletes.map((athlete) => (
+                        <div
+                          key={athlete.id}
+                          className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                          onClick={() => setViewingAthleteProfile(athlete)}
+                        >
+                          <Image
+                            src={athlete.profilePic || "/placeholder.svg"}
+                            alt={athlete.name}
+                            width={32}
+                            height={32}
+                            className="rounded-full"
+                          />
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{athlete.name}</p>
+                            <p className="text-xs text-gray-600">{athlete.sport}</p>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            <CreditCard className="h-3 w-3 mr-1" />
+                            $10/mo
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="athletes">
+            <div className="space-y-6">
+              <h1 className="text-3xl font-bold text-gray-900">My Athletes ({subscribedAthletes.length})</h1>
+
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {subscribedAthletes.map((athlete) => (
+                  <Card
+                    key={athlete.id}
+                    className="hover:shadow-lg transition-shadow cursor-pointer"
+                    onClick={() => setViewingAthleteProfile(athlete)}
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <Image
+                          src={athlete.profilePic || "/placeholder.svg"}
+                          alt={athlete.name}
+                          width={60}
+                          height={60}
+                          className="rounded-full"
+                        />
+                        <div>
+                          <h3 className="font-semibold text-lg">{athlete.name}</h3>
+                          <Badge variant="outline">{athlete.sport}</Badge>
+                        </div>
+                      </div>
+
+                      <p className="text-sm text-gray-600 mb-4 line-clamp-3">{athlete.bio}</p>
+
+                      <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
+                        <span className="flex items-center space-x-1">
+                          <Users className="h-4 w-4" />
+                          <span>{athlete.subscribers}</span>
+                        </span>
+                        <span className="flex items-center space-x-1">
+                          <Video className="h-4 w-4" />
+                          <span>{athlete.posts} posts</span>
+                        </span>
+                        <span className="flex items-center space-x-1">
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          <span>{athlete.rating}</span>
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between mb-4">
+                        <Badge variant="default" className="bg-green-600">
+                          <CreditCard className="h-3 w-3 mr-1" />
+                          Subscribed • $10/month
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {athlete.subscriptionStatus === "active" ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+
+                      <div className="flex space-x-2">
+                        <Button className="flex-1 bg-blue-600 hover:bg-blue-700">View Content</Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setMessagingCoach(athlete)
+                          }}
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="discover">
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">Discover Athletes</h1>
+                  <p className="text-gray-600">
+                    Find expert athletes and coaches to subscribe to for exclusive content
+                  </p>
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search athletes, sports..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10 w-80"
+                  />
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredAthletes.map((athlete) => (
+                  <Card key={athlete.id} className="hover:shadow-lg transition-shadow">
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <Image
+                          src={athlete.profilePic || "/placeholder.svg"}
+                          alt={athlete.name}
+                          width={60}
+                          height={60}
+                          className="rounded-full"
+                        />
+                        <div>
+                          <h3 className="font-semibold text-lg">{athlete.name}</h3>
+                          <Badge variant="outline">{athlete.sport}</Badge>
+                        </div>
+                      </div>
+
+                      <p className="text-sm text-gray-600 mb-4 line-clamp-3">{athlete.bio}</p>
+
+                      <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
+                        <span className="flex items-center space-x-1">
+                          <Users className="h-4 w-4" />
+                          <span>{athlete.subscribers}</span>
+                        </span>
+                        <span className="flex items-center space-x-1">
+                          <Video className="h-4 w-4" />
+                          <span>{athlete.posts} posts</span>
+                        </span>
+                        <span className="flex items-center space-x-1">
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          <span>{athlete.rating}</span>
+                        </span>
+                      </div>
+
+                      {/* Preview of locked content */}
+                      <div className="mb-4 p-3 bg-gray-50 rounded-lg border">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Lock className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm font-medium text-gray-700">Exclusive Content Preview</span>
+                        </div>
+                        <div className="space-y-1">
+                          {athlete.previewPosts?.slice(0, 2).map((post, index) => (
+                            <div key={index} className="text-xs text-gray-600">
+                              • {post.title}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex space-x-2">
+                        <Button
+                          className="flex-1 bg-orange-500 hover:bg-orange-600"
+                          onClick={() => handleSubscribe(athlete)}
+                        >
+                          Subscribe $10/month
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setViewingAthleteProfile(athlete)}>
+                          Preview
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {filteredAthletes.length === 0 && (
+                <div className="text-center py-12">
+                  <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No athletes found</h3>
+                  <p className="text-gray-600">Try adjusting your search criteria</p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="messages">
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h1 className="text-3xl font-bold text-gray-900">Messages</h1>
+              </div>
+
+              <div className="grid gap-4">
+                {subscribedAthletes.map((athlete) => (
+                  <Card
+                    key={athlete.id}
+                    className="hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => setMessagingCoach(athlete)}
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <Image
+                            src={athlete.profilePic || "/placeholder.svg"}
+                            alt={athlete.name}
+                            width={48}
+                            height={48}
+                            className="rounded-full"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2">
+                              <h3 className="font-semibold text-gray-900">{athlete.name}</h3>
+                              <Badge variant="outline" className="text-xs">
+                                {athlete.sport}
+                              </Badge>
+                              <Badge variant="default" className="text-xs bg-green-600">
+                                Subscribed
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-gray-600">Click to start a conversation</p>
+                          </div>
+                        </div>
+                        <Button variant="outline" size="sm">
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Message
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  )
+}
+
+// Athlete Profile View Component
+function AthleteProfileView({
+  athlete,
+  isSubscribed,
+  onBack,
+  onMessage,
+  onSubscribe,
+}: {
+  athlete: any
+  isSubscribed: boolean
+  onBack: () => void
+  onMessage: (athlete: any) => void
+  onSubscribe: (athlete: any) => void
+}) {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <Button variant="ghost" onClick={onBack}>
+            ← Back to Athletes
+          </Button>
+          <div className="flex space-x-2">
+            {isSubscribed ? (
+              <>
+                <Button onClick={() => onMessage(athlete)} className="bg-blue-600 hover:bg-blue-700">
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Message {athlete.name}
+                </Button>
+                <Badge variant="default" className="bg-green-600 px-3 py-1">
+                  <CreditCard className="h-3 w-3 mr-1" />
+                  Subscribed
+                </Badge>
+              </>
+            ) : (
+              <Button onClick={() => onSubscribe(athlete)} className="bg-orange-500 hover:bg-orange-600">
+                Subscribe $10/month
+              </Button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 py-8">
+        {/* Athlete Header */}
+        <div className="bg-white rounded-lg p-8 mb-8">
+          <div className="flex items-start space-x-6">
+            <Image
+              src={athlete.profilePic || "/placeholder.svg"}
+              alt={athlete.name}
+              width={120}
+              height={120}
+              className="rounded-full"
+            />
+            <div className="flex-1">
+              <div className="flex items-center space-x-3 mb-2">
+                <h1 className="text-3xl font-bold text-gray-900">{athlete.name}</h1>
+                <Badge className="bg-orange-500">{athlete.sport}</Badge>
+              </div>
+              <p className="text-gray-600 mb-4">{athlete.bio}</p>
+              <div className="flex items-center space-x-6 text-sm text-gray-600">
+                <span className="flex items-center space-x-1">
+                  <Users className="h-4 w-4" />
+                  <span>{athlete.subscribers} subscribers</span>
+                </span>
+                <span className="flex items-center space-x-1">
+                  <Video className="h-4 w-4" />
+                  <span>{athlete.posts} posts</span>
+                </span>
+                <span className="flex items-center space-x-1">
+                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                  <span>{athlete.rating} rating</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="space-y-6">
+          <h2 className="text-2xl font-bold text-gray-900">{isSubscribed ? "Exclusive Content" : "Content Preview"}</h2>
+
+          {isSubscribed ? (
+            // Show full content for subscribers
+            <div className="grid gap-6">
+              {athlete.recentPosts?.map((post: any) => (
+                <Card key={post.id}>
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <h3 className="text-xl font-semibold text-gray-900">{post.title}</h3>
+                          <Badge variant={post.type === "workout" ? "default" : "secondary"}>
+                            {post.type === "workout" ? "Workout" : "Blog"}
+                          </Badge>
+                        </div>
+                        <p className="text-gray-600 mb-3">{post.description}</p>
+                        <div className="prose max-w-none text-gray-700 mb-3">{post.content}</div>
+                        {post.videoLink && (
+                          <div className="flex items-center space-x-2 mb-3">
+                            <Play className="h-4 w-4 text-blue-600" />
+                            <a
+                              href={post.videoLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline text-sm"
+                            >
+                              Watch Video
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                      <Badge variant="secondary">{post.createdAt}</Badge>
+                    </div>
+                    <div className="flex items-center space-x-4 text-sm text-gray-600">
+                      <span className="flex items-center space-x-1">
+                        <Eye className="h-4 w-4" />
+                        <span>{post.views} views</span>
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            // Show locked content preview for non-subscribers
+            <div className="grid gap-6">
+              {athlete.previewPosts?.map((post: any, index: number) => (
+                <Card key={index} className="relative">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <h3 className="text-xl font-semibold text-gray-900">{post.title}</h3>
+                          <Badge variant={post.type === "workout" ? "default" : "secondary"}>
+                            {post.type === "workout" ? "Workout" : "Blog"}
+                          </Badge>
+                          <Badge variant="outline">
+                            <Lock className="h-3 w-3 mr-1" />
+                            Subscribers Only
+                          </Badge>
+                        </div>
+                        <p className="text-gray-600 mb-3">{post.description}</p>
+                        <div className="bg-gray-100 p-4 rounded-lg">
+                          <div className="flex items-center justify-center space-x-2 text-gray-500">
+                            <Lock className="h-5 w-5" />
+                            <span>Subscribe to view full content</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {/* Subscribe CTA */}
+              <Card className="border-2 border-orange-200 bg-orange-50">
+                <CardContent className="p-8 text-center">
+                  <Lock className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Unlock All Content</h3>
+                  <p className="text-gray-600 mb-6">
+                    Subscribe to {athlete.name} for $10/month to access all exclusive workouts, blog posts, and direct
+                    messaging.
+                  </p>
+                  <Button onClick={() => onSubscribe(athlete)} className="bg-orange-500 hover:bg-orange-600 px-8 py-3">
+                    Subscribe Now - $10/month
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

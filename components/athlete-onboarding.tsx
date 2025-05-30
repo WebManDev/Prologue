@@ -1,0 +1,257 @@
+"use client"
+
+import type React from "react"
+
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
+import { Upload, User, DollarSign, CheckCircle, ArrowRight } from "lucide-react"
+import Image from "next/image"
+
+interface AthleteOnboardingProps {
+  onComplete: () => void
+  onLogout: () => void
+}
+
+export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingProps) {
+  const [currentStep, setCurrentStep] = useState(1)
+  const [profileData, setProfileData] = useState({
+    name: "",
+    bio: "",
+    specialties: [] as string[],
+    profilePicture: null as File | null,
+  })
+
+  const availableSports = [
+    "Tennis",
+    "Soccer",
+    "Swimming",
+    "Basketball",
+    "Volleyball",
+    "Track & Field",
+    "Golf",
+    "Baseball",
+    "Softball",
+    "Wrestling",
+    "Gymnastics",
+    "Cross Country",
+    "Football",
+    "Hockey",
+    "Lacrosse",
+  ]
+
+  const handleSpecialtyToggle = (sport: string) => {
+    setProfileData((prev) => ({
+      ...prev,
+      specialties: prev.specialties.includes(sport)
+        ? prev.specialties.filter((s) => s !== sport)
+        : [...prev.specialties, sport],
+    }))
+  }
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      setProfileData((prev) => ({ ...prev, profilePicture: file }))
+    }
+  }
+
+  const handleSaveAndContinue = () => {
+    // Here you would save the profile data to your database
+    console.log("Saving profile data:", profileData)
+    onComplete()
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-white">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-xl">P</span>
+            </div>
+            <span className="text-2xl font-bold text-blue-600">PROLOGUE</span>
+          </div>
+          <Button onClick={onLogout} variant="outline">
+            Logout
+          </Button>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto">
+          {/* Progress Indicator */}
+          <div className="mb-8">
+            <div className="flex items-center justify-center space-x-4 mb-4">
+              <div className="flex items-center">
+                <div className="w-8 h-8 bg-orange-500 text-white rounded-full flex items-center justify-center text-sm font-medium">
+                  1
+                </div>
+                <span className="ml-2 text-sm font-medium text-orange-600">Profile Setup</span>
+              </div>
+              <div className="w-16 h-1 bg-gray-200 rounded"></div>
+              <div className="flex items-center">
+                <div className="w-8 h-8 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center text-sm font-medium">
+                  2
+                </div>
+                <span className="ml-2 text-sm text-gray-600">Dashboard</span>
+              </div>
+            </div>
+            <div className="text-center">
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Set Up Your Athlete Profile</h1>
+              <p className="text-gray-600">
+                Create your profile to start sharing your expertise and connecting with aspiring athletes
+              </p>
+            </div>
+          </div>
+
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <User className="h-5 w-5 text-orange-500" />
+                <span>Athlete Profile</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Profile Picture Upload */}
+              <div className="text-center">
+                <div className="relative inline-block">
+                  <div className="w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
+                    {profileData.profilePicture ? (
+                      <Image
+                        src={URL.createObjectURL(profileData.profilePicture) || "/placeholder.svg"}
+                        alt="Profile"
+                        width={128}
+                        height={128}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <User className="h-12 w-12 text-gray-400" />
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="profile-upload"
+                  />
+                  <label
+                    htmlFor="profile-upload"
+                    className="absolute bottom-0 right-0 w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-orange-600 transition-colors"
+                  >
+                    <Upload className="h-4 w-4 text-white" />
+                  </label>
+                </div>
+                <p className="text-sm text-gray-600 mt-2">Upload your profile picture</p>
+              </div>
+
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  value={profileData.name}
+                  onChange={(e) => setProfileData((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter your full name"
+                  className="text-lg"
+                />
+              </div>
+
+              {/* Bio */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Bio <span className="text-red-500">*</span>
+                </label>
+                <Textarea
+                  value={profileData.bio}
+                  onChange={(e) => setProfileData((prev) => ({ ...prev, bio: e.target.value }))}
+                  placeholder="Tell potential students about your background, achievements, and coaching philosophy..."
+                  rows={4}
+                  className="resize-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">{profileData.bio.length}/500 characters</p>
+              </div>
+
+              {/* Specialties */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Sports Specialties <span className="text-red-500">*</span>
+                </label>
+                <p className="text-sm text-gray-600 mb-3">
+                  Select the sports you specialize in (you can choose multiple)
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {availableSports.map((sport) => (
+                    <button
+                      key={sport}
+                      type="button"
+                      onClick={() => handleSpecialtyToggle(sport)}
+                      className={`p-3 text-sm border rounded-lg transition-all ${
+                        profileData.specialties.includes(sport)
+                          ? "bg-orange-500 text-white border-orange-500"
+                          : "bg-white text-gray-700 border-gray-300 hover:border-orange-300 hover:bg-orange-50"
+                      }`}
+                    >
+                      {sport}
+                    </button>
+                  ))}
+                </div>
+                {profileData.specialties.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-600 mb-2">Selected specialties:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {profileData.specialties.map((sport) => (
+                        <Badge key={sport} className="bg-orange-100 text-orange-800">
+                          {sport}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Fixed Pricing Info */}
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <div className="flex items-center space-x-3">
+                  <DollarSign className="h-5 w-5 text-orange-600" />
+                  <div>
+                    <h4 className="font-medium text-orange-900 mb-1">Monthly Coaching Rate</h4>
+                    <p className="text-sm text-orange-800">
+                      All athletes on PROLOGUE charge <strong>$10/month</strong> for ongoing coaching and mentorship.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Save Button */}
+              <div className="pt-4">
+                <Button
+                  onClick={handleSaveAndContinue}
+                  disabled={!profileData.name || !profileData.bio || profileData.specialties.length === 0}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white h-12 text-lg"
+                >
+                  <CheckCircle className="h-5 w-5 mr-2" />
+                  Save & Continue to Dashboard
+                  <ArrowRight className="h-5 w-5 ml-2" />
+                </Button>
+              </div>
+
+              {/* Help Text */}
+              <div className="text-center">
+                <p className="text-sm text-gray-600">
+                  You can always update your profile information later from your dashboard
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
