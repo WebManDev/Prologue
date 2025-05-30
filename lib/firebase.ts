@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, collection, doc, setDoc, getDoc } from "firebase/firestore";
+import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const firebaseConfig = {
@@ -124,6 +124,24 @@ const uploadProfilePicture = async (userId: string, file: File) => {
   }
 };
 
+// Function to save athlete blog post
+const saveAthletePost = async (
+  userId: string,
+  post: { title: string; content: string; coverImage?: string }
+) => {
+  try {
+    return await addDoc(collection(db, "athletePosts"), {
+      ...post,
+      userId,
+      createdAt: Timestamp.now(),
+      type: "blog",
+    });
+  } catch (error) {
+    console.error("Error saving athlete post:", error);
+    throw error;
+  }
+};
+
 export { 
   auth, 
   signInWithEmailAndPassword, 
@@ -133,5 +151,6 @@ export {
   getAthleteProfile,
   saveMemberProfile,
   getMemberProfile,
-  uploadProfilePicture
+  uploadProfilePicture,
+  saveAthletePost,
 }; 
