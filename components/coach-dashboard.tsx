@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -25,6 +23,17 @@ import {
   X,
   Upload,
 } from "lucide-react"
+import { auth, getAthleteProfile } from "@/lib/firebase"
+
+interface AthleteProfile {
+  name: string
+  email: string
+  bio: string
+  sport: string
+  experience: string
+  location: string
+  profilePicture?: string
+}
 
 interface CoachDashboardProps {
   onLogout: () => void
@@ -33,15 +42,8 @@ interface CoachDashboardProps {
 export function CoachDashboard({ onLogout }: CoachDashboardProps) {
   const [activeTab, setActiveTab] = useState("dashboard")
   const [editingProfile, setEditingProfile] = useState(false)
-  const [profileData, setProfileData] = useState({
-    name: "Sarah Johnson",
-    email: "sarah@example.com",
-    bio: "Passionate tennis athlete dedicated to helping players of all levels reach their full potential. With 10+ years of experience, I specialize in technique refinement, strategic gameplay, and mental toughness training.",
-    sport: "Tennis",
-    experience: "8 years",
-    location: "Los Angeles, CA",
-    profilePicture: "/placeholder.svg?height=120&width=120",
-  })
+  const [profileData, setProfileData] = useState<AthleteProfile | null>(null)
+  const [loading, setLoading] = useState(true)
 
   // Sample data for the dashboard
   const stats = {
@@ -121,6 +123,21 @@ export function CoachDashboard({ onLogout }: CoachDashboardProps) {
     }
   }
 
+  useEffect(() => {
+    async function fetchProfile() {
+      const user = auth.currentUser
+      if (user) {
+        const data = await getAthleteProfile(user.uid)
+        setProfileData(data)
+      }
+      setLoading(false)
+    }
+    fetchProfile()
+  }, [])
+
+  if (loading) return <div>Loading...</div>
+  if (!profileData) return <div>No profile found.</div>
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -193,8 +210,10 @@ export function CoachDashboard({ onLogout }: CoachDashboardProps) {
           <TabsContent value="dashboard">
             {/* Welcome Section */}
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {profileData.name}!</h1>
-              <p className="text-gray-600">Here's how your coaching business is performing</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Welcome back, {profileData.name}!
+              </h1>
+              <p>{profileData.email}</p>
             </div>
 
             <div className="grid lg:grid-cols-3 gap-8">
