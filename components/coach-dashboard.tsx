@@ -30,6 +30,7 @@ import {
   CreditCard,
 } from "lucide-react"
 import { CoachStripeOnboarding } from "./coach-stripe-onboarding"
+import { signOut, auth } from "@/lib/firebase"
 
 interface AthleteDashboardProps {
   onLogout: () => void
@@ -167,6 +168,15 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     }
   }
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth)
+      onLogout()
+    } catch (error) {
+      console.error("Error signing out:", error)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -212,7 +222,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
             </button>
           </nav>
 
-          <Button onClick={onLogout} variant="outline">
+          <Button onClick={handleLogout} variant="outline">
             Logout
           </Button>
         </div>

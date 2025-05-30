@@ -24,6 +24,8 @@ import {
 import Image from "next/image"
 import { MemberMessagingInterface } from "./member-messaging-interface"
 import { SubscriptionCheckout } from "./subscription-checkout"
+import { signOut } from "@/lib/firebase"
+import { auth } from "@/lib/firebase"
 
 interface MemberDashboardProps {
   onLogout: () => void
@@ -181,6 +183,15 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     alert("Successfully subscribed! You now have access to all content.")
   }
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth)
+      onLogout()
+    } catch (error) {
+      console.error("Error signing out:", error)
+    }
+  }
+
   // Show subscription checkout
   if (showSubscriptionCheckout) {
     return (
@@ -253,7 +264,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
             </button>
           </nav>
 
-          <Button onClick={onLogout} variant="outline">
+          <Button onClick={handleLogout} variant="outline">
             Logout
           </Button>
         </div>

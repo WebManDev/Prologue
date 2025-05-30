@@ -12,6 +12,7 @@ import Link from "next/link"
 import { MemberDashboard } from "../components/member-dashboard"
 import { CoachDashboard } from "../components/coach-dashboard"
 import { AthleteOnboarding } from "../components/athlete-onboarding"
+import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile } from "@/lib/firebase"
 
 export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false)
@@ -491,7 +492,30 @@ function LoginPage({ onBack }: { onBack: () => void }) {
   const [showDashboard, setShowDashboard] = useState<string | null>(null)
   const [isSignUp, setIsSignUp] = useState(false)
   const [userRole, setUserRole] = useState<string | null>(null)
-  const [showRoleSelection, setShowRoleSelection] = useState(true) // Start with role selection
+  const [showRoleSelection, setShowRoleSelection] = useState(true)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [name, setName] = useState("")
+  const [error, setError] = useState("")
+  const [selectedSport, setSelectedSport] = useState("")
+
+  const sports = [
+    "Basketball",
+    "Football",
+    "Soccer",
+    "Tennis",
+    "Swimming",
+    "Volleyball",
+    "Track & Field",
+    "Golf",
+    "Baseball",
+    "Softball",
+    "Wrestling",
+    "Gymnastics",
+    "Cross Country",
+    "Hockey",
+    "Lacrosse"
+  ]
 
   const handleRoleSelect = (role: string) => {
     setUserRole(role)
@@ -502,15 +526,54 @@ function LoginPage({ onBack }: { onBack: () => void }) {
     setShowRoleSelection(true)
     setUserRole(null)
     setIsSignUp(false)
+    setError("")
   }
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Simulate login success and redirect to dashboard
-    if (userRole === "member") {
-      setShowDashboard("member")
-    } else if (userRole === "athlete") {
-      setShowDashboard("athlete")
+    setError("")
+
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      if (userRole === "member") {
+        setShowDashboard("member")
+      } else if (userRole === "athlete") {
+        setShowDashboard("athlete")
+      }
+    } catch (error: any) {
+      setError(error.message)
+    }
+  }
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+
+    if (userRole === "member" && !selectedSport) {
+      setError("Please select a sport")
+      return
+    }
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
+      
+      // Save athlete profile to Firestore if user is an athlete
+      if (userRole === "athlete") {
+        await saveAthleteProfile(userCredential.user.uid, {
+          name: "", // Will be set during onboarding
+          email,
+          sport: "", // Will be set during onboarding
+          role: "athlete"
+        });
+      }
+
+      if (userRole === "member") {
+        setShowDashboard("member")
+      } else if (userRole === "athlete") {
+        setShowDashboard("athlete")
+      }
+    } catch (error: any) {
+      setError(error.message)
     }
   }
 
@@ -627,22 +690,31 @@ function LoginPage({ onBack }: { onBack: () => void }) {
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
               {isSignUp
-                ? `Create your ${userRole === "coach" ? "coach" : "member"} account`
-                : `Welcome back, ${userRole === "coach" ? "Coach" : "Member"}!`}
+                ? `Create your ${userRole === "athlete" ? "coach" : "member"} account`
+                : `Welcome back, ${userRole === "athlete" ? "Coach" : "Member"}!`}
             </h1>
             <p className="text-gray-600">
               {isSignUp ? "Start your journey to athletic excellence" : "Sign in to continue your training"}
             </p>
           </div>
 
-          <form className="space-y-6" onSubmit={!isSignUp ? handleLoginSubmit : undefined}>
-            {isSignUp && (
+          {error && (
+            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+              {error}
+            </div>
+          )}
+
+          <form className="space-y-6" onSubmit={isSignUp ? handleSignUp : handleLoginSubmit}>
+            {isSignUp && userRole === "member" && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
                 <input
                   type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter your full name"
+                  required
                 />
               </div>
             )}
@@ -651,8 +723,11 @@ function LoginPage({ onBack }: { onBack: () => void }) {
               <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
               <input
                 type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Enter your email"
+                required
               />
             </div>
 
@@ -660,51 +735,31 @@ function LoginPage({ onBack }: { onBack: () => void }) {
               <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
               <input
                 type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Enter your password"
+                required
               />
             </div>
 
             {isSignUp && userRole === "member" && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Position</label>
-                <select className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                  <option value="">Select your position</option>
-                  <option value="guard">Guard</option>
-                  <option value="forward">Forward</option>
-                  <option value="center">Center</option>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Primary Sport</label>
+                <select
+                  value={selectedSport}
+                  onChange={(e) => setSelectedSport(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="">Select your primary sport</option>
+                  {sports.map((sport) => (
+                    <option key={sport} value={sport}>
+                      {sport}
+                    </option>
+                  ))}
                 </select>
               </div>
-            )}
-
-            {isSignUp && userRole === "athlete" && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Primary Sport</label>
-                  <select className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option value="">Select your primary sport</option>
-                    <option value="tennis">Tennis</option>
-                    <option value="soccer">Soccer</option>
-                    <option value="swimming">Swimming</option>
-                    <option value="basketball">Basketball</option>
-                    <option value="volleyball">Volleyball</option>
-                    <option value="track-field">Track & Field</option>
-                    <option value="golf">Golf</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Experience Level</label>
-                  <select className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option value="">Select your level</option>
-                    <option value="high-school">High School Athlete</option>
-                    <option value="college">College Athlete</option>
-                    <option value="professional">Professional Athlete</option>
-                    <option value="coach">Coach/Trainer</option>
-                    <option value="former-pro">Former Professional</option>
-                  </select>
-                </div>
-              </>
             )}
 
             <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3">
