@@ -12,7 +12,7 @@ import Link from "next/link"
 import { MemberDashboard } from "../components/member-dashboard"
 import { CoachDashboard } from "../components/coach-dashboard"
 import { AthleteOnboarding } from "../components/athlete-onboarding"
-import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile } from "@/lib/firebase"
+import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile } from "@/lib/firebase"
 
 export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false)
@@ -535,10 +535,19 @@ function LoginPage({ onBack }: { onBack: () => void }) {
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      
       if (userRole === "member") {
         setShowDashboard("member")
       } else if (userRole === "athlete") {
-        setShowDashboard("athlete")
+        // Check if athlete has completed their profile
+        const profile = await getAthleteProfile(userCredential.user.uid)
+        if (profile && profile.name && profile.bio && profile.specialties?.length > 0) {
+          // Profile is complete, go straight to dashboard
+          setShowDashboard("athlete-dashboard")
+        } else {
+          // Profile is incomplete, show onboarding
+          setShowDashboard("athlete")
+        }
       }
     } catch (error: any) {
       setError(error.message)

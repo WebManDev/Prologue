@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Upload, User, DollarSign, CheckCircle, ArrowRight } from "lucide-react"
 import Image from "next/image"
+import { auth, saveAthleteProfile, uploadProfilePicture } from "@/lib/firebase"
 
 interface AthleteOnboardingProps {
   onComplete: () => void
@@ -59,10 +60,36 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
     }
   }
 
-  const handleSaveAndContinue = () => {
-    // Here you would save the profile data to your database
-    console.log("Saving profile data:", profileData)
-    onComplete()
+  const handleSaveAndContinue = async () => {
+    if (!auth.currentUser) {
+      console.error("No user logged in")
+      return
+    }
+
+    try {
+      let profilePictureUrl = ""
+      
+      // Upload profile picture if one was selected
+      if (profileData.profilePicture) {
+        profilePictureUrl = await uploadProfilePicture(auth.currentUser.uid, profileData.profilePicture)
+      }
+
+      // Save profile data to Firebase
+      await saveAthleteProfile(auth.currentUser.uid, {
+        name: profileData.name,
+        email: auth.currentUser.email || "",
+        sport: profileData.specialties[0] || "", // Using first specialty as primary sport
+        role: "athlete",
+        bio: profileData.bio,
+        specialties: profileData.specialties,
+        profilePicture: profilePictureUrl,
+      })
+
+      onComplete()
+    } catch (error) {
+      console.error("Error saving profile:", error)
+      // You might want to show an error message to the user here
+    }
   }
 
   return (

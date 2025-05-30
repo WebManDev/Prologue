@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
 import { getFirestore, collection, doc, setDoc, getDoc } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBYUD1AZoCCLBGpICzMJ7dvwrsFeF0UWwQ",
@@ -25,6 +26,13 @@ const saveAthleteProfile = async (userId: string, profileData: {
   email: string;
   sport: string;
   role: string;
+  bio?: string;
+  specialties?: string[];
+  location?: string;
+  experience?: string;
+  certifications?: string[];
+  achievements?: string;
+  profilePicture?: string;
 }) => {
   try {
     await setDoc(doc(db, "athletes", userId), {
@@ -65,7 +73,7 @@ const saveMemberProfile = async (userId: string, profileData: {
   name: string;
   email: string;
   sport: string;
-  role: string;
+  role: string; 
 }) => {
   try {
     await setDoc(doc(db, "members", userId), {
@@ -102,6 +110,20 @@ const getMemberProfile = async (userId: string) => {
   }
 };
 
+// Function to upload profile picture
+const uploadProfilePicture = async (userId: string, file: File) => {
+  try {
+    const storage = getStorage();
+    const storageRef = ref(storage, `profile-pictures/${userId}`);
+    await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(storageRef);
+    return downloadURL;
+  } catch (error) {
+    console.error("Error uploading profile picture:", error);
+    throw error;
+  }
+};
+
 export { 
   auth, 
   signInWithEmailAndPassword, 
@@ -110,5 +132,6 @@ export {
   saveAthleteProfile,
   getAthleteProfile,
   saveMemberProfile,
-  getMemberProfile
+  getMemberProfile,
+  uploadProfilePicture
 }; 
