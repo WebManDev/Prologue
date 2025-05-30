@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -24,11 +24,23 @@ import {
 import Image from "next/image"
 import { MemberMessagingInterface } from "./member-messaging-interface"
 import { SubscriptionCheckout } from "./subscription-checkout"
-import { signOut } from "@/lib/firebase"
-import { auth } from "@/lib/firebase"
+import { signOut, auth, getMemberProfile } from "@/lib/firebase"
 
 interface MemberDashboardProps {
   onLogout: () => void
+}
+
+interface MemberProfile {
+  name: string;
+  email: string;
+  sport: string;
+  role: string;
+  subscriptions: any[];
+  savedContent: any[];
+  preferences: {
+    notifications: boolean;
+    emailUpdates: boolean;
+  };
 }
 
 export function MemberDashboard({ onLogout }: MemberDashboardProps) {
@@ -38,13 +50,25 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const [messagingCoach, setMessagingCoach] = useState<any>(null)
   const [viewingAthleteProfile, setViewingAthleteProfile] = useState<any>(null)
   const [showSubscriptionCheckout, setShowSubscriptionCheckout] = useState<any>(null)
+  const [profile, setProfile] = useState<MemberProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Current user data (would come from auth)
-  const currentUser = {
-    email: "marcus@example.com",
-    name: "Marcus Hill",
-    customerId: "cus_member_123",
-  }
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        if (auth.currentUser) {
+          const profileData = await getMemberProfile(auth.currentUser.uid);
+          setProfile(profileData as MemberProfile);
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
 
   // Sample subscribed athletes data with subscription info
   const subscribedAthletes = [
@@ -192,14 +216,36 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600">Error loading profile. Please try again.</p>
+          <Button onClick={handleLogout} className="mt-4">Logout</Button>
+        </div>
+      </div>
+    );
+  }
+
   // Show subscription checkout
   if (showSubscriptionCheckout) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <SubscriptionCheckout
           athlete={showSubscriptionCheckout}
-          memberEmail={currentUser.email}
-          memberName={currentUser.name}
+          memberEmail={profile.email}
+          memberName={profile.name}
           onSuccess={handleSubscriptionSuccess}
           onCancel={() => setShowSubscriptionCheckout(null)}
         />
@@ -275,7 +321,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
           <TabsContent value="dashboard">
             {/* Welcome Section */}
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, Marcus!</h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {profile.name}!</h1>
               <p className="text-gray-600">
                 Continue learning from your subscribed athletes and discover new training content.
               </p>

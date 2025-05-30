@@ -28,12 +28,28 @@ import {
   User,
   Target,
   CreditCard,
+  ArrowRight,
+  Play,
+  Settings,
+  LogOut,
 } from "lucide-react"
 import { CoachStripeOnboarding } from "./coach-stripe-onboarding"
-import { signOut, auth } from "@/lib/firebase"
+import { signOut, auth, getAthleteProfile } from "@/lib/firebase"
 
 interface AthleteDashboardProps {
   onLogout: () => void
+}
+
+interface AthleteProfile {
+  name: string;
+  email: string;
+  sport: string;
+  role: string;
+  subscribers: number;
+  posts: number;
+  rating: number;
+  stripeAccountId: string | null;
+  subscriptionStatus: string;
 }
 
 export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
@@ -62,6 +78,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     experience: "8 years",
     certifications: ["USPTA Certified", "Mental Performance Coach"],
   })
+
+  const [profile, setProfile] = useState<AthleteProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Sample data - in real app this would come from database
   const athleteStats = {
@@ -177,10 +196,49 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     }
   }
 
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        if (auth.currentUser) {
+          const profileData = await getAthleteProfile(auth.currentUser.uid);
+          setProfile(profileData as AthleteProfile);
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600">Error loading profile. Please try again.</p>
+          <Button onClick={handleLogout} className="mt-4">Logout</Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -189,42 +247,16 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
             <span className="text-2xl font-bold text-blue-600">PROLOGUE</span>
           </div>
 
-          <nav className="hidden md:flex items-center space-x-8">
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`transition-colors ${activeTab === "dashboard" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab("content")}
-              className={`transition-colors ${activeTab === "content" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
-            >
-              My Content
-            </button>
-            <button
-              onClick={() => setActiveTab("subscribers")}
-              className={`transition-colors ${activeTab === "subscribers" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
-            >
-              Subscribers
-            </button>
-            <button
-              onClick={() => setActiveTab("earnings")}
-              className={`transition-colors ${activeTab === "earnings" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
-            >
-              Earnings
-            </button>
-            <button
-              onClick={() => setActiveTab("profile")}
-              className={`transition-colors ${activeTab === "profile" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
-            >
-              Profile
-            </button>
-          </nav>
-
-          <Button onClick={handleLogout} variant="outline">
-            Logout
-          </Button>
+          <div className="flex items-center space-x-4">
+            <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+              <Settings className="h-5 w-5 mr-2" />
+              Settings
+            </Button>
+            <Button variant="ghost" onClick={handleLogout} className="text-gray-600 hover:text-gray-700">
+              <LogOut className="h-5 w-5 mr-2" />
+              Logout
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -233,7 +265,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           <TabsContent value="dashboard">
             {/* Welcome Section */}
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, Sarah!</h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {profile.name || 'Set your name'}!</h1>
               <p className="text-gray-600">Share exclusive content with your subscribers and grow your community.</p>
             </div>
 

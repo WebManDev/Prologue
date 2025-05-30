@@ -12,7 +12,7 @@ import Link from "next/link"
 import { MemberDashboard } from "../components/member-dashboard"
 import { CoachDashboard } from "../components/coach-dashboard"
 import { AthleteOnboarding } from "../components/athlete-onboarding"
-import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile } from "@/lib/firebase"
+import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile } from "@/lib/firebase"
 
 export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false)
@@ -557,13 +557,20 @@ function LoginPage({ onBack }: { onBack: () => void }) {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       
-      // Save athlete profile to Firestore if user is an athlete
+      // Save profile to Firestore based on role
       if (userRole === "athlete") {
         await saveAthleteProfile(userCredential.user.uid, {
           name: "", // Will be set during onboarding
           email,
           sport: "", // Will be set during onboarding
           role: "athlete"
+        });
+      } else if (userRole === "member") {
+        await saveMemberProfile(userCredential.user.uid, {
+          name,
+          email,
+          sport: selectedSport,
+          role: "member"
         });
       }
 

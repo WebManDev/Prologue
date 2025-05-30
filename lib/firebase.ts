@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, collection, doc, setDoc } from "firebase/firestore";
+import { getFirestore, collection, doc, setDoc, getDoc } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBYUD1AZoCCLBGpICzMJ7dvwrsFeF0UWwQ",
@@ -42,10 +42,73 @@ const saveAthleteProfile = async (userId: string, profileData: {
   }
 };
 
+// Function to get athlete profile
+const getAthleteProfile = async (userId: string) => {
+  try {
+    const docRef = doc(db, "athletes", userId);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      return docSnap.data();
+    } else {
+      console.log("No such document!");
+      return null;
+    }
+  } catch (error) {
+    console.error("Error getting athlete profile:", error);
+    throw error;
+  }
+};
+
+// Function to save member profile
+const saveMemberProfile = async (userId: string, profileData: {
+  name: string;
+  email: string;
+  sport: string;
+  role: string;
+}) => {
+  try {
+    await setDoc(doc(db, "members", userId), {
+      ...profileData,
+      createdAt: new Date().toISOString(),
+      subscriptions: [],
+      savedContent: [],
+      preferences: {
+        notifications: true,
+        emailUpdates: true
+      }
+    });
+  } catch (error) {
+    console.error("Error saving member profile:", error);
+    throw error;
+  }
+};
+
+// Function to get member profile
+const getMemberProfile = async (userId: string) => {
+  try {
+    const docRef = doc(db, "members", userId);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      return docSnap.data();
+    } else {
+      console.log("No such document!");
+      return null;
+    }
+  } catch (error) {
+    console.error("Error getting member profile:", error);
+    throw error;
+  }
+};
+
 export { 
   auth, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
   signOut,
-  saveAthleteProfile
+  saveAthleteProfile,
+  getAthleteProfile,
+  saveMemberProfile,
+  getMemberProfile
 }; 
