@@ -39,6 +39,7 @@ import { CoachStripeOnboarding } from "./coach-stripe-onboarding"
 import { signOut, auth, getAthleteProfile, saveAthletePost } from "@/lib/firebase"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
 
 interface AthleteDashboardProps {
   onLogout: () => void
@@ -59,6 +60,8 @@ interface AthleteProfile {
 export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [activeTab, setActiveTab] = useState("dashboard")
   const [creatingPost, setCreatingPost] = useState(false)
+  const [isUploadingImage, setIsUploadingImage] = useState(false); 
+
   const [postType, setPostType] = useState<"workout" | "blog">("workout")
   const [stripeAccountId, setStripeAccountId] = useState<string | null>("acct_athlete_example")
   const [showStripeOnboarding, setShowStripeOnboarding] = useState(false)
@@ -232,24 +235,53 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     }))
   }
 
+  const handleCoverImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+  
+    setIsUploadingImage(true); // ✅ Start uploading state
+    try {
+      const storage = getStorage();
+      const fileRef = storageRef(storage, `blog-covers/${auth.currentUser?.uid}/${Date.now()}_${file.name}`);
+      await uploadBytes(fileRef, file);
+      const url = await getDownloadURL(fileRef);
+      setNewBlogPost((prev) => ({
+        ...prev,
+        coverImage: url,
+      }));
+    } catch (err) {
+      alert("Failed to upload image");
+      console.error(err);
+    } finally {
+      setIsUploadingImage(false); // ✅ Done uploading
+    }
+  };
+  
+
   const handleCreateBlogPost = async () => {
     setIsSubmitting(true)
     try {
       if (!auth.currentUser) throw new Error("Not logged in")
-      await saveAthletePost(auth.currentUser.uid, {
+  
+      const response = await saveAthletePost(auth.currentUser.uid, {
         title: newBlogPost.title,
         content: newBlogPost.content,
         coverImage: newBlogPost.coverImage,
       })
+  
+      console.log("Post saved:", response)
+  
       setBlogDialogOpen(false)
       setNewBlogPost({ title: "", content: "", coverImage: "" })
-      // Optionally show a toast here
+  
     } catch (e: any) {
-      // Optionally show a toast here
-      alert(e.message)
+      console.error("Failed to create blog post:", e)
+      alert(e.message || "Unexpected error")
+    } finally {
+      setIsSubmitting(false)
     }
-    setIsSubmitting(false)
   }
+  
 
   if (loading) {
     return (
@@ -1195,20 +1227,24 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
             </div>
             <div>
               <Label htmlFor="coverImage" className="mb-2 block">
-                Cover Image URL (optional)
+                Cover Image (optional)
               </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="coverImage"
-                  name="coverImage"
-                  value={newBlogPost.coverImage}
-                  onChange={handleBlogInputChange}
-                  placeholder="https://example.com/image.jpg"
-                />
-                <Button variant="outline" size="icon" className="shrink-0">
-                  <ImageIcon className="h-4 w-4" />
+              <div className="flex gap-2 items-center">
+                <Button variant="outline" size="icon" className="shrink-0" asChild>
+                  <label>
+                    <ImageIcon className="h-4 w-4" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCoverImageFile}
+                      className="hidden"
+                    />
+                  </label>
                 </Button>
               </div>
+              {newBlogPost.coverImage && newBlogPost.coverImage.startsWith('http') && (
+                <img src={newBlogPost.coverImage} alt="Cover Preview" className="mt-2 max-h-32 rounded" />
+              )}
             </div>
             <div>
               <Label htmlFor="content" className="mb-2 block">
