@@ -610,7 +610,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                             className="flex-1 bg-orange-500 hover:bg-orange-600"
                             onClick={() => handleSubscribe(athlete)}
                           >
-                            Subscribe $10/month
+                            Subscribe 
                           </Button>
                           <Button variant="outline" size="sm" onClick={() => setViewingAthleteProfile(athlete)}>
                             Preview
