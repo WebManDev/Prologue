@@ -20,12 +20,13 @@ import {
   Lock,
   FileText,
   CreditCard,
+  AlertCircle,
 } from "lucide-react"
 import Image from "next/image"
 import { MemberMessagingInterface } from "./member-messaging-interface"
 import { SubscriptionCheckout } from "./subscription-checkout"
 import { signOut, auth, getMemberProfile, getAllAthletes, getAthletesByIds, rateAthlete } from "@/lib/firebase"
-import { getFirestore, collection, query, where, getDocs } from "firebase/firestore"
+import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, onSnapshot } from "firebase/firestore"
 
 interface MemberDashboardProps {
   onLogout: () => void
@@ -64,6 +65,8 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const [loadingAthletes, setLoadingAthletes] = useState(true);
   const [subscribedAthletes, setSubscribedAthletes] = useState<any[]>([]);
   const [loadingSubscribed, setLoadingSubscribed] = useState(true);
+  const [feedbackRequests, setFeedbackRequests] = useState<any[]>([]);
+  const [loadingFeedback, setLoadingFeedback] = useState(true);
   const db = getFirestore();
 
   useEffect(() => {
@@ -113,6 +116,27 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     }
     fetchSubscribedAthletes();
   }, [profile]);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    setLoadingFeedback(true);
+    const db = getFirestore();
+    const requestsQuery = query(
+      collection(db, "videoFeedbackRequests"),
+      where("userId", "==", auth.currentUser.uid),
+      orderBy("createdAt", "desc")
+    );
+    const unsubscribe = onSnapshot(requestsQuery, (snapshot) => {
+      const requests = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate()
+      }));
+      setFeedbackRequests(requests);
+      setLoadingFeedback(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const refreshSubscribedAthletes = async () => {
     if (!auth.currentUser) return;
@@ -168,6 +192,16 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
       setViewingAthleteProfile(athlete);
     }
   };
+
+  function StarDisplay({ value }: { value: number }) {
+    return (
+      <div className="flex items-center space-x-1">
+        {[1,2,3,4,5].map((star) => (
+          <Star key={star} className={`h-5 w-5 ${value >= star ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
+        ))}
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -352,6 +386,84 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Feedback Requests Section */}
+                <div className="mt-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">My Feedback Requests</h2>
+                  {loadingFeedback ? (
+                    <div className="text-center py-12">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Loading feedback requests...</h3>
+                    </div>
+                  ) : feedbackRequests.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Video className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback requests yet</h3>
+                      <p className="text-gray-600">When you request video feedback, it will appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-6">
+                      {feedbackRequests.map((request) => (
+                        <Card key={request.id}>
+                          <CardContent className="p-6">
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2 mb-2">
+                                  <h3 className="text-xl font-semibold text-gray-900">Video Feedback Request</h3>
+                                  <Badge variant={
+                                    request.status === "pending_payment" ? "destructive" :
+                                    request.status === "pending" ? "default" :
+                                    request.status === "completed" ? "secondary" : "outline"
+                                  }>
+                                    {request.status === "pending_payment" ? "Payment Pending" :
+                                     request.status === "pending" ? "Pending Review" :
+                                     request.status === "completed" ? "Completed" : request.status}
+                                  </Badge>
+                                </div>
+                                <p className="text-gray-600 mb-4">{request.feedbackText}</p>
+                                {request.videoUrl && (
+                                  <div className="mb-4">
+                                    <video controls className="w-full rounded-lg" src={request.videoUrl} />
+                                  </div>
+                                )}
+                                {request.status === "pending_payment" && (
+                                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                                    <p className="text-yellow-800">
+                                      <AlertCircle className="h-4 w-4 inline mr-2" />
+                                      Waiting for payment confirmation
+                                    </p>
+                                  </div>
+                                )}
+                                {request.status === "pending" && (
+                                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                    <p className="text-blue-800">Your request is pending review by the coach.</p>
+                                  </div>
+                                )}
+                                {request.status === "completed" && (
+                                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                                    <h4 className="font-medium text-gray-900 mb-2">Coach's Feedback</h4>
+                                    <StarDisplay value={request.rating || 0} />
+                                    <p className="text-gray-700 mt-2">{request.response}</p>
+                                    <p className="text-sm text-gray-500 mt-2">
+                                      Responded on {formatDate(request.respondedAt)}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm text-gray-500">
+                                  Requested on {formatDate(request.createdAt)}
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {/* End Feedback Requests Section */}
+
               </div>
 
               {/* Sidebar */}
