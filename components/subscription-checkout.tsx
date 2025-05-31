@@ -12,9 +12,7 @@ import { Loader2, CreditCard, Shield, CheckCircle, Users, Star } from "lucide-re
 import { addSubscriptionForMember, auth } from "@/lib/firebase"
 
 // Hardcoded keys as requested
-const STRIPE_PUBLISHABLE_KEY = "pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu"
-
-const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY)
+const stripePromise = loadStripe("pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu")
 
 interface SubscriptionCheckoutProps {
   athlete: {

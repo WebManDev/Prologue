@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, CreditCard, Shield, CheckCircle } from "lucide-react"
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!)
+const stripePromise = loadStripe("pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu")
 
 interface Course {
   id: number
@@ -54,7 +54,7 @@ function CheckoutForm({ course, studentId, onSuccess, onCancel }: StripeCheckout
 
     try {
       // Create payment intent
-      const response = await fetch("/api/stripe/create-payment-intent", {
+      const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -67,7 +67,7 @@ function CheckoutForm({ course, studentId, onSuccess, onCancel }: StripeCheckout
         }),
       })
 
-      const { clientSecret, error: apiError } = await response.json()
+      const { url, error: apiError } = await response.json()
 
       if (apiError) {
         setError(apiError)
@@ -75,24 +75,8 @@ function CheckoutForm({ course, studentId, onSuccess, onCancel }: StripeCheckout
         return
       }
 
-      // Confirm payment
-      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: {
-          card: elements.getElement(CardElement)!,
-          billing_details: {
-            name: "Student Name", // You would get this from user data
-          },
-        },
-      })
-
-      if (stripeError) {
-        setError(stripeError.message || "Payment failed")
-      } else if (paymentIntent.status === "succeeded") {
-        setPaymentSucceeded(true)
-        setTimeout(() => {
-          onSuccess()
-        }, 2000)
-      }
+      // Redirect to Stripe Checkout
+      window.location.href = url
     } catch (err) {
       setError("An unexpected error occurred")
     }

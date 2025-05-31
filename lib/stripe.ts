@@ -7,7 +7,7 @@ export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 // Stripe configuration
 export const STRIPE_CONFIG = {
-  publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
+  publishableKey: "pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu",
   webhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
   currency: "usd",
   platformFeePercentage: 0.95, // 15% platform fee

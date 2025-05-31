@@ -8,17 +8,24 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Send, Paperclip, Video, Phone, MoreVertical, Star, Calendar, Clock } from "lucide-react"
 import { auth, listenForMessages, sendMessage } from "@/lib/firebase"
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import { getFirestore, collection, addDoc, serverTimestamp, updateDoc, doc, increment } from "firebase/firestore"
 
 interface MemberMessagingInterfaceProps {
   coach: any
   onBack: () => void
 }
 
+const STRIPE_PUBLISHABLE_KEY = "pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu";
+
 export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInterfaceProps) {
   const [message, setMessage] = useState("")
   const [activeTab, setActiveTab] = useState("chat")
   const [messages, setMessages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [videoFile, setVideoFile] = useState<File | null>(null)
+  const [feedbackText, setFeedbackText] = useState("")
+  const [isUploading, setIsUploading] = useState(false)
 
   // Determine roles and IDs
   const currentUser = auth.currentUser
@@ -52,6 +59,46 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
     })
     setMessage("")
   }
+
+  const handleSubmit = async () => {
+    if (!videoFile) {
+      alert("Please select a video file.");
+      return;
+    }
+    if (!feedbackText.trim()) {
+      alert("Please enter feedback details.");
+      return;
+    }
+    setIsUploading(true);
+    try {
+      const userId = auth.currentUser?.uid;
+      const coachId = coach.id || coach.athleteId;
+      const storage = getStorage();
+      const storageRef = ref(storage, `video-feedback/${userId}/${Date.now()}_${videoFile.name}`);
+      await uploadBytes(storageRef, videoFile);
+      const downloadURL = await getDownloadURL(storageRef);
+      const db = getFirestore();
+      await addDoc(collection(db, "videoFeedbackRequests"), {
+        userId,
+        coachId,
+        videoUrl: downloadURL,
+        feedbackText,
+        status: "pending",
+        createdAt: serverTimestamp(),
+      });
+      // Update athlete's profile
+      await updateDoc(doc(db, "athletes", coachId), {
+        feedbacks: increment(1)
+      });
+      alert("It's successful!");
+      setVideoFile(null);
+      setFeedbackText("");
+    } catch (error) {
+      alert("Upload failed: " + (error as Error).message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const coachInfo = {
     name: coach.coach || coach.name,
@@ -220,14 +267,23 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                         Upload a video and get personalized feedback from {coachInfo.name}
                       </p>
                     </div>
-
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
                       <Video className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <p className="text-lg font-medium text-gray-900 mb-2">Upload Training Video</p>
                       <p className="text-sm text-gray-600">MP4, MOV, AVI up to 100MB</p>
-                      <Button className="mt-4">Choose File</Button>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        style={{ display: "none" }}
+                        id="video-upload"
+                        onChange={e => setVideoFile(e.target.files?.[0] || null)}
+                      />
+                      <label htmlFor="video-upload">
+                        <Button className="mt-4" asChild>
+                          <span>{videoFile ? videoFile.name : "Choose File"}</span>
+                        </Button>
+                      </label>
                     </div>
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         What would you like feedback on?
@@ -235,28 +291,17 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                       <Textarea
                         placeholder="Describe what you're working on and specific areas you'd like feedback on..."
                         rows={4}
+                        value={feedbackText}
+                        onChange={e => setFeedbackText(e.target.value)}
                       />
                     </div>
-
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="border rounded-lg p-3 text-center">
-                        <div className="font-medium text-sm">Standard</div>
-                        <div className="text-xs text-gray-600">3-5 days</div>
-                        <div className="text-sm font-medium text-green-600">Free</div>
-                      </div>
-                      <div className="border rounded-lg p-3 text-center bg-blue-50 border-blue-200">
-                        <div className="font-medium text-sm">Priority</div>
-                        <div className="text-xs text-gray-600">1-2 days</div>
-                        <div className="text-sm font-medium text-blue-600">$9.99</div>
-                      </div>
-                      <div className="border rounded-lg p-3 text-center">
-                        <div className="font-medium text-sm">Express</div>
-                        <div className="text-xs text-gray-600">24 hours</div>
-                        <div className="text-sm font-medium text-orange-600">$19.99</div>
-                      </div>
-                    </div>
-
-                    <Button className="w-full bg-orange-500 hover:bg-orange-600">Submit for Feedback</Button>
+                    <Button
+                      className="w-full bg-orange-500 hover:bg-orange-600"
+                      onClick={handleSubmit}
+                      disabled={isUploading}
+                    >
+                      {isUploading ? "Uploading..." : "Submit for Feedback"}
+                    </Button>
                   </div>
                 </CardContent>
               )}
