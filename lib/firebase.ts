@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp } from "firebase/firestore";
+import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const firebaseConfig = {
@@ -151,6 +151,17 @@ const saveAthletePost = async (
   }
 };
 
+// Function to get all athletes
+const getAllAthletes = async () => {
+  try {
+    const snapshot = await getDocs(collection(db, "athletes"));
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error("Error fetching all athletes:", error);
+    throw error;
+  }
+};
+
 export { 
   auth, 
   signInWithEmailAndPassword, 
@@ -162,4 +173,5 @@ export {
   getMemberProfile,
   uploadProfilePicture,
   saveAthletePost,
+  getAllAthletes,
 }; 

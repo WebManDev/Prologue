@@ -24,7 +24,7 @@ import {
 import Image from "next/image"
 import { MemberMessagingInterface } from "./member-messaging-interface"
 import { SubscriptionCheckout } from "./subscription-checkout"
-import { signOut, auth, getMemberProfile } from "@/lib/firebase"
+import { signOut, auth, getMemberProfile, getAllAthletes } from "@/lib/firebase"
 
 interface MemberDashboardProps {
   onLogout: () => void
@@ -52,6 +52,8 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const [showSubscriptionCheckout, setShowSubscriptionCheckout] = useState<any>(null)
   const [profile, setProfile] = useState<MemberProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [availableAthletes, setAvailableAthletes] = useState<any[]>([]);
+  const [loadingAthletes, setLoadingAthletes] = useState(true);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -68,6 +70,20 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     };
 
     fetchProfile();
+  }, []);
+
+  useEffect(() => {
+    const fetchAthletes = async () => {
+      try {
+        const athletes = await getAllAthletes();
+        setAvailableAthletes(athletes);
+      } catch (error) {
+        setAvailableAthletes([]);
+      } finally {
+        setLoadingAthletes(false);
+      }
+    };
+    fetchAthletes();
   }, []);
 
   // Sample subscribed athletes data with subscription info
@@ -134,57 +150,6 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
           type: "workout",
           views: 124,
           createdAt: "1 day ago",
-          subscribersOnly: true,
-        },
-      ],
-    },
-  ]
-
-  // Available athletes to discover (not subscribed)
-  const availableAthletes = [
-    {
-      id: 4,
-      name: "Coach Thompson",
-      sport: "Basketball",
-      bio: "Former college basketball player turned coach. Specializing in shooting mechanics, defensive strategies, and team play.",
-      profilePic: "/placeholder.svg?height=60&width=60",
-      subscribers: 156,
-      posts: 42,
-      rating: 4.6,
-      stripeAccountId: "acct_thompson_123",
-      previewPosts: [
-        {
-          id: 10,
-          title: "Perfect Your Jump Shot",
-          description: "Master the fundamentals of shooting form and consistency.",
-          type: "workout",
-          subscribersOnly: true,
-        },
-        {
-          id: 11,
-          title: "Basketball IQ: Reading the Game",
-          description: "Develop court vision and basketball intelligence.",
-          type: "blog",
-          subscribersOnly: true,
-        },
-      ],
-    },
-    {
-      id: 5,
-      name: "Lisa Park",
-      sport: "Volleyball",
-      bio: "Professional volleyball coach with 10+ years experience. Expert in serving, spiking, and team coordination.",
-      profilePic: "/placeholder.svg?height=60&width=60",
-      subscribers: 89,
-      posts: 31,
-      rating: 4.8,
-      stripeAccountId: "acct_lisa_123",
-      previewPosts: [
-        {
-          id: 12,
-          title: "Spike Technique Fundamentals",
-          description: "Learn proper approach and hitting technique.",
-          type: "workout",
           subscribersOnly: true,
         },
       ],
@@ -599,71 +564,63 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredAthletes.map((athlete) => (
-                  <Card key={athlete.id} className="hover:shadow-lg transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex items-center space-x-3 mb-4">
-                        <Image
-                          src={athlete.profilePic || "/placeholder.svg"}
-                          alt={athlete.name}
-                          width={60}
-                          height={60}
-                          className="rounded-full"
-                        />
-                        <div>
-                          <h3 className="font-semibold text-lg">{athlete.name}</h3>
-                          <Badge variant="outline">{athlete.sport}</Badge>
+              {loadingAthletes ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Loading athletes...</h3>
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredAthletes.map((athlete) => (
+                    <Card key={athlete.id} className="hover:shadow-lg transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex items-center space-x-3 mb-4">
+                          <Image
+                            src={athlete.profilePicture || "/placeholder.svg"}
+                            alt={athlete.name}
+                            width={60}
+                            height={60}
+                            className="rounded-full"
+                          />
+                          <div>
+                            <h3 className="font-semibold text-lg">{athlete.name}</h3>
+                            <Badge variant="outline">{athlete.sport}</Badge>
+                          </div>
                         </div>
-                      </div>
 
-                      <p className="text-sm text-gray-600 mb-4 line-clamp-3">{athlete.bio}</p>
+                        <p className="text-sm text-gray-600 mb-4 line-clamp-3">{athlete.bio}</p>
 
-                      <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
-                        <span className="flex items-center space-x-1">
-                          <Users className="h-4 w-4" />
-                          <span>{athlete.subscribers}</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <Video className="h-4 w-4" />
-                          <span>{athlete.posts} posts</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span>{athlete.rating}</span>
-                        </span>
-                      </div>
-
-                      {/* Preview of locked content */}
-                      <div className="mb-4 p-3 bg-gray-50 rounded-lg border">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <Lock className="h-4 w-4 text-gray-500" />
-                          <span className="text-sm font-medium text-gray-700">Exclusive Content Preview</span>
+                        <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
+                          <span className="flex items-center space-x-1">
+                            <Users className="h-4 w-4" />
+                            <span>{athlete.subscribers}</span>
+                          </span>
+                          <span className="flex items-center space-x-1">
+                            <Video className="h-4 w-4" />
+                            <span>{athlete.posts} posts</span>
+                          </span>
+                          <span className="flex items-center space-x-1">
+                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                            <span>{athlete.rating}</span>
+                          </span>
                         </div>
-                        <div className="space-y-1">
-                          {athlete.previewPosts?.slice(0, 2).map((post, index) => (
-                            <div key={index} className="text-xs text-gray-600">
-                              • {post.title}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
 
-                      <div className="flex space-x-2">
-                        <Button
-                          className="flex-1 bg-orange-500 hover:bg-orange-600"
-                          onClick={() => handleSubscribe(athlete)}
-                        >
-                          Subscribe $10/month
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setViewingAthleteProfile(athlete)}>
-                          Preview
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                        <div className="flex space-x-2">
+                          <Button
+                            className="flex-1 bg-orange-500 hover:bg-orange-600"
+                            onClick={() => handleSubscribe(athlete)}
+                          >
+                            Subscribe $10/month
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => setViewingAthleteProfile(athlete)}>
+                            Preview
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
 
               {filteredAthletes.length === 0 && (
                 <div className="text-center py-12">
