@@ -24,7 +24,7 @@ import {
 import Image from "next/image"
 import { MemberMessagingInterface } from "./member-messaging-interface"
 import { SubscriptionCheckout } from "./subscription-checkout"
-import { signOut, auth, getMemberProfile, getAllAthletes } from "@/lib/firebase"
+import { signOut, auth, getMemberProfile, getAllAthletes, getAthletesByIds } from "@/lib/firebase"
 
 interface MemberDashboardProps {
   onLogout: () => void
@@ -54,6 +54,8 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [availableAthletes, setAvailableAthletes] = useState<any[]>([]);
   const [loadingAthletes, setLoadingAthletes] = useState(true);
+  const [subscribedAthletes, setSubscribedAthletes] = useState<any[]>([]);
+  const [loadingSubscribed, setLoadingSubscribed] = useState(true);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -86,81 +88,44 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     fetchAthletes();
   }, []);
 
-  // Sample subscribed athletes data with subscription info
-  const subscribedAthletes = [
-    {
-      id: 1,
-      name: "Sarah Johnson",
-      sport: "Tennis",
-      bio: "Former college tennis player with 8 years of coaching experience. Specializing in serve technique and mental game strategies.",
-      profilePic: "/placeholder.svg?height=60&width=60",
-      subscribers: 47,
-      posts: 23,
-      rating: 4.9,
-      stripeAccountId: "acct_sarah_123",
-      subscriptionId: "sub_sarah_member_123",
-      subscriptionStatus: "active",
-      recentPosts: [
-        {
-          id: 1,
-          title: "Perfect Your Tennis Serve",
-          description: "Learn the key mechanics for a powerful and accurate serve.",
-          content:
-            "In this comprehensive workout, we'll break down the tennis serve into its fundamental components. Start with proper stance, focus on ball toss consistency, and develop a smooth follow-through motion...",
-          videoLink: "https://youtube.com/watch?v=example1",
-          type: "workout",
-          views: 156,
-          createdAt: "2 days ago",
-          subscribersOnly: true,
-        },
-        {
-          id: 2,
-          title: "Mental Game: Staying Focused",
-          description: "Develop mental toughness and focus techniques.",
-          content:
-            "Mental preparation is just as important as physical training. Here are my top strategies for maintaining focus during high-pressure situations...",
-          videoLink: "",
-          type: "blog",
-          views: 89,
-          createdAt: "5 days ago",
-          subscribersOnly: true,
-        },
-      ],
-    },
-    {
-      id: 2,
-      name: "Marcus Rodriguez",
-      sport: "Soccer",
-      bio: "Professional soccer coach with experience training youth and college teams. Focus on ball control, passing, and tactical awareness.",
-      profilePic: "/placeholder.svg?height=60&width=60",
-      subscribers: 32,
-      posts: 18,
-      rating: 4.7,
-      stripeAccountId: "acct_marcus_123",
-      subscriptionId: "sub_marcus_member_123",
-      subscriptionStatus: "active",
-      recentPosts: [
-        {
-          id: 3,
-          title: "Ball Control Mastery",
-          description: "Improve your first touch and ball control skills.",
-          content:
-            "Ball control is the foundation of great soccer. Practice these drills daily to improve your first touch and overall ball handling...",
-          videoLink: "https://youtube.com/watch?v=example3",
-          type: "workout",
-          views: 124,
-          createdAt: "1 day ago",
-          subscribersOnly: true,
-        },
-      ],
-    },
-  ]
+  useEffect(() => {
+    async function fetchSubscribedAthletes() {
+      if (!auth.currentUser) return;
+      const profileData = await getMemberProfile(auth.currentUser.uid);
+      const subscriptions = profileData?.subscriptions || [];
+      if (subscriptions.length === 0) {
+        setSubscribedAthletes([]);
+        setLoadingSubscribed(false);
+        return;
+      }
+      const athletes = await getAthletesByIds(subscriptions);
+      setSubscribedAthletes(athletes);
+      setLoadingSubscribed(false);
+    }
+    fetchSubscribedAthletes();
+  }, [profile]);
 
+  const refreshSubscribedAthletes = async () => {
+    if (!auth.currentUser) return;
+    const profileData = await getMemberProfile(auth.currentUser.uid);
+    const subscriptions = profileData?.subscriptions || [];
+    if (subscriptions.length === 0) {
+      setSubscribedAthletes([]);
+      setLoadingSubscribed(false);
+      return;
+    }
+    const athletes = await getAthletesByIds(subscriptions);
+    setSubscribedAthletes(athletes);
+    setLoadingSubscribed(false);
+  };
+
+  const subscribedIds = new Set(subscribedAthletes.map((a) => a.id));
   const filteredAthletes = availableAthletes.filter(
     (athlete) =>
-      athlete.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      athlete.sport.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+      (athlete.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        athlete.sport.toLowerCase().includes(searchQuery.toLowerCase())) &&
+      !subscribedIds.has(athlete.id)
+  );
 
   const handleSubscribe = (athlete: any) => {
     setShowSubscriptionCheckout(athlete)
@@ -211,7 +176,11 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
           athlete={showSubscriptionCheckout}
           memberEmail={profile.email}
           memberName={profile.name}
-          onSuccess={handleSubscriptionSuccess}
+          onSuccess={async () => {
+            await refreshSubscribedAthletes();
+            setShowSubscriptionCheckout(null);
+            alert("Successfully subscribed! You now have access to all content.");
+          }}
           onCancel={() => setShowSubscriptionCheckout(null)}
         />
       </div>
@@ -348,7 +317,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                   <CardContent>
                     <div className="space-y-4">
                       {subscribedAthletes.flatMap((athlete) =>
-                        athlete.recentPosts.slice(0, 1).map((post) => (
+                        (athlete.recentPosts || []).slice(0, 1).map((post: any) => (
                           <div key={post.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
                             <div className="flex items-start space-x-3 mb-3">
                               <Image
@@ -428,7 +397,6 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                       </div>
                       <div className="text-center">
                         <div className="text-3xl font-bold text-green-600 mb-1">${subscribedAthletes.length * 10}</div>
-                        <div className="text-sm text-gray-600">Monthly Cost</div>
                       </div>
                     </div>
                   </CardContent>

@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference } from "firebase/firestore";
+import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const firebaseConfig = {
@@ -162,6 +162,23 @@ const getAllAthletes = async () => {
   }
 };
 
+// Add athleteId to member's subscriptions
+const addSubscriptionForMember = async (userId: string, athleteId: string) => {
+  const userRef = doc(db, "members", userId);
+  await updateDoc(userRef, {
+    subscriptions: arrayUnion(athleteId)
+  });
+};
+
+// Fetch multiple athlete profiles by IDs
+const getAthletesByIds = async (athleteIds: string[]) => {
+  if (!athleteIds.length) return [];
+  const docsSnap = await Promise.all(
+    athleteIds.map(id => getDoc(doc(db, "athletes", id)))
+  );
+  return docsSnap.filter(d => d.exists()).map(d => ({ id: d.id, ...d.data() }));
+};
+
 export { 
   auth, 
   signInWithEmailAndPassword, 
@@ -174,4 +191,6 @@ export {
   uploadProfilePicture,
   saveAthletePost,
   getAllAthletes,
+  addSubscriptionForMember,
+  getAthletesByIds,
 }; 

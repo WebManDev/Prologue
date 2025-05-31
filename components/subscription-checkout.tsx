@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, CreditCard, Shield, CheckCircle, Users, Star } from "lucide-react"
+import { addSubscriptionForMember, auth } from "@/lib/firebase"
 
 // Hardcoded keys as requested
 const STRIPE_PUBLISHABLE_KEY = "pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu"
@@ -107,6 +108,10 @@ function CheckoutForm({ athlete, memberEmail, memberName, onSuccess, onCancel }:
       if (result.error) {
         setError(result.error)
       } else {
+        // Add athlete to member's subscriptions in Firestore
+        if (auth.currentUser) {
+          await addSubscriptionForMember(auth.currentUser.uid, athlete.id)
+        }
         setSubscriptionSucceeded(true)
         setTimeout(() => {
           onSuccess()
