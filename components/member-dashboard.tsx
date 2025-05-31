@@ -24,7 +24,8 @@ import {
 import Image from "next/image"
 import { MemberMessagingInterface } from "./member-messaging-interface"
 import { SubscriptionCheckout } from "./subscription-checkout"
-import { signOut, auth, getMemberProfile, getAllAthletes, getAthletesByIds } from "@/lib/firebase"
+import { signOut, auth, getMemberProfile, getAllAthletes, getAthletesByIds, rateAthlete } from "@/lib/firebase"
+import { getFirestore, collection, query, where, getDocs } from "firebase/firestore"
 
 interface MemberDashboardProps {
   onLogout: () => void
@@ -43,6 +44,13 @@ interface MemberProfile {
   };
 }
 
+function formatDate(ts: any) {
+  if (!ts) return "";
+  if (typeof ts === "string") return new Date(ts).toLocaleDateString();
+  if (ts.seconds) return new Date(ts.seconds * 1000).toLocaleDateString();
+  return "";
+}
+
 export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const [activeTab, setActiveTab] = useState("dashboard")
   const [searchQuery, setSearchQuery] = useState("")
@@ -56,6 +64,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const [loadingAthletes, setLoadingAthletes] = useState(true);
   const [subscribedAthletes, setSubscribedAthletes] = useState<any[]>([]);
   const [loadingSubscribed, setLoadingSubscribed] = useState(true);
+  const db = getFirestore();
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -145,6 +154,20 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
       console.error("Error signing out:", error)
     }
   }
+
+  const handleViewAthleteProfile = async (athlete: any) => {
+    // Check if the user is subscribed to this athlete
+    const isSubscribed = subscribedAthletes.some((sub) => sub.id === athlete.id);
+    if (isSubscribed) {
+      // Fetch posts for this athlete
+      const postsQuery = query(collection(db, "athletePosts"), where("userId", "==", athlete.id));
+      const postsSnap = await getDocs(postsQuery);
+      const posts = postsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setViewingAthleteProfile({ ...athlete, recentPosts: posts });
+    } else {
+      setViewingAthleteProfile(athlete);
+    }
+  };
 
   if (loading) {
     return (
@@ -368,7 +391,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                         <div
                           key={athlete.id}
                           className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
-                          onClick={() => setViewingAthleteProfile(athlete)}
+                          onClick={() => handleViewAthleteProfile(athlete)}
                         >
                           <Image
                             src={athlete.profilePic || "/placeholder.svg"}
@@ -402,7 +425,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                   <Card
                     key={athlete.id}
                     className="hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => setViewingAthleteProfile(athlete)}
+                    onClick={() => handleViewAthleteProfile(athlete)}
                   >
                     <CardContent className="p-6">
                       <div className="flex items-center space-x-3 mb-4">
@@ -534,7 +557,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                           >
                             Subscribe 
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => setViewingAthleteProfile(athlete)}>
+                          <Button variant="outline" size="sm" onClick={() => handleViewAthleteProfile(athlete)}>
                             Preview
                           </Button>
                         </div>
@@ -621,6 +644,29 @@ function AthleteProfileView({
   onMessage: (athlete: any) => void
   onSubscribe: (athlete: any) => void
 }) {
+  const [userRating, setUserRating] = useState<number | null>(null);
+  const [avgRating, setAvgRating] = useState<number>(athlete.rating || 0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (auth.currentUser && athlete.ratings && athlete.ratings[auth.currentUser.uid]) {
+      setUserRating(athlete.ratings[auth.currentUser.uid]);
+    }
+    setAvgRating(athlete.rating || 0);
+  }, [athlete]);
+
+  const handleRate = async (rating: number) => {
+    if (!auth.currentUser) return;
+    setIsSubmitting(true);
+    await rateAthlete(athlete.id, auth.currentUser.uid, rating);
+    setUserRating(rating);
+    // Optimistically update UI
+    const ratings = { ...(athlete.ratings || {}), [auth.currentUser.uid]: rating };
+    const values = Object.values(ratings).map(Number);
+    setAvgRating(values.length > 0 ? Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10 : 0);
+    setIsSubmitting(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -677,7 +723,22 @@ function AthleteProfileView({
                 </span>
                 <span className="flex items-center space-x-1">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <span>{athlete.rating} rating</span>
+                  <span>{avgRating} rating</span>
+                  {isSubscribed && (
+                    <span className="ml-2 flex items-center">
+                      {[1,2,3,4,5].map((star) => (
+                        <button
+                          key={star}
+                          onClick={() => handleRate(star)}
+                          disabled={isSubmitting}
+                          style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                          aria-label={`Rate ${star}`}
+                        >
+                          <Star className={`h-4 w-4 ${userRating && userRating >= star ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
+                        </button>
+                      ))}
+                    </span>
+                  )}
                 </span>
               </div>
             </div>
@@ -718,7 +779,7 @@ function AthleteProfileView({
                           </div>
                         )}
                       </div>
-                      <Badge variant="secondary">{post.createdAt}</Badge>
+                      <Badge variant="secondary">{formatDate(post.createdAt)}</Badge>
                     </div>
                     <div className="flex items-center space-x-4 text-sm text-gray-600">
                       <span className="flex items-center space-x-1">

@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc } from "firebase/firestore";
+import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc, serverTimestamp, onSnapshot, orderBy, query } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const firebaseConfig = {
@@ -175,6 +175,13 @@ const addSubscriptionForMember = async (userId: string, athleteId: string) => {
   await updateDoc(userRef, {
     subscriptions: arrayUnion(athleteId)
   });
+  // Increment the athlete's subscribers count
+  const athleteRef = doc(db, "athletes", athleteId);
+  const athleteSnap = await getDoc(athleteRef);
+  const currentSubscribers = athleteSnap.data()?.subscribers || 0;
+  await updateDoc(athleteRef, {
+    subscribers: currentSubscribers + 1
+  });
 };
 
 // Fetch multiple athlete profiles by IDs
@@ -184,6 +191,70 @@ const getAthletesByIds = async (athleteIds: string[]) => {
     athleteIds.map(id => getDoc(doc(db, "athletes", id)))
   );
   return docsSnap.filter(d => d.exists()).map(d => ({ id: d.id, ...d.data() }));
+};
+
+// Add this function
+const rateAthlete = async (athleteId: string, userId: string, rating: number) => {
+  const athleteRef = doc(db, "athletes", athleteId);
+  const athleteSnap = await getDoc(athleteRef);
+  const data = athleteSnap.data() || {};
+  const ratings = data.ratings || {};
+  ratings[userId] = rating;
+  // Calculate new average
+  const ratingValues = Object.values(ratings).map(Number);
+  const avgRating = ratingValues.length > 0 ? (ratingValues.reduce((a, b) => a + b, 0) / ratingValues.length) : 0;
+  await updateDoc(athleteRef, {
+    ratings,
+    rating: Math.round(avgRating * 10) / 10 // one decimal
+  });
+};
+
+// Get chat document ID (order IDs for uniqueness)
+export function getChatId(userA: string, userB: string) {
+  return [userA, userB].sort().join("_");
+}
+
+// Send a message
+export async function sendMessage({ memberId, athleteId, senderId, senderRole, content }: {
+  memberId: string,
+  athleteId: string,
+  senderId: string,
+  senderRole: string,
+  content: string,
+}) {
+  const db = getFirestore();
+  const chatId = getChatId(memberId, athleteId);
+  const messagesRef = collection(db, "chats", chatId, "messages");
+  await addDoc(messagesRef, {
+    senderId,
+    senderRole,
+    content,
+    timestamp: serverTimestamp(),
+  });
+}
+
+// Listen for messages (real-time)
+export function listenForMessages({ memberId, athleteId, callback }: {
+  memberId: string,
+  athleteId: string,
+  callback: (messages: any[]) => void,
+}) {
+  const db = getFirestore();
+  const chatId = getChatId(memberId, athleteId);
+  const messagesRef = collection(db, "chats", chatId, "messages");
+  return onSnapshot(query(messagesRef, orderBy("timestamp", "asc")), (snapshot) => {
+    callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+  });
+}
+
+// Fetch all members who are subscribed to a given athlete
+export const getSubscribersForAthlete = async (athleteId: string) => {
+  const db = getFirestore();
+  const membersRef = collection(db, "members");
+  const snapshot = await getDocs(membersRef);
+  return snapshot.docs
+    .map(doc => ({ id: doc.id, ...doc.data() }))
+    .filter(member => Array.isArray((member as any).subscriptions) && (member as any).subscriptions.includes(athleteId));
 };
 
 export { 
@@ -200,4 +271,5 @@ export {
   getAllAthletes,
   addSubscriptionForMember,
   getAthletesByIds,
+  rateAthlete,
 }; 

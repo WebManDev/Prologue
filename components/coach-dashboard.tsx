@@ -36,11 +36,12 @@ import {
   Loader2,
 } from "lucide-react"
 import { CoachStripeOnboarding } from "./coach-stripe-onboarding"
-import { signOut, auth, getAthleteProfile, saveAthletePost } from "@/lib/firebase"
+import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAthlete } from "@/lib/firebase"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
 import { getFirestore, collection, query, where, getDocs, Timestamp } from "firebase/firestore"
+import { MemberMessagingInterface } from "./member-messaging-interface"
 
 interface AthleteDashboardProps {
   onLogout: () => void
@@ -114,6 +115,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     },
   });
   const [coachPosts, setCoachPosts] = useState<any[]>([]);
+
+  const [messagingMember, setMessagingMember] = useState<any>(null);
+  const [subscribers, setSubscribers] = useState<any[]>([]);
 
   const formatDate = (timestamp: Timestamp | Date | string | null) => {
     if (!timestamp) return 'N/A';
@@ -314,6 +318,15 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     fetchProfile();
   }, []);
 
+  useEffect(() => {
+    async function fetchSubscribers() {
+      if (!auth.currentUser) return;
+      const subs = await getSubscribersForAthlete(auth.currentUser.uid);
+      setSubscribers(subs);
+    }
+    fetchSubscribers();
+  }, []);
+
   const handleBlogInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setNewBlogPost((prev) => ({
@@ -390,6 +403,10 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     );
   }
 
+  if (messagingMember) {
+    return <MemberMessagingInterface coach={messagingMember} onBack={() => setMessagingMember(null)} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -457,6 +474,55 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     </div>
                   </CardContent>
                 </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <MessageSquare className="h-5 w-5 text-blue-600" />
+                      <span>Messages</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Button variant="outline" className="w-full justify-start" onClick={() => setMessagingMember({
+                      name: "Test Member",
+                      coach: profileData.name,
+                      coachAvatar: profileData.profilePicture,
+                      sport: profileData.specialties[0] || "Sport"
+                    })}>
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      Messages
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {subscribers.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">Your Subscribers</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {subscribers.map((member) => (
+                          <Button
+                            key={member.id}
+                            variant="outline"
+                            className="w-full justify-start"
+                            onClick={() => setMessagingMember({
+                              id: member.id,
+                              name: member.name,
+                              coach: profileData.name,
+                              coachAvatar: profileData.profilePicture,
+                              sport: member.sport || "Sport"
+                            })}
+                          >
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            {member.name} ({member.email})
+                          </Button>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Subscription Revenue */}
                 <Card>
@@ -1181,6 +1247,15 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                       <Button variant="outline" className="w-full justify-start">
                         <Shield className="h-4 w-4 mr-2" />
                         Privacy Settings
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start" onClick={() => setMessagingMember({
+                        name: "Test Member",
+                        coach: profileData.name,
+                        coachAvatar: profileData.profilePicture,
+                        sport: profileData.specialties[0] || "Sport"
+                      })}>
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Messages
                       </Button>
                     </CardContent>
                   </Card>

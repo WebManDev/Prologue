@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Send, Paperclip, Video, Phone, MoreVertical, Star, Calendar, Clock } from "lucide-react"
+import { auth, listenForMessages, sendMessage } from "@/lib/firebase"
 
 interface MemberMessagingInterfaceProps {
   coach: any
@@ -16,47 +17,41 @@ interface MemberMessagingInterfaceProps {
 export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInterfaceProps) {
   const [message, setMessage] = useState("")
   const [activeTab, setActiveTab] = useState("chat")
+  const [messages, setMessages] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const messages = [
-    {
-      id: 1,
-      sender: "coach",
-      content: "Hi Marcus! I've reviewed your tennis serve video. Overall, great improvement from last week!",
-      time: "2 hours ago",
-      type: "text",
-    },
-    {
-      id: 2,
-      sender: "coach",
-      content:
-        "Here are the key areas to focus on: 1) Ball toss consistency - aim for the same spot every time, 2) Follow through - make sure you're snapping your wrist down",
-      time: "2 hours ago",
-      type: "text",
-    },
-    {
-      id: 3,
-      sender: "member",
-      content:
-        "Thank you Coach! I've been practicing the ball toss like you suggested. Should I focus more on power or accuracy right now?",
-      time: "1 hour ago",
-      type: "text",
-    },
-    {
-      id: 4,
-      sender: "coach",
-      content:
-        "Definitely focus on accuracy first. Power will come naturally once you have consistent placement. Try the wall practice drill I showed you.",
-      time: "45 minutes ago",
-      type: "text",
-    },
-    {
-      id: 5,
-      sender: "member",
-      content: "Perfect! I'll work on that this week and send you another video on Friday.",
-      time: "30 minutes ago",
-      type: "text",
-    },
-  ]
+  // Determine roles and IDs
+  const currentUser = auth.currentUser
+  const isMember = coach && coach.coach
+  const memberId = isMember ? currentUser?.uid : coach.id || coach.memberId
+  const athleteId = isMember ? coach.id || coach.athleteId : currentUser?.uid
+  const senderRole = isMember ? "member" : "coach"
+  const senderId = currentUser?.uid
+
+  useEffect(() => {
+    if (!memberId || !athleteId) return
+    const unsubscribe = listenForMessages({
+      memberId,
+      athleteId,
+      callback: (msgs) => {
+        setMessages(msgs)
+        setLoading(false)
+      },
+    })
+    return () => unsubscribe && unsubscribe()
+  }, [memberId, athleteId])
+
+  const handleSend = async () => {
+    if (!message.trim() || !memberId || !athleteId || !senderId) return
+    await sendMessage({
+      memberId,
+      athleteId,
+      senderId,
+      senderRole,
+      content: message.trim(),
+    })
+    setMessage("")
+  }
 
   const coachInfo = {
     name: coach.coach || coach.name,
@@ -203,12 +198,11 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                         className="flex-1"
                         onKeyPress={(e) => {
                           if (e.key === "Enter") {
-                            // Send message logic
-                            setMessage("")
+                            handleSend()
                           }
                         }}
                       />
-                      <Button className="bg-blue-600 hover:bg-blue-700">
+                      <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSend}>
                         <Send className="h-4 w-4" />
                       </Button>
                     </div>
