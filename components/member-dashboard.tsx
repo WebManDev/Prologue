@@ -470,9 +470,6 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                       </div>
 
                       <div className="flex space-x-2">
-                        <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={(e) => { e.stopPropagation(); setMessagingCoach(athlete); }}>
-                          Message
-                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -680,10 +677,6 @@ function AthleteProfileView({
           <div className="flex space-x-2">
             {isSubscribed ? (
               <>
-                <Button onClick={() => onMessage(athlete)} className="bg-blue-600 hover:bg-blue-700">
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Message {athlete.name}
-                </Button>
                 <Badge variant="default" className="bg-green-600 px-3 py-1">
                   <CreditCard className="h-3 w-3 mr-1" />
                 </Badge>
