@@ -137,7 +137,8 @@ const saveAthletePost = async (
   }
 ) => {
   try {
-    return await addDoc(collection(db, "athletePosts"), {
+    // Add the post
+    const postRef = await addDoc(collection(db, "athletePosts"), {
       ...post,
       userId,
       createdAt: Timestamp.now(),
@@ -145,6 +146,12 @@ const saveAthletePost = async (
       likes: 0,
       comments: 0,
     });
+    // Increment the posts count in the athlete profile
+    const athleteRef = doc(db, "athletes", userId);
+    await updateDoc(athleteRef, {
+      posts: (await getDoc(athleteRef)).data()?.posts + 1 || 1
+    });
+    return postRef;
   } catch (error) {
     console.error("Error saving athlete post:", error);
     throw error;
