@@ -40,6 +40,7 @@ import { signOut, auth, getAthleteProfile, saveAthletePost } from "@/lib/firebas
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
+import { getFirestore, collection, query, where, getDocs, Timestamp } from "firebase/firestore"
 
 interface AthleteDashboardProps {
   onLogout: () => void
@@ -98,59 +99,92 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     coverImage: "",
   })
 
-  // Sample data - in real app this would come from database
-  const athleteStats = {
-    subscribers: 47,
-    totalPosts: 23,
-    totalViews: 1240,
-    monthlyEarnings: 470, // 47 subscribers * $10
-    totalEarnings: 2350,
-    activeSubscriptions: 47,
-  }
+  const [dashboardStats, setDashboardStats] = useState({
+    subscribers: 0,
+    totalPosts: 0,
+    totalViews: 0,
+    monthlyEarnings: 0,
+    totalEarnings: 0,
+    activeSubscriptions: 0,
+    thisWeek: {
+      newSubscribers: 0,
+      contentPublished: 0,
+      totalViews: 0,
+      revenue: 0,
+    },
+  });
+  const [coachPosts, setCoachPosts] = useState<any[]>([]);
 
-  const posts = [
-    {
-      id: 1,
-      title: "Perfect Your Tennis Serve",
-      description:
-        "Learn the key mechanics for a powerful and accurate serve. Focus on ball toss consistency and follow-through.",
-      content: "In this comprehensive workout, we'll break down the tennis serve into its fundamental components...",
-      videoLink: "https://youtube.com/watch?v=example1",
-      type: "workout" as const,
-      views: 156,
-      likes: 23,
-      comments: 8,
-      createdAt: "2 days ago",
-      subscribersOnly: true,
-    },
-    {
-      id: 2,
-      title: "Mental Game: Staying Focused Under Pressure",
-      description: "Develop mental toughness and focus techniques used by professional athletes.",
-      content:
-        "Mental preparation is just as important as physical training. Here are my top strategies for maintaining focus during high-pressure situations...",
-      videoLink: "",
-      type: "blog" as const,
-      views: 203,
-      likes: 31,
-      comments: 12,
-      createdAt: "5 days ago",
-      subscribersOnly: true,
-    },
-    {
-      id: 3,
-      title: "Footwork Fundamentals",
-      description: "Master the basic footwork patterns that will improve your court positioning and shot preparation.",
-      content: "Good footwork is the foundation of every great tennis player...",
-      videoLink: "https://youtube.com/watch?v=example2",
-      type: "workout" as const,
-      views: 89,
-      likes: 15,
-      comments: 4,
-      createdAt: "1 week ago",
-      subscribersOnly: true,
-    },
-  ]
+  const formatDate = (timestamp: Timestamp | Date | string | null) => {
+    if (!timestamp) return 'N/A';
+    
+    let date: Date;
+    if (timestamp instanceof Timestamp) {
+      date = timestamp.toDate();
+    } else if (timestamp instanceof Date) {
+      date = timestamp;
+    } else if (typeof timestamp === 'string') {
+      date = new Date(timestamp);
+    } else {
+      return 'N/A';
+    }
+
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }).format(date);
+  };
+
+  // Fetch stats and posts for the logged-in coach
+  useEffect(() => {
+    async function fetchCoachDashboardData() {
+      if (!auth.currentUser) return;
+      const db = getFirestore();
+      // Fetch posts
+      const postsQuery = query(collection(db, "athletePosts"), where("userId", "==", auth.currentUser.uid));
+      const postsSnap = await getDocs(postsQuery);
+      const posts = postsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCoachPosts(posts);
+      // Calculate stats
+      let totalViews = 0;
+      let totalLikes = 0;
+      let totalComments = 0;
+      let thisWeekContent = 0;
+      let thisWeekViews = 0;
+      let thisWeekRevenue = 0;
+      const now = new Date();
+      const weekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+      posts.forEach(post => {
+        totalViews += (post as any).views || 0;
+        totalLikes += (post as any).likes || 0;
+        totalComments += (post as any).comments || 0;
+        const createdAt = (post as any).createdAt && (post as any).createdAt.toDate ? (post as any).createdAt.toDate() : ((post as any).createdAt ? new Date((post as any).createdAt) : null);
+        if (createdAt && createdAt > weekAgo) {
+          thisWeekContent++;
+          thisWeekViews += (post as any).views || 0;
+          thisWeekRevenue += 10; // Assume $10 per post for this example
+        }
+      });
+      // Fetch subscribers from profile
+      const profileData = await getAthleteProfile(auth.currentUser.uid);
+      setDashboardStats({
+        subscribers: profileData?.subscribers || 0,
+        totalPosts: posts.length,
+        totalViews,
+        monthlyEarnings: (profileData?.subscribers || 0) * 10,
+        totalEarnings: ((profileData?.subscribers || 0) * 10) * 5, // Example: 5 months
+        activeSubscriptions: profileData?.subscribers || 0,
+        thisWeek: {
+          newSubscribers: 3, // Placeholder, replace with real logic if available
+          contentPublished: thisWeekContent,
+          totalViews: thisWeekViews,
+          revenue: thisWeekRevenue,
+        },
+      });
+    }
+    fetchCoachDashboardData();
+  }, [profile]);
 
   // Fetch earnings data
   useEffect(() => {
@@ -239,7 +273,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           accountId: stripeAccountId,
-          amount: athleteStats.monthlyEarnings * 0.85, // After platform fee
+          amount: dashboardStats.monthlyEarnings * 0.85, // After platform fee
         }),
       })
 
@@ -315,18 +349,16 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     setIsSubmitting(true)
     try {
       if (!auth.currentUser) throw new Error("Not logged in")
-  
-      const response = await saveAthletePost(auth.currentUser.uid, {
+      await saveAthletePost(auth.currentUser.uid, {
         title: newBlogPost.title,
         content: newBlogPost.content,
         coverImage: newBlogPost.coverImage,
+        type: "blog",
+        description: newBlogPost.title,
+        videoLink: "",
       })
-  
-      console.log("Post saved:", response)
-  
       setBlogDialogOpen(false)
       setNewBlogPost({ title: "", content: "", coverImage: "" })
-  
     } catch (e: any) {
       console.error("Failed to create blog post:", e)
       alert(e.message || "Unexpected error")
@@ -437,21 +469,21 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="text-center p-4 bg-green-50 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600">${athleteStats.monthlyEarnings}</div>
+                        <div className="text-2xl font-bold text-green-600">${dashboardStats.monthlyEarnings}</div>
                         <div className="text-sm text-gray-600">Gross Monthly</div>
                       </div>
                       <div className="text-center p-4 bg-blue-50 rounded-lg">
                         <div className="text-2xl font-bold text-blue-600">
-                          ${Math.round(athleteStats.monthlyEarnings * 0.85)}
+                          ${Math.round(dashboardStats.monthlyEarnings * 0.85)}
                         </div>
                         <div className="text-sm text-gray-600">Net Monthly</div>
                       </div>
                       <div className="text-center p-4 bg-purple-50 rounded-lg">
-                        <div className="text-2xl font-bold text-purple-600">{athleteStats.activeSubscriptions}</div>
+                        <div className="text-2xl font-bold text-purple-600">{dashboardStats.activeSubscriptions}</div>
                         <div className="text-sm text-gray-600">Active Subs</div>
                       </div>
                       <div className="text-center p-4 bg-orange-50 rounded-lg">
-                        <div className="text-2xl font-bold text-orange-600">${athleteStats.totalEarnings}</div>
+                        <div className="text-2xl font-bold text-orange-600">${dashboardStats.totalEarnings}</div>
                         <div className="text-sm text-gray-600">Total Earned</div>
                       </div>
                     </div>
@@ -479,7 +511,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {posts.slice(0, 3).map((post) => (
+                      {coachPosts.slice(0, 3).map((post) => (
                         <div key={post.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex items-center space-x-2">
@@ -492,7 +524,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                                 Subscribers Only
                               </Badge>
                             </div>
-                            <Badge variant="secondary">{post.createdAt}</Badge>
+                            <Badge variant="secondary">{formatDate(post.createdAt)}</Badge>
                           </div>
                           <p className="text-sm text-gray-600 mb-3 line-clamp-2">{post.description}</p>
                           <div className="flex items-center justify-between">
@@ -535,21 +567,21 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   <CardContent>
                     <div className="space-y-4">
                       <div className="text-center">
-                        <div className="text-3xl font-bold text-blue-600 mb-1">{athleteStats.subscribers}</div>
+                        <div className="text-3xl font-bold text-blue-600 mb-1">{dashboardStats.subscribers}</div>
                         <div className="text-sm text-gray-600">Subscribers</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-3xl font-bold text-orange-500 mb-1">{athleteStats.totalPosts}</div>
+                        <div className="text-3xl font-bold text-orange-500 mb-1">{dashboardStats.totalPosts}</div>
                         <div className="text-sm text-gray-600">Total Posts</div>
                       </div>
                       <div className="text-center">
                         <div className="text-3xl font-bold text-green-600 mb-1">
-                          {athleteStats.totalViews.toLocaleString()}
+                          {dashboardStats.totalViews.toLocaleString()}
                         </div>
                         <div className="text-sm text-gray-600">Total Views</div>
                       </div>
                       <div className="text-center">
-                        <div className="text-3xl font-bold text-purple-600 mb-1">${athleteStats.monthlyEarnings}</div>
+                        <div className="text-3xl font-bold text-purple-600 mb-1">${dashboardStats.monthlyEarnings}</div>
                         <div className="text-sm text-gray-600">This Month</div>
                       </div>
                     </div>
@@ -565,19 +597,19 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">New Subscribers</span>
-                        <span className="font-semibold">+3</span>
+                        <span className="font-semibold">+{dashboardStats.thisWeek.newSubscribers}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">Content Published</span>
-                        <span className="font-semibold">2</span>
+                        <span className="font-semibold">+{dashboardStats.thisWeek.contentPublished}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">Total Views</span>
-                        <span className="font-semibold">245</span>
+                        <span className="font-semibold">+{dashboardStats.thisWeek.totalViews}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">Revenue</span>
-                        <span className="font-semibold text-green-600">$470</span>
+                        <span className="font-semibold text-green-600">${dashboardStats.thisWeek.revenue}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -612,7 +644,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
               </div>
 
               <div className="space-y-4">
-                {posts.map((post) => (
+                {coachPosts.map((post) => (
                   <Card key={post.id}>
                     <CardContent className="p-6">
                       <div className="flex items-start justify-between mb-4">
@@ -642,7 +674,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                             </div>
                           )}
                         </div>
-                        <Badge variant="secondary">{post.createdAt}</Badge>
+                        <Badge variant="secondary">{formatDate(post.createdAt)}</Badge>
                       </div>
 
                       <div className="flex items-center justify-between">
@@ -680,10 +712,10 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
 
           <TabsContent value="subscribers">
             <div className="space-y-6">
-              <h1 className="text-3xl font-bold text-gray-900">Subscribers ({athleteStats.subscribers})</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Subscribers ({dashboardStats.subscribers})</h1>
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Array.from({ length: athleteStats.subscribers }, (_, i) => (
+                {Array.from({ length: dashboardStats.subscribers }, (_, i) => (
                   <Card key={i}>
                     <CardContent className="p-4">
                       <div className="flex items-center space-x-3">
@@ -724,8 +756,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-gray-600">Monthly Revenue</p>
-                        <p className="text-2xl font-bold text-green-600">${athleteStats.monthlyEarnings}</p>
-                        <p className="text-xs text-green-600">{athleteStats.subscribers} × $10</p>
+                        <p className="text-2xl font-bold text-green-600">${dashboardStats.monthlyEarnings}</p>
+                        <p className="text-xs text-green-600">{dashboardStats.subscribers} × $10</p>
                       </div>
                       <DollarSign className="h-8 w-8 text-green-600" />
                     </div>
@@ -738,7 +770,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                       <div>
                         <p className="text-sm text-gray-600">Your Share (85%)</p>
                         <p className="text-2xl font-bold text-blue-600">
-                          ${Math.round(athleteStats.monthlyEarnings * 0.85)}
+                          ${Math.round(dashboardStats.monthlyEarnings * 0.85)}
                         </p>
                         <p className="text-xs text-blue-600">After platform fee</p>
                       </div>
@@ -752,7 +784,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-gray-600">Active Subscriptions</p>
-                        <p className="text-2xl font-bold text-purple-600">{athleteStats.activeSubscriptions}</p>
+                        <p className="text-2xl font-bold text-purple-600">{dashboardStats.activeSubscriptions}</p>
                         <p className="text-xs text-gray-600">Paying subscribers</p>
                       </div>
                       <Users className="h-8 w-8 text-purple-600" />
@@ -782,19 +814,19 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                      <span>Subscription Revenue ({athleteStats.subscribers} × $10)</span>
-                      <span className="font-bold text-green-600">${athleteStats.monthlyEarnings}.00</span>
+                      <span>Subscription Revenue ({dashboardStats.subscribers} × $10)</span>
+                      <span className="font-bold text-green-600">${dashboardStats.monthlyEarnings}.00</span>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
                       <span>Platform Fee (15%)</span>
                       <span className="font-bold text-red-600">
-                        -${Math.round(athleteStats.monthlyEarnings * 0.15)}.00
+                        -${Math.round(dashboardStats.monthlyEarnings * 0.15)}.00
                       </span>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-200">
                       <span className="font-medium">Your Net Earnings</span>
                       <span className="font-bold text-blue-600">
-                        ${Math.round(athleteStats.monthlyEarnings * 0.85)}.00
+                        ${Math.round(dashboardStats.monthlyEarnings * 0.85)}.00
                       </span>
                     </div>
                   </div>
