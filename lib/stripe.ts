@@ -1,16 +1,14 @@
 import Stripe from "stripe"
 
 // Initialize Stripe with secret key
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2024-06-20",
-})
+export const stripe = new Stripe("sk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu")
 
 // Stripe configuration
 export const STRIPE_CONFIG = {
   publishableKey: "pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu",
   webhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
   currency: "usd",
-  platformFeePercentage: 0.95, // 15% platform fee
+  platformFeePercentage: 0.85, // 15% platform fee (athlete's share)
   monthlySubscriptionPrice: 10, // $10/month for athlete subscriptions
 }
 

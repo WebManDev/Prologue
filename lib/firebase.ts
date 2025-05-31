@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc, serverTimestamp, onSnapshot, orderBy, query } from "firebase/firestore";
+import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc, serverTimestamp, onSnapshot, orderBy, query, deleteDoc, increment } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const firebaseConfig = {
@@ -172,8 +172,11 @@ const getAllAthletes = async () => {
 // Add athleteId to member's subscriptions
 const addSubscriptionForMember = async (userId: string, athleteId: string) => {
   const userRef = doc(db, "members", userId);
+  const userSnap = await getDoc(userRef);
+  const member = userSnap.data() || {};
   await updateDoc(userRef, {
-    subscriptions: arrayUnion(athleteId)
+    subscriptions: arrayUnion(athleteId),
+    subscriptionDates: { ...(member.subscriptionDates || {}), [athleteId]: new Date().toISOString() }
   });
   // Increment the athlete's subscribers count
   const athleteRef = doc(db, "athletes", athleteId);
@@ -257,6 +260,48 @@ export const getSubscribersForAthlete = async (athleteId: string) => {
     .filter(member => Array.isArray((member as any).subscriptions) && (member as any).subscriptions.includes(athleteId));
 };
 
+// Function to update athlete post
+const updateAthletePost = async (
+  postId: string,
+  updates: {
+    title?: string;
+    content?: string;
+    description?: string;
+    videoLink?: string;
+    type?: "blog" | "workout";
+    coverImage?: string;
+  }
+) => {
+  try {
+    const postRef = doc(db, "athletePosts", postId);
+    await updateDoc(postRef, {
+      ...updates,
+      updatedAt: Timestamp.now()
+    });
+  } catch (error) {
+    console.error("Error updating athlete post:", error);
+    throw error;
+  }
+};
+
+// Function to delete athlete post
+const deleteAthletePost = async (postId: string, userId: string) => {
+  try {
+    // Delete the post
+    const postRef = doc(db, "athletePosts", postId);
+    await deleteDoc(postRef);
+    
+    // Decrement the posts count in the athlete profile
+    const athleteRef = doc(db, "athletes", userId);
+    await updateDoc(athleteRef, {
+      posts: increment(-1)
+    });
+  } catch (error) {
+    console.error("Error deleting athlete post:", error);
+    throw error;
+  }
+};
+
 export { 
   auth, 
   signInWithEmailAndPassword, 
@@ -272,4 +317,6 @@ export {
   addSubscriptionForMember,
   getAthletesByIds,
   rateAthlete,
+  updateAthletePost,
+  deleteAthletePost,
 }; 

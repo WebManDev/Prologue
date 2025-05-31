@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -37,12 +37,14 @@ import {
   AlertCircle,
 } from "lucide-react"
 import { CoachStripeOnboarding } from "./coach-stripe-onboarding"
-import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAthlete } from "@/lib/firebase"
+import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAthlete, updateAthletePost, deleteAthletePost, saveAthleteProfile } from "@/lib/firebase"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
 import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, limit } from "firebase/firestore"
 import { MemberMessagingInterface } from "./member-messaging-interface"
+import { STRIPE_CONFIG } from "@/lib/stripe"
+import { format } from 'date-fns'
 
 interface AthleteDashboardProps {
   onLogout: () => void
@@ -58,6 +60,8 @@ interface AthleteProfile {
   rating: number;
   stripeAccountId: string | null;
   subscriptionStatus: string;
+  specialties: string[];
+  certifications: string[];
 }
 
 function StarRating({ value, onChange, disabled = false }: { value: number, onChange: (v: number) => void, disabled?: boolean }) {
@@ -77,6 +81,13 @@ function StarRating({ value, onChange, disabled = false }: { value: number, onCh
       ))}
     </div>
   )
+}
+
+// Helper to get next payout date (first day of next month)
+function getNextPayoutDate() {
+  const now = new Date();
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  return format(nextMonth, 'MMM dd');
 }
 
 export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
@@ -147,6 +158,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
 
   const [feedbackInputs, setFeedbackInputs] = useState<{[id: string]: {rating: number, text: string, submitting: boolean}}>({});
 
+  const [editingPost, setEditingPost] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const formatDate = (timestamp: Timestamp | Date | string | null) => {
     if (!timestamp) return 'N/A';
     
@@ -168,11 +182,12 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     }).format(date);
   };
 
+  const db = getFirestore();
+
   // Fetch stats and posts for the logged-in coach
   useEffect(() => {
     async function fetchCoachDashboardData() {
       if (!auth.currentUser) return;
-      const db = getFirestore();
       // Fetch posts
       const postsQuery = query(collection(db, "athletePosts"), where("userId", "==", auth.currentUser.uid));
       const postsSnap = await getDocs(postsQuery);
@@ -305,7 +320,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           accountId: stripeAccountId,
-          amount: dashboardStats.monthlyEarnings * 0.85, // After platform fee
+          amount: dashboardStats.monthlyEarnings * STRIPE_CONFIG.platformFeePercentage,
         }),
       })
 
@@ -333,8 +348,16 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     const fetchProfile = async () => {
       try {
         if (auth.currentUser) {
-          const profileData = await getAthleteProfile(auth.currentUser.uid);
-          setProfile(profileData as AthleteProfile);
+          const profileDataFromDb = await getAthleteProfile(auth.currentUser.uid);
+          if (profileDataFromDb) {
+            setProfile(profileDataFromDb as AthleteProfile);
+            setProfileData(prev => ({
+              ...prev,
+              ...profileDataFromDb,
+              specialties: profileDataFromDb.specialties || [],
+              certifications: profileDataFromDb.certifications || [],
+            }));
+          }
         }
       } catch (error) {
         console.error("Error fetching profile:", error);
@@ -417,7 +440,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       if (!auth.currentUser || activeTab !== "feedback") return;
       
       setLoadingFeedback(true);
-      const db = getFirestore();
       const requestsQuery = query(
         collection(db, "videoFeedbackRequests"),
         where("coachId", "==", auth.currentUser.uid),
@@ -451,7 +473,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const handleFeedbackResponse = async (requestId: string, rating: number, text: string) => {
     if (!auth.currentUser) return;
     setFeedbackInputs((prev) => ({ ...prev, [requestId]: { ...prev[requestId], submitting: true } }));
-    const db = getFirestore();
     await updateDoc(doc(db, "videoFeedbackRequests", requestId), {
       status: "completed",
       response: text,
@@ -459,6 +480,82 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       respondedAt: serverTimestamp()
     });
     setFeedbackInputs((prev) => ({ ...prev, [requestId]: { rating: 0, text: "", submitting: false } }));
+  };
+
+  const handleEditPost = async (post: any) => {
+    setEditingPost(post);
+    setNewPost({
+      title: post.title,
+      description: post.description || "",
+      content: post.content,
+      videoLink: post.videoLink || "",
+      type: post.type,
+    });
+    setPostType(post.type);
+    setCreatingPost(true);
+  };
+
+  const handleUpdatePost = async () => {
+    if (!editingPost || !auth.currentUser) return;
+    
+    setIsUploadingVideo(true);
+    try {
+      let videoUrl = editingPost.videoLink;
+      
+      // Upload new video if one was selected
+      if (workoutVideo) {
+        const storage = getStorage();
+        const fileRef = storageRef(storage, `workout-videos/${auth.currentUser.uid}/${Date.now()}_${workoutVideo.name}`);
+        await uploadBytes(fileRef, workoutVideo);
+        videoUrl = await getDownloadURL(fileRef);
+      }
+
+      // Update post in Firebase
+      await updateAthletePost(editingPost.id, {
+        title: newPost.title,
+        description: newPost.description,
+        content: newPost.content,
+        videoLink: videoUrl,
+        type: newPost.type,
+      });
+
+      // Reset form and state
+      setNewPost({ title: "", description: "", content: "", videoLink: "", type: "workout" });
+      setWorkoutVideo(null);
+      setCreatingPost(false);
+      setEditingPost(null);
+      
+      // Refresh posts
+      const postsQuery = query(collection(db, "athletePosts"), where("userId", "==", auth.currentUser.uid));
+      const postsSnap = await getDocs(postsQuery);
+      const posts = postsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCoachPosts(posts);
+    } catch (error) {
+      console.error("Error updating post:", error);
+      alert("Failed to update post. Please try again.");
+    } finally {
+      setIsUploadingVideo(false);
+    }
+  };
+
+  const handleDeletePost = async (post: any) => {
+    if (!auth.currentUser || !confirm("Are you sure you want to delete this post?")) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteAthletePost(post.id, auth.currentUser.uid);
+      
+      // Refresh posts
+      const postsQuery = query(collection(db, "athletePosts"), where("userId", "==", auth.currentUser.uid));
+      const postsSnap = await getDocs(postsQuery);
+      const posts = postsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCoachPosts(posts);
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      alert("Failed to delete post. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (loading) {
@@ -645,7 +742,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                       </div>
                       <div className="text-center p-4 bg-blue-50 rounded-lg">
                         <div className="text-2xl font-bold text-blue-600">
-                          ${Math.round(dashboardStats.monthlyEarnings * 0.85)}
+                          ${Math.round(dashboardStats.monthlyEarnings * STRIPE_CONFIG.platformFeePercentage * 100) / 100}
                         </div>
                         <div className="text-sm text-gray-600">Net Monthly</div>
                       </div>
@@ -713,10 +810,27 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                                 <span>{post.comments}</span>
                               </span>
                             </div>
-                            <Button size="sm" variant="outline">
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </Button>
+                            <div className="flex space-x-2">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => handleEditPost(post)}
+                                disabled={isDeleting}
+                              >
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline" 
+                                className="text-red-600 hover:text-red-700"
+                                onClick={() => handleDeletePost(post)}
+                                disabled={isDeleting}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -856,19 +970,30 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                           </span>
                           <span className="flex items-center space-x-1">
                             <Star className="h-4 w-4" />
-                            <span>{post.likes} likes</span>
+                            <span>{post.likes}</span>
                           </span>
                           <span className="flex items-center space-x-1">
                             <MessageSquare className="h-4 w-4" />
-                            <span>{post.comments} comments</span>
+                            <span>{post.comments}</span>
                           </span>
                         </div>
                         <div className="flex space-x-2">
-                          <Button size="sm" variant="outline">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleEditPost(post)}
+                            disabled={isDeleting}
+                          >
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
                           </Button>
-                          <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => handleDeletePost(post)}
+                            disabled={isDeleting}
+                          >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete
                           </Button>
@@ -884,28 +1009,36 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           <TabsContent value="subscribers">
             <div className="space-y-6">
               <h1 className="text-3xl font-bold text-gray-900">Subscribers ({dashboardStats.subscribers})</h1>
-
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Array.from({ length: dashboardStats.subscribers }, (_, i) => (
-                  <Card key={i}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                          <span className="text-sm font-medium">M{i + 1}</span>
+                {subscribers.map((member, i) => {
+                  let subDate = null;
+                  if (member.subscriptionDates) {
+                    const coachId = auth.currentUser?.uid;
+                    subDate = coachId && member.subscriptionDates[coachId]
+                      ? member.subscriptionDates[coachId]
+                      : Object.values(member.subscriptionDates)[0];
+                  }
+                  return (
+                    <Card key={member.id}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                            <span className="text-sm font-medium">M{i + 1}</span>
+                          </div>
+                          <div>
+                            <h4 className="font-medium">{member.name || `Member ${i + 1}`}</h4>
+                            <p className="text-sm text-gray-600">
+                              Subscribed {formatDate(subDate || null)}
+                            </p>
+                            <Badge variant="outline" className="text-xs mt-1">
+                              Active • $10/month
+                            </Badge>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-medium">Member {i + 1}</h4>
-                          <p className="text-sm text-gray-600">
-                            Subscribed {Math.floor(Math.random() * 30) + 1} days ago
-                          </p>
-                          <Badge variant="outline" className="text-xs mt-1">
-                            Active • $10/month
-                          </Badge>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           </TabsContent>
@@ -941,7 +1074,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                       <div>
                         <p className="text-sm text-gray-600">Your Share (85%)</p>
                         <p className="text-2xl font-bold text-blue-600">
-                          ${Math.round(dashboardStats.monthlyEarnings * 0.85)}
+                          ${((dashboardStats.monthlyEarnings * STRIPE_CONFIG.platformFeePercentage)).toFixed(2)}
                         </p>
                         <p className="text-xs text-blue-600">After platform fee</p>
                       </div>
@@ -968,7 +1101,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-gray-600">Next Payout</p>
-                        <p className="text-2xl font-bold text-orange-600">Dec 15</p>
+                        <p className="text-2xl font-bold text-orange-600">{getNextPayoutDate()}</p>
                         <p className="text-xs text-gray-600">Automatic</p>
                       </div>
                       <Calendar className="h-8 w-8 text-orange-600" />
@@ -991,13 +1124,13 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     <div className="flex justify-between items-center p-3 bg-red-50 rounded-lg">
                       <span>Platform Fee (15%)</span>
                       <span className="font-bold text-red-600">
-                        -${Math.round(dashboardStats.monthlyEarnings * 0.15)}.00
+                        -${(dashboardStats.monthlyEarnings - (dashboardStats.monthlyEarnings * STRIPE_CONFIG.platformFeePercentage)).toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-200">
                       <span className="font-medium">Your Net Earnings</span>
                       <span className="font-bold text-blue-600">
-                        ${Math.round(dashboardStats.monthlyEarnings * 0.85)}.00
+                        ${((dashboardStats.monthlyEarnings * STRIPE_CONFIG.platformFeePercentage)).toFixed(2)}
                       </span>
                     </div>
                   </div>
@@ -1011,28 +1144,37 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {[
-                      { action: "New subscription", member: "Marcus H.", amount: "+$10", date: "2 hours ago" },
-                      { action: "Subscription renewed", member: "Sarah C.", amount: "+$10", date: "1 day ago" },
-                      { action: "New subscription", member: "Tyler J.", amount: "+$10", date: "2 days ago" },
-                      { action: "Subscription canceled", member: "Alex M.", amount: "-$10", date: "3 days ago" },
-                    ].map((activity, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="text-sm font-medium">{activity.action}</p>
-                          <p className="text-xs text-gray-600">
-                            {activity.member} • {activity.date}
-                          </p>
+                    {subscribers
+                      .map(member => {
+                        let subDate = null;
+                        if (member.subscriptionDates) {
+                          const coachId = auth.currentUser?.uid;
+                          subDate = coachId && member.subscriptionDates[coachId]
+                            ? member.subscriptionDates[coachId]
+                            : Object.values(member.subscriptionDates)[0];
+                        }
+                        return {
+                          name: member.name,
+                          date: subDate,
+                        };
+                      })
+                      .filter(e => e.date)
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .slice(0, 5)
+                      .map((event, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div>
+                            <p className="text-sm font-medium">New subscription</p>
+                            <p className="text-xs text-gray-600">
+                              {event.name} • {formatDate(event.date)}
+                            </p>
+                          </div>
+                          <span className="text-sm font-medium text-green-600">+${STRIPE_CONFIG.monthlySubscriptionPrice}</span>
                         </div>
-                        <span
-                          className={`text-sm font-medium ${
-                            activity.amount.startsWith("+") ? "text-green-600" : "text-red-600"
-                          }`}
-                        >
-                          {activity.amount}
-                        </span>
-                      </div>
-                    ))}
+                      ))}
+                    {subscribers.length === 0 && (
+                      <div className="text-center text-gray-500 py-4">No recent activity</div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1091,7 +1233,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                           {editingProfile ? (
                             <Input
                               value={profileData.name}
-                              onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                              onChange={e => setProfileData({ ...profileData, name: e.target.value })}
                               className="text-xl font-semibold"
                               placeholder="Your full name"
                             />
@@ -1108,7 +1250,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                         {editingProfile ? (
                           <Textarea
                             value={profileData.bio}
-                            onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                            onChange={e => setProfileData({ ...profileData, bio: e.target.value })}
                             rows={4}
                             placeholder="Tell your subscribers about your background and expertise..."
                           />
@@ -1125,7 +1267,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                             <Input
                               type="email"
                               value={profileData.email}
-                              onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                              onChange={e => setProfileData({ ...profileData, email: e.target.value })}
                             />
                           ) : (
                             <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">{profileData.email}</p>
@@ -1136,7 +1278,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                           {editingProfile ? (
                             <Input
                               value={profileData.location}
-                              onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
+                              onChange={e => setProfileData({ ...profileData, location: e.target.value })}
                               placeholder="City, State"
                             />
                           ) : (
@@ -1151,7 +1293,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                         {editingProfile ? (
                           <Input
                             value={profileData.experience}
-                            onChange={(e) => setProfileData({ ...profileData, experience: e.target.value })}
+                            onChange={e => setProfileData({ ...profileData, experience: e.target.value })}
                             placeholder="e.g., 8 years"
                           />
                         ) : (
@@ -1161,12 +1303,12 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     </CardContent>
                   </Card>
 
-                  {/* Specialties */}
+                  {/* Sports Played/Playing */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center space-x-2">
                         <Target className="h-5 w-5 text-orange-500" />
-                        <span>Sports Specialties</span>
+                        <span>Sports Played/Playing</span>
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -1312,7 +1454,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     </CardContent>
                   </Card>
 
-                  {/* Profile Stats */}
+                  {/* Profile Performance */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg">Profile Performance</CardTitle>
@@ -1321,15 +1463,15 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                       <div className="space-y-4">
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Profile Views</span>
-                          <span className="font-semibold">1,247</span>
+                          <span className="font-semibold">0</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Conversion Rate</span>
-                          <span className="font-semibold">12.3%</span>
+                          <span className="font-semibold">0%</span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Profile Completeness</span>
-                          <span className="font-semibold text-green-600">95%</span>
+                          <span className="font-semibold text-green-600">0%</span>
                         </div>
                       </div>
                     </CardContent>
@@ -1366,6 +1508,43 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   </Card>
                 </div>
               </div>
+
+              {editingProfile && (
+                <Button
+                  className="mt-4 bg-green-600 hover:bg-green-700"
+                  onClick={async () => {
+                    if (!auth.currentUser) return;
+                    // Ensure required fields are present
+                    const payload = {
+                      name: profileData.name,
+                      email: profileData.email,
+                      sport: profile?.sport || '',
+                      role: profile?.role || '',
+                      bio: profileData.bio,
+                      specialties: profileData.specialties,
+                      profilePicture: profileData.profilePicture,
+                      location: profileData.location,
+                      experience: profileData.experience,
+                      certifications: profileData.certifications,
+                    };
+                    await saveAthleteProfile(auth.currentUser.uid, payload);
+                    // Refetch profile to ensure UI is up to date
+                    const updatedProfile = await getAthleteProfile(auth.currentUser.uid);
+                    if (updatedProfile) {
+                      setProfile(updatedProfile as AthleteProfile);
+                      setProfileData(prev => ({
+                        ...prev,
+                        ...updatedProfile,
+                        specialties: updatedProfile.specialties || [],
+                        certifications: updatedProfile.certifications || [],
+                      }));
+                    }
+                    setEditingProfile(false);
+                  }}
+                >
+                  Save Changes
+                </Button>
+              )}
             </div>
           </TabsContent>
 
@@ -1513,7 +1692,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <CardHeader>
               <CardTitle>
-                Create {postType === "workout" ? "Workout" : "Blog Post"}
+                {editingPost ? "Edit" : "Create"} {postType === "workout" ? "Workout" : "Blog Post"}
                 <Badge variant="outline" className="ml-2">
                   <Lock className="h-3 w-3 mr-1" />
                   Subscribers Only
@@ -1585,27 +1764,23 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   ($10/month).
                 </p>
               </div>
-
-              <div className="flex space-x-2">
-                <Button onClick={() => setCreatingPost(false)} variant="outline" className="flex-1">
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleCreatePost}
-                  disabled={!newPost.title || !newPost.description || !newPost.content || (postType === "workout" && !workoutVideo) || isUploadingVideo}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600"
-                >
-                  {isUploadingVideo ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    `Publish ${postType === "workout" ? "Workout" : "Blog Post"}`
-                  )}
-                </Button>
-              </div>
             </CardContent>
+            <CardFooter>
+              <Button
+                className="w-full bg-orange-500 hover:bg-orange-600"
+                onClick={editingPost ? handleUpdatePost : handleCreatePost}
+                disabled={isUploadingVideo}
+              >
+                {isUploadingVideo ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {editingPost ? "Updating..." : "Creating..."}
+                  </>
+                ) : (
+                  editingPost ? "Update Post" : "Create Post"
+                )}
+              </Button>
+            </CardFooter>
           </Card>
         </div>
       )}
