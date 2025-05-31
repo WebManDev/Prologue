@@ -470,7 +470,9 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                       </div>
 
                       <div className="flex space-x-2">
-                        <Button className="flex-1 bg-blue-600 hover:bg-blue-700">View Content</Button>
+                        <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={(e) => { e.stopPropagation(); setMessagingCoach(athlete); }}>
+                          Message
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
