@@ -155,10 +155,10 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                       {messages.map((msg) => (
                         <div
                           key={msg.id}
-                          className={`flex ${msg.sender === "member" ? "justify-end" : "justify-start"}`}
+                          className={`flex ${msg.senderId === auth.currentUser?.uid ? "justify-end" : "justify-start"}`}
                         >
                           <div className="flex items-start space-x-2 max-w-xs lg:max-w-md">
-                            {msg.sender === "coach" && (
+                            {msg.senderId !== auth.currentUser?.uid && (
                               <img
                                 src={coach.coachAvatar || coach.avatar || "/placeholder.svg"}
                                 alt={coachInfo.name}
@@ -167,13 +167,13 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                             )}
                             <div
                               className={`px-4 py-2 rounded-lg ${
-                                msg.sender === "member" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-900"
+                                msg.senderId === auth.currentUser?.uid ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-900"
                               }`}
                             >
                               <p className="text-sm">{msg.content}</p>
                               <p
                                 className={`text-xs mt-1 ${
-                                  msg.sender === "member" ? "text-blue-100" : "text-gray-500"
+                                  msg.senderId === auth.currentUser?.uid ? "text-blue-100" : "text-gray-500"
                                 }`}
                               >
                                 {msg.time}
