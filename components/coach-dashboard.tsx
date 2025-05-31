@@ -34,13 +34,14 @@ import {
   LogOut,
   ImageIcon,
   Loader2,
+  AlertCircle,
 } from "lucide-react"
 import { CoachStripeOnboarding } from "./coach-stripe-onboarding"
 import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAthlete } from "@/lib/firebase"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
-import { getFirestore, collection, query, where, getDocs, Timestamp } from "firebase/firestore"
+import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, limit } from "firebase/firestore"
 import { MemberMessagingInterface } from "./member-messaging-interface"
 
 interface AthleteDashboardProps {
@@ -118,6 +119,12 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
 
   const [messagingMember, setMessagingMember] = useState<any>(null);
   const [subscribers, setSubscribers] = useState<any[]>([]);
+
+  const [feedbackRequests, setFeedbackRequests] = useState<any[]>([])
+  const [loadingFeedback, setLoadingFeedback] = useState(true)
+  const [feedbackPage, setFeedbackPage] = useState(1)
+  const [hasMoreFeedback, setHasMoreFeedback] = useState(true)
+  const FEEDBACK_PER_PAGE = 5
 
   const formatDate = (timestamp: Timestamp | Date | string | null) => {
     if (!timestamp) return 'N/A';
@@ -381,6 +388,55 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   }
   
 
+  // Add this useEffect to fetch feedback requests
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    
+    async function fetchFeedbackRequests() {
+      if (!auth.currentUser || activeTab !== "feedback") return;
+      
+      setLoadingFeedback(true);
+      const db = getFirestore();
+      const requestsQuery = query(
+        collection(db, "videoFeedbackRequests"),
+        where("coachId", "==", auth.currentUser.uid),
+        orderBy("createdAt", "desc"),
+        limit(FEEDBACK_PER_PAGE * feedbackPage)
+      );
+      
+      unsubscribe = onSnapshot(requestsQuery, (snapshot) => {
+        const requests = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate()
+        }));
+        setFeedbackRequests(requests);
+        setHasMoreFeedback(requests.length === FEEDBACK_PER_PAGE * feedbackPage);
+        setLoadingFeedback(false);
+      });
+    }
+    
+    fetchFeedbackRequests();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [activeTab, feedbackPage]);
+
+  const loadMoreFeedback = () => {
+    setFeedbackPage(prev => prev + 1);
+  };
+
+  // Add this function to handle feedback responses
+  const handleFeedbackResponse = async (requestId: string, response: string) => {
+    if (!auth.currentUser) return;
+    const db = getFirestore();
+    await updateDoc(doc(db, "videoFeedbackRequests", requestId), {
+      status: "completed",
+      response,
+      respondedAt: serverTimestamp()
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -434,6 +490,48 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
 
       <div className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
+          {/* Tab Navigation */}
+          <div className="mb-8">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={activeTab === "dashboard" ? "default" : "outline"}
+                onClick={() => setActiveTab("dashboard")}
+              >
+                Dashboard
+              </Button>
+              <Button
+                variant={activeTab === "content" ? "default" : "outline"}
+                onClick={() => setActiveTab("content")}
+              >
+                Content
+              </Button>
+              <Button
+                variant={activeTab === "subscribers" ? "default" : "outline"}
+                onClick={() => setActiveTab("subscribers")}
+              >
+                Subscribers
+              </Button>
+              <Button
+                variant={activeTab === "earnings" ? "default" : "outline"}
+                onClick={() => setActiveTab("earnings")}
+              >
+                Earnings
+              </Button>
+              <Button
+                variant={activeTab === "profile" ? "default" : "outline"}
+                onClick={() => setActiveTab("profile")}
+              >
+                Profile
+              </Button>
+              <Button
+                variant={activeTab === "feedback" ? "default" : "outline"}
+                onClick={() => setActiveTab("feedback")}
+              >
+                Feedback Requests
+              </Button>
+            </div>
+          </div>
+
           <TabsContent value="dashboard">
             {/* Welcome Section */}
             <div className="mb-8">
@@ -1244,6 +1342,129 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   </Card>
                 </div>
               </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="feedback">
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h1 className="text-3xl font-bold text-gray-900">Video Feedback Requests</h1>
+              </div>
+
+              {loadingFeedback && feedbackPage === 1 ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Loading feedback requests...</h3>
+                </div>
+              ) : feedbackRequests.length === 0 ? (
+                <div className="text-center py-12">
+                  <Video className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback requests yet</h3>
+                  <p className="text-gray-600">When members request video feedback, they'll appear here</p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-6">
+                    {feedbackRequests.map((request) => (
+                      <Card key={request.id}>
+                        <CardContent className="p-6">
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2 mb-2">
+                                <h3 className="text-xl font-semibold text-gray-900">
+                                  Video Feedback Request
+                                </h3>
+                                <Badge variant={
+                                  request.status === "pending_payment" ? "destructive" :
+                                  request.status === "pending" ? "default" :
+                                  request.status === "completed" ? "secondary" : "outline"
+                                }>
+                                  {request.status === "pending_payment" ? "Payment Pending" :
+                                   request.status === "pending" ? "Pending Review" :
+                                   request.status === "completed" ? "Completed" : request.status}
+                                </Badge>
+                                {request.feedbackType && (
+                                  <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-200">
+                                    {request.feedbackType === "priority" ? "Priority" : "Standard"}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-gray-600 mb-4">{request.feedbackText}</p>
+                              
+                              {request.videoUrl && (
+                                <div className="mb-4">
+                                  <video 
+                                    controls 
+                                    className="w-full rounded-lg"
+                                    src={request.videoUrl}
+                                  />
+                                </div>
+                              )}
+
+                              {request.status === "pending_payment" ? (
+                                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                                  <p className="text-yellow-800">
+                                    <AlertCircle className="h-4 w-4 inline mr-2" />
+                                    Waiting for payment confirmation
+                                  </p>
+                                </div>
+                              ) : request.status === "pending" ? (
+                                <div className="space-y-4">
+                                  <Textarea
+                                    placeholder="Enter your feedback response..."
+                                    rows={4}
+                                    onChange={(e) => {
+                                      const response = e.target.value;
+                                      handleFeedbackResponse(request.id, response);
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="bg-gray-50 p-4 rounded-lg">
+                                  <h4 className="font-medium text-gray-900 mb-2">Your Response</h4>
+                                  <p className="text-gray-700">{request.response}</p>
+                                  <p className="text-sm text-gray-500 mt-2">
+                                    Responded on {formatDate(request.respondedAt)}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm text-gray-500">
+                                Requested on {formatDate(request.createdAt)}
+                              </p>
+                              {request.feedbackType === "priority" && (
+                                <Badge variant="outline" className="mt-2 bg-orange-100 text-orange-700 border-orange-200">
+                                  Priority Request
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  
+                  {hasMoreFeedback && (
+                    <div className="text-center mt-6">
+                      <Button 
+                        variant="outline" 
+                        onClick={loadMoreFeedback}
+                        disabled={loadingFeedback}
+                      >
+                        {loadingFeedback ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Loading...
+                          </>
+                        ) : (
+                          "Load More"
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </TabsContent>
         </Tabs>
