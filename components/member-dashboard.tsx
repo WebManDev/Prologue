@@ -316,58 +316,16 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {subscribedAthletes.flatMap((athlete) =>
-                        (athlete.recentPosts || []).slice(0, 1).map((post: any) => (
-                          <div key={post.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                            <div className="flex items-start space-x-3 mb-3">
-                              <Image
-                                src={athlete.profilePic || "/placeholder.svg"}
-                                alt={athlete.name}
-                                width={40}
-                                height={40}
-                                className="rounded-full"
-                              />
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <h4 className="font-semibold text-gray-900">{athlete.name}</h4>
-                                  <Badge variant="outline" className="text-xs">
-                                    {athlete.sport}
-                                  </Badge>
-                                  <Badge
-                                    variant={post.type === "workout" ? "default" : "secondary"}
-                                    className="text-xs"
-                                  >
-                                    {post.type === "workout" ? "Workout" : "Blog"}
-                                  </Badge>
-                                </div>
-                                <h3 className="font-medium text-gray-900 mb-1">{post.title}</h3>
-                                <p className="text-sm text-gray-600 mb-2">{post.description}</p>
-                              </div>
-                              <span className="text-xs text-gray-500">{post.createdAt}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                <span className="flex items-center space-x-1">
-                                  <Eye className="h-4 w-4" />
-                                  <span>{post.views}</span>
-                                </span>
-                                <span className="flex items-center space-x-1">
-                                  {post.type === "workout" ? (
-                                    <Video className="h-4 w-4" />
-                                  ) : (
-                                    <FileText className="h-4 w-4" />
-                                  )}
-                                  <span>{post.type === "workout" ? "Watch" : "Read"}</span>
-                                </span>
-                              </div>
-                              <Button size="sm" variant="outline" onClick={() => setMessagingCoach(athlete)}>
-                                <MessageSquare className="h-4 w-4 mr-2" />
-                                Message
-                              </Button>
-                            </div>
-                          </div>
-                        )),
-                      )}
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-blue-600 mb-1">{subscribedAthletes.length}</div>
+                        <div className="text-sm text-gray-600">Active Subscriptions</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-orange-500 mb-1">
+                          {subscribedAthletes.reduce((sum, athlete) => sum + athlete.posts, 0)}
+                        </div>
+                        <div className="text-sm text-gray-600">Total Content</div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -394,9 +352,6 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                           {subscribedAthletes.reduce((sum, athlete) => sum + athlete.posts, 0)}
                         </div>
                         <div className="text-sm text-gray-600">Total Content</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-green-600 mb-1">${subscribedAthletes.length * 10}</div>
                       </div>
                     </div>
                   </CardContent>
@@ -427,8 +382,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                             <p className="text-xs text-gray-600">{athlete.sport}</p>
                           </div>
                           <Badge variant="outline" className="text-xs">
-                            <CreditCard className="h-3 w-3 mr-1" />
-                            $10/mo
+                            Subscribed
                           </Badge>
                         </div>
                       ))}
@@ -485,7 +439,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                       <div className="flex items-center justify-between mb-4">
                         <Badge variant="default" className="bg-green-600">
                           <CreditCard className="h-3 w-3 mr-1" />
-                          Subscribed • $10/month
+                          Subscribed
                         </Badge>
                         <Badge variant="outline" className="text-xs">
                           {athlete.subscriptionStatus === "active" ? "Active" : "Inactive"}
@@ -684,7 +638,6 @@ function AthleteProfileView({
                 </Button>
                 <Badge variant="default" className="bg-green-600 px-3 py-1">
                   <CreditCard className="h-3 w-3 mr-1" />
-                  Subscribed
                 </Badge>
               </>
             ) : (
