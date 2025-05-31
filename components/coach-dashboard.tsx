@@ -60,6 +60,25 @@ interface AthleteProfile {
   subscriptionStatus: string;
 }
 
+function StarRating({ value, onChange, disabled = false }: { value: number, onChange: (v: number) => void, disabled?: boolean }) {
+  return (
+    <div className="flex items-center space-x-1">
+      {[1,2,3,4,5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          onClick={() => !disabled && onChange(star)}
+          disabled={disabled}
+          aria-label={`Rate ${star}`}
+          style={{ background: "none", border: "none", cursor: disabled ? "not-allowed" : "pointer", padding: 0 }}
+        >
+          <Star className={`h-5 w-5 ${value >= star ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [activeTab, setActiveTab] = useState("dashboard")
   const [creatingPost, setCreatingPost] = useState(false)
@@ -125,6 +144,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [feedbackPage, setFeedbackPage] = useState(1)
   const [hasMoreFeedback, setHasMoreFeedback] = useState(true)
   const FEEDBACK_PER_PAGE = 5
+
+  const [feedbackInputs, setFeedbackInputs] = useState<{[id: string]: {rating: number, text: string, submitting: boolean}}>({});
 
   const formatDate = (timestamp: Timestamp | Date | string | null) => {
     if (!timestamp) return 'N/A';
@@ -426,15 +447,18 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     setFeedbackPage(prev => prev + 1);
   };
 
-  // Add this function to handle feedback responses
-  const handleFeedbackResponse = async (requestId: string, response: string) => {
+  // Update handleFeedbackResponse to accept rating and text
+  const handleFeedbackResponse = async (requestId: string, rating: number, text: string) => {
     if (!auth.currentUser) return;
+    setFeedbackInputs((prev) => ({ ...prev, [requestId]: { ...prev[requestId], submitting: true } }));
     const db = getFirestore();
     await updateDoc(doc(db, "videoFeedbackRequests", requestId), {
       status: "completed",
-      response,
+      response: text,
+      rating,
       respondedAt: serverTimestamp()
     });
+    setFeedbackInputs((prev) => ({ ...prev, [requestId]: { rating: 0, text: "", submitting: false } }));
   };
 
   if (loading) {
@@ -1410,14 +1434,27 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                                 </div>
                               ) : request.status === "pending" ? (
                                 <div className="space-y-4">
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">Rating</label>
+                                  <StarRating
+                                    value={feedbackInputs[request.id]?.rating || 0}
+                                    onChange={(v) => setFeedbackInputs((prev) => ({ ...prev, [request.id]: { ...prev[request.id], rating: v } }))}
+                                    disabled={feedbackInputs[request.id]?.submitting}
+                                  />
                                   <Textarea
                                     placeholder="Enter your feedback response..."
                                     rows={4}
-                                    onChange={(e) => {
-                                      const response = e.target.value;
-                                      handleFeedbackResponse(request.id, response);
-                                    }}
+                                    value={feedbackInputs[request.id]?.text || ""}
+                                    onChange={(e) => setFeedbackInputs((prev) => ({ ...prev, [request.id]: { ...prev[request.id], text: e.target.value } }))}
+                                    disabled={feedbackInputs[request.id]?.submitting}
                                   />
+                                  <Button
+                                    onClick={() => handleFeedbackResponse(request.id, feedbackInputs[request.id]?.rating || 0, feedbackInputs[request.id]?.text || "")}
+                                    disabled={feedbackInputs[request.id]?.submitting || !(feedbackInputs[request.id]?.rating && feedbackInputs[request.id]?.text)}
+                                    className="bg-blue-600 hover:bg-blue-700"
+                                  >
+                                    {feedbackInputs[request.id]?.submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                                    Send
+                                  </Button>
                                 </div>
                               ) : (
                                 <div className="bg-gray-50 p-4 rounded-lg">
