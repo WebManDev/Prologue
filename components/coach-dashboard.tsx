@@ -73,6 +73,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     videoLink: "",
     type: "workout" as "workout" | "blog",
   })
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false)
+  const [workoutVideo, setWorkoutVideo] = useState<File | null>(null)
 
   const [editingProfile, setEditingProfile] = useState(false)
   const [profileData, setProfileData] = useState({
@@ -167,12 +169,63 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     }
   }
 
-  const handleCreatePost = () => {
-    // Here you would save the post to your database
-    console.log("Creating post:", newPost)
-    setNewPost({ title: "", description: "", content: "", videoLink: "", type: "workout" })
-    setCreatingPost(false)
-  }
+  const handleWorkoutVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Check if file is a video
+    if (!file.type.startsWith('video/')) {
+      alert('Please upload a video file');
+      return;
+    }
+    
+    // Check file size (100MB limit)
+    if (file.size > 100 * 1024 * 1024) {
+      alert('Video must be less than 100MB');
+      return;
+    }
+    
+    setWorkoutVideo(file);
+  };
+
+  const handleCreatePost = async () => {
+    if (!auth.currentUser) {
+      alert('You must be logged in to create a post');
+      return;
+    }
+
+    setIsUploadingVideo(true);
+    try {
+      let videoUrl = '';
+      
+      // Upload video if one was selected
+      if (workoutVideo) {
+        const storage = getStorage();
+        const fileRef = storageRef(storage, `workout-videos/${auth.currentUser.uid}/${Date.now()}_${workoutVideo.name}`);
+        await uploadBytes(fileRef, workoutVideo);
+        videoUrl = await getDownloadURL(fileRef);
+      }
+
+      // Save post to Firebase
+      await saveAthletePost(auth.currentUser.uid, {
+        title: newPost.title,
+        description: newPost.description,
+        content: newPost.content,
+        videoLink: videoUrl,
+        type: newPost.type,
+      });
+
+      // Reset form
+      setNewPost({ title: "", description: "", content: "", videoLink: "", type: "workout" });
+      setWorkoutVideo(null);
+      setCreatingPost(false);
+    } catch (error) {
+      console.error("Error creating post:", error);
+      alert("Failed to create post. Please try again.");
+    } finally {
+      setIsUploadingVideo(false);
+    }
+  };
 
   const requestPayout = async () => {
     if (!stripeAccountId) {
@@ -1157,12 +1210,24 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
 
               {postType === "workout" && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Video Link (Optional)</label>
-                  <Input
-                    value={newPost.videoLink}
-                    onChange={(e) => setNewPost({ ...newPost, videoLink: e.target.value })}
-                    placeholder="https://youtube.com/watch?v=..."
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Workout Video (Required)</label>
+                  <div className="flex gap-2 items-center">
+                    <Button variant="outline" size="icon" className="shrink-0" asChild>
+                      <label>
+                        <Video className="h-4 w-4" />
+                        <input
+                          type="file"
+                          accept="video/*"
+                          onChange={handleWorkoutVideoUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </Button>
+                    <span className="text-sm text-gray-600">
+                      {workoutVideo ? workoutVideo.name : "No video selected"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">MP4, MOV, AVI up to 100MB</p>
                 </div>
               )}
 
@@ -1179,10 +1244,17 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 </Button>
                 <Button
                   onClick={handleCreatePost}
-                  disabled={!newPost.title || !newPost.description || !newPost.content}
+                  disabled={!newPost.title || !newPost.description || !newPost.content || (postType === "workout" && !workoutVideo) || isUploadingVideo}
                   className="flex-1 bg-orange-500 hover:bg-orange-600"
                 >
-                  Publish {postType === "workout" ? "Workout" : "Blog Post"}
+                  {isUploadingVideo ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    `Publish ${postType === "workout" ? "Workout" : "Blog Post"}`
+                  )}
                 </Button>
               </div>
             </CardContent>

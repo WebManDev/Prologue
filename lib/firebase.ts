@@ -124,17 +124,26 @@ const uploadProfilePicture = async (userId: string, file: File) => {
   }
 };
 
-// Function to save athlete blog post
+// Function to save athlete post (blog or workout)
 const saveAthletePost = async (
   userId: string,
-  post: { title: string; content: string; coverImage?: string }
+  post: { 
+    title: string; 
+    content: string; 
+    description?: string;
+    videoLink?: string;
+    type: "blog" | "workout";
+    coverImage?: string;
+  }
 ) => {
   try {
     return await addDoc(collection(db, "athletePosts"), {
       ...post,
       userId,
       createdAt: Timestamp.now(),
-      type: "blog",
+      views: 0,
+      likes: 0,
+      comments: 0,
     });
   } catch (error) {
     console.error("Error saving athlete post:", error);

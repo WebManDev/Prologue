@@ -10,7 +10,7 @@ export const STRIPE_CONFIG = {
   publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!,
   webhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
   currency: "usd",
-  platformFeePercentage: 0.15, // 15% platform fee
+  platformFeePercentage: 0.95, // 15% platform fee
   monthlySubscriptionPrice: 10, // $10/month for athlete subscriptions
 }
 
