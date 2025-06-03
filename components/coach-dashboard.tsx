@@ -35,6 +35,7 @@ import {
   ImageIcon,
   Loader2,
   AlertCircle,
+  Share2,
 } from "lucide-react"
 import { CoachStripeOnboarding } from "./coach-stripe-onboarding"
 import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAthlete, updateAthletePost, deleteAthletePost, saveAthleteProfile } from "@/lib/firebase"
@@ -62,6 +63,17 @@ interface AthleteProfile {
   subscriptionStatus: string;
   specialties: string[];
   certifications: string[];
+}
+
+interface PostData {
+  title: string;
+  content: string;
+  description?: string;
+  videoLink?: string;
+  type: "blog" | "workout";
+  images?: string[];
+  visibility: "public" | "subscribers";
+  tags: string[];
 }
 
 function StarRating({ value, onChange, disabled = false }: { value: number, onChange: (v: number) => void, disabled?: boolean }) {
@@ -105,9 +117,14 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     content: "",
     videoLink: "",
     type: "workout" as "workout" | "blog",
+    images: [] as string[],
+    visibility: "public" as "public" | "subscribers",
+    tags: [] as string[],
   })
   const [isUploadingVideo, setIsUploadingVideo] = useState(false)
+  const [isUploadingImages, setIsUploadingImages] = useState(false)
   const [workoutVideo, setWorkoutVideo] = useState<File | null>(null)
+  const [postImages, setPostImages] = useState<File[]>([])
 
   const [editingProfile, setEditingProfile] = useState(false)
   const [profileData, setProfileData] = useState({
@@ -270,6 +287,26 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     setWorkoutVideo(file);
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    // Check file types and sizes
+    const validFiles = files.filter(file => {
+      if (!file.type.startsWith('image/')) {
+        alert(`${file.name} is not an image file`);
+        return false;
+      }
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        alert(`${file.name} is too large. Max size is 10MB`);
+        return false;
+      }
+      return true;
+    });
+
+    setPostImages(prev => [...prev, ...validFiles]);
+  };
+
   const handleCreatePost = async () => {
     if (!auth.currentUser) {
       alert('You must be logged in to create a post');
@@ -277,8 +314,10 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     }
 
     setIsUploadingVideo(true);
+    setIsUploadingImages(true);
     try {
       let videoUrl = '';
+      let imageUrls: string[] = [];
       
       // Upload video if one was selected
       if (workoutVideo) {
@@ -288,24 +327,50 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         videoUrl = await getDownloadURL(fileRef);
       }
 
+      // Upload images if any were selected
+      if (postImages.length > 0) {
+        const storage = getStorage();
+        const uploadPromises = postImages.map(async (file) => {
+          const fileRef = storageRef(storage, `post-images/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
+          await uploadBytes(fileRef, file);
+          return getDownloadURL(fileRef);
+        });
+        imageUrls = await Promise.all(uploadPromises);
+      }
+
       // Save post to Firebase
-      await saveAthletePost(auth.currentUser.uid, {
+      const postData: PostData = {
         title: newPost.title,
         description: newPost.description,
         content: newPost.content,
         videoLink: videoUrl,
+        images: imageUrls,
         type: newPost.type,
-      });
+        visibility: newPost.visibility,
+        tags: newPost.tags,
+      };
+      await saveAthletePost(auth.currentUser.uid, postData);
 
       // Reset form
-      setNewPost({ title: "", description: "", content: "", videoLink: "", type: "workout" });
+      setNewPost({ 
+        title: "", 
+        description: "", 
+        content: "", 
+        videoLink: "", 
+        type: "workout",
+        images: [],
+        visibility: "public",
+        tags: [],
+      });
       setWorkoutVideo(null);
+      setPostImages([]);
       setCreatingPost(false);
     } catch (error) {
       console.error("Error creating post:", error);
       alert("Failed to create post. Please try again.");
     } finally {
       setIsUploadingVideo(false);
+      setIsUploadingImages(false);
     }
   };
 
@@ -492,6 +557,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       content: post.content,
       videoLink: post.videoLink || "",
       type: post.type,
+      images: post.images || [],
+      visibility: post.visibility,
+      tags: post.tags || [],
     });
     setPostType(post.type);
     setCreatingPost(true);
@@ -518,12 +586,25 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         description: newPost.description,
         content: newPost.content,
         videoLink: videoUrl,
+        images: newPost.images,
         type: newPost.type,
+        visibility: newPost.visibility,
+        tags: newPost.tags,
       });
 
       // Reset form and state
-      setNewPost({ title: "", description: "", content: "", videoLink: "", type: "workout" });
+      setNewPost({ 
+        title: "", 
+        description: "", 
+        content: "", 
+        videoLink: "", 
+        type: "workout",
+        images: [],
+        visibility: "public",
+        tags: [],
+      });
       setWorkoutVideo(null);
+      setPostImages([]);
       setCreatingPost(false);
       setEditingPost(null);
       
@@ -621,6 +702,12 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 onClick={() => setActiveTab("dashboard")}
               >
                 Dashboard
+              </Button>
+              <Button
+                variant={activeTab === "feed" ? "default" : "outline"}
+                onClick={() => setActiveTab("feed")}
+              >
+                Feed
               </Button>
               <Button
                 variant={activeTab === "content" ? "default" : "outline"}
@@ -900,6 +987,230 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     </div>
                   </CardContent>
                 </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="feed">
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h1 className="text-3xl font-bold text-gray-900">Feed</h1>
+                <Button
+                  onClick={() => {
+                    setPostType("workout")
+                    setCreatingPost(true)
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Post
+                </Button>
+              </div>
+
+              {/* Create Post Card */}
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-4">
+                    <img
+                      src={profileData.profilePicture || "/placeholder.svg"}
+                      alt={profile.name}
+                      className="w-10 h-10 rounded-full"
+                    />
+                    <Button
+                      variant="outline"
+                      className="flex-1 justify-start text-gray-500 hover:text-gray-700"
+                      onClick={() => {
+                        setPostType("workout")
+                        setCreatingPost(true)
+                      }}
+                    >
+                      Share a workout, article, or update...
+                    </Button>
+                  </div>
+                  <div className="flex justify-between mt-4 pt-4 border-t">
+                    <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+                      <Video className="h-5 w-5 mr-2" />
+                      Video
+                    </Button>
+                    <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+                      <ImageIcon className="h-5 w-5 mr-2" />
+                      Photo
+                    </Button>
+                    <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+                      <FileText className="h-5 w-5 mr-2" />
+                      Article
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Feed Content - Mix of own posts and other athletes' posts */}
+              <div className="space-y-4">
+                {/* Sample posts from other athletes */}
+                {[
+                  {
+                    id: "sample-1",
+                    title: "Advanced Tennis Serve Technique",
+                    description: "Master the perfect serve with these professional tips",
+                    content: "Focus on your toss placement and follow-through for maximum power and accuracy...",
+                    type: "workout",
+                    authorName: "Marcus Rodriguez",
+                    authorSport: "Tennis",
+                    authorAvatar: "/placeholder.svg?height=40&width=40",
+                    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+                    views: 156,
+                    likes: 23,
+                    comments: 8,
+                    isLiked: false,
+                    videoLink: "https://example.com/tennis-serve",
+                    visibility: "public",
+                    tags: ["tennis", "serve", "technique"],
+                  },
+                  {
+                    id: "sample-2",
+                    title: "Mental Preparation for Competition",
+                    description: "How to stay focused and confident during high-pressure moments",
+                    content:
+                      "Visualization techniques and breathing exercises that have helped me win championships...",
+                    type: "blog",
+                    authorName: "Sarah Chen",
+                    authorSport: "Swimming",
+                    authorAvatar: "/placeholder.svg?height=40&width=40",
+                    createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
+                    views: 89,
+                    likes: 15,
+                    comments: 12,
+                    isLiked: true,
+                    images: ["/placeholder.svg?height=200&width=300"],
+                    visibility: "public",
+                    tags: ["mental", "competition", "preparation"],
+                  },
+                  ...coachPosts.map((post) => ({
+                    ...post,
+                    authorName: profile.name,
+                    authorSport: profile.sport || "Sport",
+                    authorAvatar: profileData.profilePicture,
+                    isLiked: false,
+                    visibility: "public",
+                    tags: post.tags || [],
+                  })),
+                ].map((post) => (
+                  <Card key={post.id}>
+                    <CardContent className="p-6">
+                      {/* Post Header */}
+                      <div className="flex items-center space-x-3 mb-4">
+                        <img
+                          src={post.authorAvatar || "/placeholder.svg"}
+                          alt={post.authorName}
+                          className="w-10 h-10 rounded-full"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <h4 className="font-semibold text-gray-900">{post.authorName}</h4>
+                            <Badge variant="outline" className="text-xs">
+                              {post.authorSport}
+                            </Badge>
+                            {post.authorName === profile.name && (
+                              <Badge variant="secondary" className="text-xs">
+                                You
+                              </Badge>
+                            )}
+                            <Badge variant={post.visibility === "public" ? "default" : "outline"} className="text-xs">
+                              {post.visibility === "public" ? "Public" : "Subscribers Only"}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
+                        </div>
+                        {post.authorName === profile.name && (
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEditPost(post)}
+                              disabled={isDeleting}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => handleDeletePost(post)}
+                              disabled={isDeleting}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Post Content */}
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-xl font-semibold text-gray-900 mb-2">{post.title}</h3>
+                          <p className="text-gray-600">{post.description}</p>
+                        </div>
+
+                        {post.type === "workout" && post.videoLink && (
+                          <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                            <video
+                              src={post.videoLink}
+                              controls
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
+
+                        {post.type === "blog" && post.images && post.images.length > 0 && (
+                          <div className="grid grid-cols-2 gap-4">
+                            {post.images.map((image: string, index: number) => (
+                              <img
+                                key={index}
+                                src={image}
+                                alt={`Blog image ${index + 1}`}
+                                className="w-full h-48 object-cover rounded-lg"
+                              />
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Tags */}
+                        {post.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {post.tags.map((tag: string) => (
+                              <Badge key={tag} variant="secondary" className="text-xs">
+                                #{tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="flex items-center space-x-4 text-sm text-gray-600">
+                          <button
+                            className={`flex items-center space-x-1 ${
+                              post.isLiked ? "text-red-600" : "hover:text-red-600"
+                            }`}
+                          >
+                            <Star className={`h-4 w-4 ${post.isLiked ? "fill-current" : ""}`} />
+                            <span>{post.likes}</span>
+                          </button>
+                          <span className="flex items-center space-x-1">
+                            <MessageSquare className="h-4 w-4" />
+                            <span>{post.comments}</span>
+                          </span>
+                          <span className="flex items-center space-x-1">
+                            <Eye className="h-4 w-4" />
+                            <span>{post.views}</span>
+                          </span>
+                          <Button variant="ghost" size="sm" className="ml-auto">
+                            <Share2 className="h-4 w-4 mr-2" />
+                            Share
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             </div>
           </TabsContent>
@@ -1678,10 +1989,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <CardHeader>
               <CardTitle>
-                {editingPost ? "Edit" : "Create"} {postType === "workout" ? "Workout" : "Blog Post"}
+                {editingPost ? "Edit" : "Create"} Post
                 <Badge variant="outline" className="ml-2">
-                  <Lock className="h-3 w-3 mr-1" />
-                  Subscribers Only
+                  {newPost.visibility === "public" ? "Public" : "Subscribers Only"}
                 </Badge>
               </CardTitle>
             </CardHeader>
@@ -1691,7 +2001,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 <Input
                   value={newPost.title}
                   onChange={(e) => setNewPost({ ...newPost, title: e.target.value })}
-                  placeholder={`Enter ${postType} title...`}
+                  placeholder="Enter post title..."
                 />
               </div>
 
@@ -1700,30 +2010,36 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 <Textarea
                   value={newPost.description}
                   onChange={(e) => setNewPost({ ...newPost, description: e.target.value })}
-                  placeholder="Brief description that will be visible to subscribers..."
+                  placeholder="Brief description of your post..."
                   rows={2}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {postType === "workout" ? "Workout Content" : "Blog Content"}
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Content</label>
                 <Textarea
                   value={newPost.content}
                   onChange={(e) => setNewPost({ ...newPost, content: e.target.value })}
-                  placeholder={
-                    postType === "workout"
-                      ? "Detailed workout instructions, sets, reps, tips..."
-                      : "Write your blog post content here..."
-                  }
+                  placeholder="Write your post content here..."
                   rows={8}
                 />
               </div>
 
-              {postType === "workout" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Tags (comma-separated)</label>
+                <Input
+                  value={newPost.tags.join(', ')}
+                  onChange={(e) => setNewPost({ 
+                    ...newPost, 
+                    tags: e.target.value.split(',').map(tag => tag.trim()).filter(Boolean)
+                  })}
+                  placeholder="e.g., tennis, technique, training"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Workout Video (Required)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Video (Optional)</label>
                   <div className="flex gap-2 items-center">
                     <Button variant="outline" size="icon" className="shrink-0" asChild>
                       <label>
@@ -1742,22 +2058,55 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   </div>
                   <p className="text-xs text-gray-500 mt-1">MP4, MOV, AVI up to 100MB</p>
                 </div>
-              )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Images (Optional)</label>
+                  <div className="flex gap-2 items-center">
+                    <Button variant="outline" size="icon" className="shrink-0" asChild>
+                      <label>
+                        <ImageIcon className="h-4 w-4" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleImageUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </Button>
+                    <span className="text-sm text-gray-600">
+                      {postImages.length} image{postImages.length !== 1 ? 's' : ''} selected
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">JPG, PNG up to 10MB each</p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-gray-700">Visibility:</label>
+                <select
+                  value={newPost.visibility}
+                  onChange={(e) => setNewPost({ ...newPost, visibility: e.target.value as "public" | "subscribers" })}
+                  className="border rounded-md px-2 py-1 text-sm"
+                >
+                  <option value="public">Public</option>
+                  <option value="subscribers">Subscribers Only</option>
+                </select>
+              </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm text-blue-800">
-                  <strong>Subscriber Content:</strong> This content will only be visible to your paying subscribers
-                  ($10/month).
+                  <strong>Note:</strong> Public posts are visible to everyone, while subscriber-only posts are only visible to your paying subscribers.
                 </p>
               </div>
             </CardContent>
             <CardFooter>
               <Button
-                className="w-full bg-orange-500 hover:bg-orange-600"
+                className="w-full bg-blue-600 hover:bg-blue-700"
                 onClick={editingPost ? handleUpdatePost : handleCreatePost}
-                disabled={isUploadingVideo}
+                disabled={isUploadingVideo || isUploadingImages}
               >
-                {isUploadingVideo ? (
+                {isUploadingVideo || isUploadingImages ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     {editingPost ? "Updating..." : "Creating..."}

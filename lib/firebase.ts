@@ -132,6 +132,8 @@ const saveAthletePost = async (
     videoLink?: string;
     type: "blog" | "workout";
     images?: string[];
+    visibility: "public" | "subscribers";
+    tags: string[];
   }
 ) => {
   try {
@@ -268,6 +270,8 @@ const updateAthletePost = async (
     videoLink?: string;
     type?: "blog" | "workout";
     images?: string[];
+    visibility?: "public" | "subscribers";
+    tags?: string[];
   }
 ) => {
   try {
