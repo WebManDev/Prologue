@@ -67,6 +67,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const [loadingSubscribed, setLoadingSubscribed] = useState(true);
   const [feedbackRequests, setFeedbackRequests] = useState<any[]>([]);
   const [loadingFeedback, setLoadingFeedback] = useState(true);
+  const [feedExpanded, setFeedExpanded] = useState(false);
   const db = getFirestore();
 
   useEffect(() => {
@@ -310,17 +311,78 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
       <div className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsContent value="dashboard">
-            {/* Welcome Section */}
-            <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {profile.name}!</h1>
-              <p className="text-gray-600">
-                Continue learning from your subscribed athletes and discover new training content.
-              </p>
-            </div>
-
-            <div className="grid lg:grid-cols-3 gap-8">
-              {/* Main Content */}
-              <div className="lg:col-span-2 space-y-6">
+            {feedExpanded ? (
+              <div className="max-w-3xl mx-auto">
+                <div className="flex justify-between items-center mb-4 mt-8">
+                  <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
+                  <Button variant="outline" size="sm" onClick={() => setFeedExpanded(false)}>
+                    Collapse Feed
+                  </Button>
+                </div>
+                {[
+                  {
+                    id: "sample-1",
+                    title: "How I Improved My Serve",
+                    description: "Sharing my journey and tips for a better tennis serve.",
+                    authorName: "Alex Kim",
+                    authorAvatar: "/placeholder.svg?height=40&width=40",
+                    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+                    content: "Practice, video analysis, and feedback from my coach made all the difference!",
+                    likes: 12,
+                    comments: 3,
+                    views: 45,
+                  },
+                  {
+                    id: "sample-2",
+                    title: "Nutrition Tips for Swimmers",
+                    description: "What I eat before and after practice.",
+                    authorName: "Jamie Lee",
+                    authorAvatar: "/placeholder.svg?height=40&width=40",
+                    createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
+                    content: "Carbs before, protein after! Hydration is key.",
+                    likes: 8,
+                    comments: 2,
+                    views: 30,
+                  },
+                ].map((post) => (
+                  <Card key={post.id}>
+                    <CardContent className="p-6">
+                      <div className="flex items-center space-x-3 mb-4">
+                        <img
+                          src={post.authorAvatar}
+                          alt={post.authorName}
+                          className="w-10 h-10 rounded-full"
+                        />
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-900">{post.authorName}</h4>
+                          <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
+                        </div>
+                      </div>
+                      <div className="mb-2">
+                        <h3 className="text-xl font-semibold text-gray-900 mb-1">{post.title}</h3>
+                        <p className="text-gray-600 mb-2">{post.description}</p>
+                        <p className="text-gray-700">{post.content}</p>
+                      </div>
+                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                        <span className="flex items-center space-x-1">
+                          <Star className="h-4 w-4" />
+                          <span>{post.likes}</span>
+                        </span>
+                        <span className="flex items-center space-x-1">
+                          <MessageSquare className="h-4 w-4" />
+                          <span>{post.comments}</span>
+                        </span>
+                        <span className="flex items-center space-x-1">
+                          <Eye className="h-4 w-4" />
+                          <span>{post.views}</span>
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <>
                 {/* Quick Actions */}
                 <Card>
                   <CardHeader>
@@ -358,174 +420,221 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                   </CardContent>
                 </Card>
 
-                {/* Latest Content from Subscribed Athletes */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center space-x-2">
-                        <Lock className="h-5 w-5 text-blue-600" />
-                        <span>Latest Exclusive Content</span>
-                      </span>
-                      <Button variant="ghost" size="sm" onClick={() => setActiveTab("athletes")}>
-                        View All
-                      </Button>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-blue-600 mb-1">{subscribedAthletes.length}</div>
-                        <div className="text-sm text-gray-600">Active Subscriptions</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-orange-500 mb-1">
-                          {subscribedAthletes.reduce((sum, athlete) => sum + athlete.posts, 0)}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Content</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Feedback Requests Section */}
-                <div className="mt-8">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-4">My Feedback Requests</h2>
-                  {loadingFeedback ? (
-                    <div className="text-center py-12">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">Loading feedback requests...</h3>
-                    </div>
-                  ) : feedbackRequests.length === 0 ? (
-                    <div className="text-center py-12">
-                      <Video className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback requests yet</h3>
-                      <p className="text-gray-600">When you request video feedback, it will appear here.</p>
-                    </div>
-                  ) : (
-                    <div className="grid gap-6">
-                      {feedbackRequests.map((request) => (
-                        <Card key={request.id}>
-                          <CardContent className="p-6">
-                            <div className="flex items-start justify-between mb-4">
+                {/* Row: Messages | My Feedback Requests */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                  {/* Messages Section */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <MessageSquare className="h-5 w-5 text-blue-600" />
+                        <span>Messages</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {subscribedAthletes.length === 0 ? (
+                          <div className="text-gray-500 text-sm">No athletes to message yet.</div>
+                        ) : (
+                          subscribedAthletes.map((athlete) => (
+                            <div key={athlete.id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer" onClick={() => setMessagingCoach(athlete)}>
+                              <Image src={athlete.profilePic || "/placeholder.svg"} alt={athlete.name} width={32} height={32} className="rounded-full" />
                               <div className="flex-1">
-                                <div className="flex items-center space-x-2 mb-2">
-                                  <h3 className="text-xl font-semibold text-gray-900">Video Feedback Request</h3>
-                                  <Badge variant={
-                                    request.status === "pending_payment" ? "destructive" :
-                                    request.status === "pending" ? "default" :
-                                    request.status === "completed" ? "secondary" : "outline"
-                                  }>
-                                    {request.status === "pending_payment" ? "Payment Pending" :
-                                     request.status === "pending" ? "Pending Review" :
-                                     request.status === "completed" ? "Completed" : request.status}
-                                  </Badge>
-                                </div>
-                                <p className="text-gray-600 mb-4">{request.feedbackText}</p>
-                                {request.videoUrl && (
-                                  <div className="mb-4">
-                                    <video controls className="w-full rounded-lg" src={request.videoUrl} />
-                                  </div>
-                                )}
-                                {request.status === "pending_payment" && (
-                                  <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                                    <p className="text-yellow-800">
-                                      <AlertCircle className="h-4 w-4 inline mr-2" />
-                                      Waiting for payment confirmation
-                                    </p>
-                                  </div>
-                                )}
-                                {request.status === "pending" && (
-                                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                                    <p className="text-blue-800">Your request is pending review by the coach.</p>
-                                  </div>
-                                )}
-                                {request.status === "completed" && (
-                                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                                    <h4 className="font-medium text-gray-900 mb-2">Coach's Feedback</h4>
-                                    <StarDisplay value={request.rating || 0} />
-                                    <p className="text-gray-700 mt-2">{request.response}</p>
-                                    <p className="text-sm text-gray-500 mt-2">
-                                      Responded on {formatDate(request.respondedAt)}
-                                    </p>
-                                  </div>
-                                )}
+                                <p className="font-medium text-sm">{athlete.name}</p>
+                                <p className="text-xs text-gray-600">{athlete.sport}</p>
                               </div>
-                              <div className="text-right">
-                                <p className="text-sm text-gray-500">
-                                  Requested on {formatDate(request.createdAt)}
-                                </p>
-                              </div>
+                              <Button variant="outline" size="sm">
+                                <MessageSquare className="h-4 w-4 mr-2" />
+                                Message
+                              </Button>
                             </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {/* End Feedback Requests Section */}
-
-              </div>
-
-              {/* Sidebar */}
-              <div className="space-y-6">
-                {/* Stats Overview */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <TrendingUp className="h-5 w-5 text-green-600" />
-                      <span>Your Subscriptions</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-blue-600 mb-1">{subscribedAthletes.length}</div>
-                        <div className="text-sm text-gray-600">Active Subscriptions</div>
+                          ))
+                        )}
                       </div>
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-orange-500 mb-1">
-                          {subscribedAthletes.reduce((sum, athlete) => sum + athlete.posts, 0)}
+                    </CardContent>
+                  </Card>
+
+                  {/* My Feedback Requests Section */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <Video className="h-5 w-5 text-blue-600" />
+                        <span>My Feedback Requests</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {loadingFeedback ? (
+                        <div className="text-center py-6">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                          <h3 className="text-base font-medium text-gray-900 mb-1">Loading feedback requests...</h3>
                         </div>
-                        <div className="text-sm text-gray-600">Total Content</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                      ) : feedbackRequests.length === 0 ? (
+                        <div className="text-center py-6">
+                          <Video className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                          <h3 className="text-base font-medium text-gray-900 mb-1">No feedback requests yet</h3>
+                          <p className="text-gray-600 text-xs">When you request video feedback, it will appear here.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {feedbackRequests.map((request) => (
+                            <Card key={request.id} className="bg-gray-50">
+                              <CardContent className="p-3">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1">
+                                    <div className="flex items-center space-x-2 mb-1">
+                                      <span className="font-semibold text-gray-900 text-sm">Video Feedback Request</span>
+                                      <Badge variant={
+                                        request.status === "pending_payment" ? "destructive" :
+                                        request.status === "pending" ? "default" :
+                                        request.status === "completed" ? "secondary" : "outline"
+                                      }>
+                                        {request.status === "pending_payment" ? "Payment Pending" :
+                                         request.status === "pending" ? "Pending Review" :
+                                         request.status === "completed" ? "Completed" : request.status}
+                                      </Badge>
+                                    </div>
+                                    <p className="text-gray-600 text-xs mb-1 line-clamp-2">{request.feedbackText}</p>
+                                    {request.status === "completed" && (
+                                      <div className="bg-green-50 p-2 rounded-lg border border-green-200 mt-1">
+                                        <span className="font-medium text-green-700 text-xs">Coach's Feedback:</span>
+                                        <p className="text-xs text-gray-700 mt-1">{request.response}</p>
+                                        <div className="flex items-center mt-2">
+                                          <span className="text-xs text-gray-600 mr-2">Rating:</span>
+                                          {request.rating ? (
+                                            <div className="flex items-center space-x-1">
+                                              {[1,2,3,4,5].map((star) => (
+                                                <Star key={star} className={`h-4 w-4 ${request.rating >= star ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
+                                              ))}
+                                              <span className="ml-1 text-xs text-gray-700">({request.rating})</span>
+                                            </div>
+                                          ) : (
+                                            <span className="text-xs text-gray-400">Not rated</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-xs text-gray-500">
+                                      {formatDate(request.createdAt)}
+                                    </p>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
 
-                {/* Subscribed Athletes Quick View */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">Your Athletes</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {subscribedAthletes.map((athlete) => (
-                        <div
-                          key={athlete.id}
-                          className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
-                          onClick={() => handleViewAthleteProfile(athlete)}
-                        >
-                          <Image
-                            src={athlete.profilePic || "/placeholder.svg"}
-                            alt={athlete.name}
-                            width={32}
-                            height={32}
-                            className="rounded-full"
+                {/* Community Feed Section below Quick Actions */}
+                <div className={`space-y-4 mt-8 ${feedExpanded ? '' : 'mb-8'}`}>
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
+                    <Button variant="outline" size="sm" onClick={() => setFeedExpanded(f => !f)}>
+                      {feedExpanded ? 'Collapse Feed' : 'Expand Feed'}
+                    </Button>
+                  </div>
+                  {/* Example feed posts, replace with real data as needed */}
+                  {[
+                    {
+                      id: "sample-1",
+                      title: "How I Improved My Serve",
+                      description: "Sharing my journey and tips for a better tennis serve.",
+                      authorName: "Alex Kim",
+                      authorAvatar: "/placeholder.svg?height=40&width=40",
+                      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+                      content: "Practice, video analysis, and feedback from my coach made all the difference!",
+                      likes: 12,
+                      comments: 3,
+                      views: 45,
+                    },
+                    {
+                      id: "sample-2",
+                      title: "Nutrition Tips for Swimmers",
+                      description: "What I eat before and after practice.",
+                      authorName: "Jamie Lee",
+                      authorAvatar: "/placeholder.svg?height=40&width=40",
+                      createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
+                      content: "Carbs before, protein after! Hydration is key.",
+                      likes: 8,
+                      comments: 2,
+                      views: 30,
+                    },
+                  ].map((post) => (
+                    <Card key={post.id}>
+                      <CardContent className="p-6">
+                        <div className="flex items-center space-x-3 mb-4">
+                          <img
+                            src={post.authorAvatar}
+                            alt={post.authorName}
+                            className="w-10 h-10 rounded-full"
                           />
                           <div className="flex-1">
-                            <p className="font-medium text-sm">{athlete.name}</p>
-                            <p className="text-xs text-gray-600">{athlete.sport}</p>
+                            <h4 className="font-semibold text-gray-900">{post.authorName}</h4>
+                            <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
                           </div>
-                          <Badge variant="outline" className="text-xs">
-                            Subscribed
-                          </Badge>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
+                        <div className="mb-2">
+                          <h3 className="text-xl font-semibold text-gray-900 mb-1">{post.title}</h3>
+                          <p className="text-gray-600 mb-2">{post.description}</p>
+                          <p className="text-gray-700">{post.content}</p>
+                        </div>
+                        <div className="flex items-center space-x-4 text-sm text-gray-600">
+                          <span className="flex items-center space-x-1">
+                            <Star className="h-4 w-4" />
+                            <span>{post.likes}</span>
+                          </span>
+                          <span className="flex items-center space-x-1">
+                            <MessageSquare className="h-4 w-4" />
+                            <span>{post.comments}</span>
+                          </span>
+                          <span className="flex items-center space-x-1">
+                            <Eye className="h-4 w-4" />
+                            <span>{post.views}</span>
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Hide the rest of the dashboard widgets if feed is expanded */}
+                {!feedExpanded && (
+                  <>
+                    {/* Latest Content from Subscribed Athletes */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center justify-between">
+                          <span className="flex items-center space-x-2">
+                            <Lock className="h-5 w-5 text-blue-600" />
+                            <span>Latest Exclusive Content</span>
+                          </span>
+                          <Button variant="ghost" size="sm" onClick={() => setActiveTab("athletes")}>
+                            View All
+                          </Button>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="text-center">
+                            <div className="text-3xl font-bold text-blue-600 mb-1">{subscribedAthletes.length}</div>
+                            <div className="text-sm text-gray-600">Active Subscriptions</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-3xl font-bold text-orange-500 mb-1">
+                              {subscribedAthletes.reduce((sum, athlete) => sum + athlete.posts, 0)}
+                            </div>
+                            <div className="text-sm text-gray-600">Total Content</div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="athletes">

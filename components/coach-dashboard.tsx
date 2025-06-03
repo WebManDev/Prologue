@@ -288,6 +288,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!auth.currentUser) return;
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
@@ -322,7 +323,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       // Upload video if one was selected
       if (workoutVideo) {
         const storage = getStorage();
-        const fileRef = storageRef(storage, `workout-videos/${auth.currentUser.uid}/${Date.now()}_${workoutVideo.name}`);
+        const fileRef = storageRef(storage, `workout-videos/${auth.currentUser!.uid}/${Date.now()}_${workoutVideo.name}`);
         await uploadBytes(fileRef, workoutVideo);
         videoUrl = await getDownloadURL(fileRef);
       }
@@ -331,7 +332,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       if (postImages.length > 0) {
         const storage = getStorage();
         const uploadPromises = postImages.map(async (file) => {
-          const fileRef = storageRef(storage, `post-images/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
+          const fileRef = storageRef(storage, `post-images/${auth.currentUser!.uid}/${Date.now()}_${file.name}`);
           await uploadBytes(fileRef, file);
           return getDownloadURL(fileRef);
         });
@@ -486,6 +487,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         type: "blog",
         description: newBlogPost.title,
         videoLink: "",
+        visibility: "public",
+        tags: [],
       })
       setBlogDialogOpen(false)
       setNewBlogPost({ title: "", content: "", images: [] })
@@ -743,252 +746,213 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           </div>
 
           <TabsContent value="dashboard">
-            {/* Welcome Section */}
+            {/* Create Post Card at the top */}
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {profile.name || 'Set your name'}!</h1>
-              <p className="text-gray-600">Share exclusive content with your subscribers and grow your community.</p>
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center space-x-4">
+                    <img
+                      src={profileData.profilePicture || "/placeholder.svg"}
+                      alt={profile.name}
+                      className="w-10 h-10 rounded-full"
+                    />
+                    <Button
+                      variant="outline"
+                      className="flex-1 justify-start text-gray-500 hover:text-gray-700"
+                      onClick={() => {
+                        setPostType("workout")
+                        setCreatingPost(true)
+                      }}
+                    >
+                      Share a workout, article, or update...
+                    </Button>
+                  </div>
+                  <div className="flex justify-between mt-4 pt-4 border-t">
+                    <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+                      <Video className="h-5 w-5 mr-2" />
+                      Video
+                    </Button>
+                    <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+                      <ImageIcon className="h-5 w-5 mr-2" />
+                      Photo
+                    </Button>
+                    <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+                      <FileText className="h-5 w-5 mr-2" />
+                      Article
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
-            <div className="grid lg:grid-cols-3 gap-8">
-              {/* Main Content */}
-              <div className="lg:col-span-2 space-y-6">
-                {/* Quick Actions */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Plus className="h-5 w-5 text-orange-500" />
-                      <span>Create Content</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <Button
-                        onClick={() => {
-                          setPostType("workout")
-                          setCreatingPost(true)
-                        }}
-                        className="h-20 bg-orange-500 hover:bg-orange-600 text-white flex flex-col items-center justify-center space-y-2"
-                      >
-                        <Video className="h-6 w-6" />
-                        <span>Post Workout</span>
-                      </Button>
-                      <Button
-                        onClick={() => setBlogDialogOpen(true)}
-                        className="h-20 bg-blue-500 hover:bg-blue-600 text-white flex flex-col items-center justify-center space-y-2"
-                      >
-                        <FileText className="h-6 w-6" />
-                        <span>Write Blog Post</span>
-                      </Button>
+            {/* Feed Section below the post composer */}
+            <div className="space-y-4 mb-8">
+              {/* Sample posts from other athletes and coach's own posts */}
+              {[
+                {
+                  id: "sample-1",
+                  title: "Advanced Tennis Serve Technique",
+                  description: "Master the perfect serve with these professional tips",
+                  content: "Focus on your toss placement and follow-through for maximum power and accuracy...",
+                  type: "workout",
+                  authorName: "Marcus Rodriguez",
+                  authorSport: "Tennis",
+                  authorAvatar: "/placeholder.svg?height=40&width=40",
+                  createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+                  views: 156,
+                  likes: 23,
+                  comments: 8,
+                  isLiked: false,
+                  videoLink: "https://example.com/tennis-serve",
+                  visibility: "public",
+                  tags: ["tennis", "serve", "technique"],
+                },
+                {
+                  id: "sample-2",
+                  title: "Mental Preparation for Competition",
+                  description: "How to stay focused and confident during high-pressure moments",
+                  content:
+                    "Visualization techniques and breathing exercises that have helped me win championships...",
+                  type: "blog",
+                  authorName: "Sarah Chen",
+                  authorSport: "Swimming",
+                  authorAvatar: "/placeholder.svg?height=40&width=40",
+                  createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
+                  views: 89,
+                  likes: 15,
+                  comments: 12,
+                  isLiked: true,
+                  images: ["/placeholder.svg?height=200&width=300"],
+                  visibility: "public",
+                  tags: ["mental", "competition", "preparation"],
+                },
+                ...coachPosts.map((post) => ({
+                  ...post,
+                  authorName: profile.name,
+                  authorSport: profile.sport || "Sport",
+                  authorAvatar: profileData.profilePicture,
+                  isLiked: false,
+                  visibility: "public",
+                  tags: post.tags || [],
+                })),
+              ].map((post) => (
+                <Card key={post.id}>
+                  {/* Post Header */}
+                  <div className="flex items-center space-x-3 mb-4">
+                    <img
+                      src={post.authorAvatar || "/placeholder.svg"}
+                      alt={post.authorName}
+                      className="w-10 h-10 rounded-full"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2">
+                        <h4 className="font-semibold text-gray-900">{post.authorName}</h4>
+                        <Badge variant="outline" className="text-xs">
+                          {post.authorSport}
+                        </Badge>
+                        {post.authorName === profile.name && (
+                          <Badge variant="secondary" className="text-xs">
+                            You
+                          </Badge>
+                        )}
+                        <Badge variant={post.visibility === "public" ? "default" : "outline"} className="text-xs">
+                          {post.visibility === "public" ? "Public" : "Subscribers Only"}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
                     </div>
-                  </CardContent>
-                </Card>
+                    {post.authorName === profile.name && (
+                      <div className="flex space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditPost(post)}
+                          disabled={isDeleting}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 hover:text-red-700"
+                          onClick={() => handleDeletePost(post)}
+                          disabled={isDeleting}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
 
-                {subscribers.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center space-x-2">
-                        <MessageSquare className="h-5 w-5 text-blue-600" />
-                        <span>Messages</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-2">
-                        {subscribers.map((member) => (
-                          <Button
-                            key={member.id}
-                            variant="outline"
-                            className="w-full justify-start"
-                            onClick={() => setMessagingMember({
-                              id: member.id,
-                              name: member.name,
-                              coach: profileData.name,
-                              coachAvatar: profileData.profilePicture,
-                              sport: member.sport || "Sport"
-                            })}
-                          >
-                            <MessageSquare className="h-4 w-4 mr-2" />
-                            {member.name} ({member.email})
-                          </Button>
+                  {/* Post Content */}
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900 mb-2">{post.title}</h3>
+                      <p className="text-gray-600">{post.description}</p>
+                    </div>
+
+                    {post.type === "workout" && post.videoLink && (
+                      <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                        <video
+                          src={post.videoLink}
+                          controls
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+
+                    {post.type === "blog" && post.images && post.images.length > 0 && (
+                      <div className="grid grid-cols-2 gap-4">
+                        {post.images.map((image: string, index: number) => (
+                          <img
+                            key={index}
+                            src={image}
+                            alt={`Blog image ${index + 1}`}
+                            className="w-full h-48 object-cover rounded-lg"
+                          />
                         ))}
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
+                    )}
 
-                {/* Subscription Revenue */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <DollarSign className="h-5 w-5 text-green-600" />
-                      <span>Subscription Revenue</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="text-center p-4 bg-green-50 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600">${dashboardStats.monthlyEarnings}</div>
-                        <div className="text-sm text-gray-600">Gross Monthly</div>
+                    {/* Tags */}
+                    {post.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {post.tags.map((tag: string) => (
+                          <Badge key={tag} variant="secondary" className="text-xs">
+                            #{tag}
+                          </Badge>
+                        ))}
                       </div>
-                      <div className="text-center p-4 bg-blue-50 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600">
-                          ${Math.round(dashboardStats.monthlyEarnings * STRIPE_CONFIG.platformFeePercentage * 100) / 100}
-                        </div>
-                        <div className="text-sm text-gray-600">Net Monthly</div>
-                      </div>
-                      <div className="text-center p-4 bg-purple-50 rounded-lg">
-                        <div className="text-2xl font-bold text-purple-600">{dashboardStats.activeSubscriptions}</div>
-                        <div className="text-sm text-gray-600">Active Subs</div>
-                      </div>
-                      <div className="text-center p-4 bg-orange-50 rounded-lg">
-                        <div className="text-2xl font-bold text-orange-600">${dashboardStats.totalEarnings}</div>
-                        <div className="text-sm text-gray-600">Total Earned</div>
-                      </div>
-                    </div>
-                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <p className="text-sm text-yellow-800">
-                        <strong>Next Payout:</strong> {getNextPayoutDate()}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+                    )}
 
-                {/* Recent Content */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center space-x-2">
-                        <Lock className="h-5 w-5 text-blue-600" />
-                        <span>Recent Subscriber Content</span>
+                    <div className="flex items-center space-x-4 text-sm text-gray-600">
+                      <button
+                        className={`flex items-center space-x-1 ${
+                          post.isLiked ? "text-red-600" : "hover:text-red-600"
+                        }`}
+                      >
+                        <Star className={`h-4 w-4 ${post.isLiked ? "fill-current" : ""}`} />
+                        <span>{post.likes}</span>
+                      </button>
+                      <span className="flex items-center space-x-1">
+                        <MessageSquare className="h-4 w-4" />
+                        <span>{post.comments}</span>
                       </span>
-                      <Button variant="ghost" size="sm" onClick={() => setActiveTab("content")}>
-                        View All
+                      <span className="flex items-center space-x-1">
+                        <Eye className="h-4 w-4" />
+                        <span>{post.views}</span>
+                      </span>
+                      <Button variant="ghost" size="sm" className="ml-auto">
+                        <Share2 className="h-4 w-4 mr-2" />
+                        Share
                       </Button>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {coachPosts.slice(0, 3).map((post) => (
-                        <div key={post.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center space-x-2">
-                              <h3 className="font-semibold text-gray-900">{post.title}</h3>
-                              <Badge variant={post.type === "workout" ? "default" : "secondary"}>
-                                {post.type === "workout" ? "Workout" : "Blog"}
-                              </Badge>
-                              <Badge variant="outline" className="text-xs">
-                                <Lock className="h-3 w-3 mr-1" />
-                                Subscribers Only
-                              </Badge>
-                            </div>
-                            <Badge variant="secondary">{formatDate(post.createdAt)}</Badge>
-                          </div>
-                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{post.description}</p>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-4 text-sm text-gray-600">
-                              <span className="flex items-center space-x-1">
-                                <Eye className="h-4 w-4" />
-                                <span>{post.views}</span>
-                              </span>
-                              <span className="flex items-center space-x-1">
-                                <Star className="h-4 w-4" />
-                                <span>{post.likes}</span>
-                              </span>
-                              <span className="flex items-center space-x-1">
-                                <MessageSquare className="h-4 w-4" />
-                                <span>{post.comments}</span>
-                              </span>
-                            </div>
-                            <div className="flex space-x-2">
-                              <Button 
-                                size="sm" 
-                                variant="outline"
-                                onClick={() => handleEditPost(post)}
-                                disabled={isDeleting}
-                              >
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit
-                              </Button>
-                              <Button 
-                                size="sm" 
-                                variant="outline" 
-                                className="text-red-600 hover:text-red-700"
-                                onClick={() => handleDeletePost(post)}
-                                disabled={isDeleting}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
                     </div>
-                  </CardContent>
+                  </div>
                 </Card>
-              </div>
-
-              {/* Sidebar */}
-              <div className="space-y-6">
-                {/* Stats Overview */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <TrendingUp className="h-5 w-5 text-green-600" />
-                      <span>Overview</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-blue-600 mb-1">{dashboardStats.subscribers}</div>
-                        <div className="text-sm text-gray-600">Subscribers</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-orange-500 mb-1">{dashboardStats.totalPosts}</div>
-                        <div className="text-sm text-gray-600">Total Posts</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-green-600 mb-1">
-                          {dashboardStats.totalViews.toLocaleString()}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Views</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-purple-600 mb-1">${dashboardStats.monthlyEarnings}</div>
-                        <div className="text-sm text-gray-600">This Month</div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Quick Stats */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">This Week</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">New Subscribers</span>
-                        <span className="font-semibold">+{dashboardStats.thisWeek.newSubscribers}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Content Published</span>
-                        <span className="font-semibold">+{dashboardStats.thisWeek.contentPublished}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Total Views</span>
-                        <span className="font-semibold">+{dashboardStats.thisWeek.totalViews}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Revenue</span>
-                        <span className="font-semibold text-green-600">${dashboardStats.thisWeek.revenue}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+              ))}
             </div>
+
+            {/* ...existing dashboard widgets and sidebar remain unchanged... */}
           </TabsContent>
 
           <TabsContent value="feed">
