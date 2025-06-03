@@ -131,7 +131,7 @@ const saveAthletePost = async (
     description?: string;
     videoLink?: string;
     type: "blog" | "workout";
-    coverImage?: string;
+    images?: string[];
   }
 ) => {
   try {
@@ -267,7 +267,7 @@ const updateAthletePost = async (
     description?: string;
     videoLink?: string;
     type?: "blog" | "workout";
-    coverImage?: string;
+    images?: string[];
   }
 ) => {
   try {

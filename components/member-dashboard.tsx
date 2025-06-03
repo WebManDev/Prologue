@@ -871,6 +871,14 @@ function AthleteProfileView({
                           </Badge>
                         </div>
                         <p className="text-gray-600 mb-3">{post.description}</p>
+                        {/* Render blog images if present */}
+                        {post.images && post.images.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {post.images.map((img: string, idx: number) => (
+                              <img key={idx} src={img} alt={`Blog image ${idx + 1}`} className="max-h-40 rounded" />
+                            ))}
+                          </div>
+                        )}
                         <div className="prose max-w-none text-gray-700 mb-3">{post.content}</div>
                         {post.videoLink && (
                           <div className="flex items-center space-x-2 mb-3">
@@ -917,6 +925,14 @@ function AthleteProfileView({
                           </Badge>
                         </div>
                         <p className="text-gray-600 mb-3">{post.description}</p>
+                        {/* Render blog images if present */}
+                        {post.images && post.images.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-3">
+                            {post.images.map((img: string, idx: number) => (
+                              <img key={idx} src={img} alt={`Blog image ${idx + 1}`} className="max-h-40 rounded" />
+                            ))}
+                          </div>
+                        )}
                         <div className="bg-gray-100 p-4 rounded-lg">
                           <div className="flex items-center justify-center space-x-2 text-gray-500">
                             <Lock className="h-5 w-5" />

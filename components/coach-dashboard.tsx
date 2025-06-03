@@ -128,8 +128,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [newBlogPost, setNewBlogPost] = useState({
     title: "",
     content: "",
-    coverImage: "",
+    images: [] as string[],
   })
+  const [blogImageFiles, setBlogImageFiles] = useState<File[]>([])
 
   const [dashboardStats, setDashboardStats] = useState({
     subscribers: 0,
@@ -386,28 +387,28 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     }))
   }
 
-  const handleCoverImageFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-  
-    setIsUploadingImage(true); // ✅ Start uploading state
+  const handleBlogImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return;
+    setIsUploadingImage(true);
     try {
       const storage = getStorage();
-      const fileRef = storageRef(storage, `blog-covers/${auth.currentUser?.uid}/${Date.now()}_${file.name}`);
-      await uploadBytes(fileRef, file);
-      const url = await getDownloadURL(fileRef);
-      setNewBlogPost((prev) => ({
-        ...prev,
-        coverImage: url,
-      }));
+      const urls: string[] = [];
+      for (const file of files) {
+        const fileRef = storageRef(storage, `blog-covers/${auth.currentUser?.uid}/${Date.now()}_${file.name}`);
+        await uploadBytes(fileRef, file);
+        const url = await getDownloadURL(fileRef);
+        urls.push(url);
+      }
+      setNewBlogPost((prev) => ({ ...prev, images: [...prev.images, ...urls] }));
+      setBlogImageFiles((prev) => [...prev, ...files]);
     } catch (err) {
-      alert("Failed to upload image");
+      alert("Failed to upload image(s)");
       console.error(err);
     } finally {
-      setIsUploadingImage(false); // ✅ Done uploading
+      setIsUploadingImage(false);
     }
-  };
-  
+  }
 
   const handleCreateBlogPost = async () => {
     setIsSubmitting(true)
@@ -416,13 +417,14 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       await saveAthletePost(auth.currentUser.uid, {
         title: newBlogPost.title,
         content: newBlogPost.content,
-        coverImage: newBlogPost.coverImage,
+        images: newBlogPost.images,
         type: "blog",
         description: newBlogPost.title,
         videoLink: "",
       })
       setBlogDialogOpen(false)
-      setNewBlogPost({ title: "", content: "", coverImage: "" })
+      setNewBlogPost({ title: "", content: "", images: [] })
+      setBlogImageFiles([])
     } catch (e: any) {
       console.error("Failed to create blog post:", e)
       alert(e.message || "Unexpected error")
@@ -757,8 +759,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     </div>
                     <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <p className="text-sm text-yellow-800">
-                        <strong>Platform Fee:</strong> 15% • <strong>Your Share:</strong> 85% •{" "}
-                        <strong>Next Payout:</strong> Dec 15th
+                        <strong>Next Payout:</strong> {getNextPayoutDate()}
                       </p>
                     </div>
                   </CardContent>
@@ -1064,21 +1065,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                         <p className="text-xs text-green-600">{dashboardStats.subscribers} × $10</p>
                       </div>
                       <DollarSign className="h-8 w-8 text-green-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-gray-600">Your Share (85%)</p>
-                        <p className="text-2xl font-bold text-blue-600">
-                          ${((dashboardStats.monthlyEarnings * STRIPE_CONFIG.platformFeePercentage)).toFixed(2)}
-                        </p>
-                        <p className="text-xs text-blue-600">After platform fee</p>
-                      </div>
-                      <TrendingUp className="h-8 w-8 text-blue-600" />
                     </div>
                   </CardContent>
                 </Card>
@@ -1821,25 +1807,26 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
               />
             </div>
             <div>
-              <Label htmlFor="coverImage" className="mb-2 block">
-                Cover Image (optional)
+              <Label htmlFor="blogImages" className="mb-2 block">
+                Images (optional, multiple allowed)
               </Label>
-              <div className="flex gap-2 items-center">
+              <div className="flex gap-2 items-center flex-wrap">
                 <Button variant="outline" size="icon" className="shrink-0" asChild>
                   <label>
                     <ImageIcon className="h-4 w-4" />
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={handleCoverImageFile}
+                      multiple
+                      onChange={handleBlogImages}
                       className="hidden"
                     />
                   </label>
                 </Button>
+                {newBlogPost.images.map((img, idx) => (
+                  <img key={idx} src={img} alt={`Blog Preview ${idx}`} className="mt-2 max-h-20 rounded" />
+                ))}
               </div>
-              {newBlogPost.coverImage && newBlogPost.coverImage.startsWith('http') && (
-                <img src={newBlogPost.coverImage} alt="Cover Preview" className="mt-2 max-h-32 rounded" />
-              )}
             </div>
             <div>
               <Label htmlFor="content" className="mb-2 block">
