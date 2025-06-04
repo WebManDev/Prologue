@@ -504,6 +504,7 @@ function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsS
   const [name, setName] = useState("")
   const [error, setError] = useState("")
   const [selectedSport, setSelectedSport] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
 
   const sports = [
     "Basketball",
@@ -538,6 +539,7 @@ function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsS
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setIsLoading(true)
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password)
@@ -560,15 +562,19 @@ function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsS
       }
     } catch (error: any) {
       setError(error.message)
+    } finally {
+      setIsLoading(false)
     }
   }
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    setIsLoading(true)
 
     if (userRole === "member" && !selectedSport) {
       setError("Please select a sport")
+      setIsLoading(false)
       return
     }
 
@@ -599,6 +605,8 @@ function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsS
       }
     } catch (error: any) {
       setError(error.message)
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -787,8 +795,19 @@ function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsS
               </div>
             )}
 
-            <Button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3">
-              {isSignUp ? "Create Account" : "Sign In"}
+            <Button 
+              type="submit" 
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  {isSignUp ? "Creating Account..." : "Signing In..."}
+                </div>
+              ) : (
+                isSignUp ? "Create Account" : "Sign In"
+              )}
             </Button>
           </form>
 
