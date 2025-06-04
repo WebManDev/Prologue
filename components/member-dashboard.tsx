@@ -275,6 +275,14 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
             <span className="text-2xl font-bold text-blue-600">PROLOGUE</span>
           </div>
 
+          {/* Mobile back button - only visible on small screens */}
+          <div className="md:hidden">
+            <Button variant="ghost" onClick={() => setActiveTab("dashboard")}>
+              ← Back
+            </Button>
+          </div>
+
+          {/* Desktop navigation - hidden on mobile */}
           <nav className="hidden md:flex items-center space-x-8">
             <button
               onClick={() => setActiveTab("dashboard")}
