@@ -1095,81 +1095,92 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   </Button>
                 </div>
               </div>
-
               <div className="space-y-4">
-                {coachPosts.map((post) => (
-                  <Card key={post.id}>
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <h3 className="text-xl font-semibold text-gray-900">{post.title}</h3>
-                            <Badge variant={post.type === "workout" ? "default" : "secondary"}>
-                              {post.type === "workout" ? "Workout" : "Blog"}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs">
-                              <Lock className="h-3 w-3 mr-1" />
-                              Subscribers Only
-                            </Badge>
-                          </div>
-                          <p className="text-gray-600 mb-3">{post.description}</p>
-                          {post.videoLink && (
-                            <div className="flex items-center space-x-2 mb-3">
-                              <ExternalLink className="h-4 w-4 text-blue-600" />
-                              <a
-                                href={post.videoLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:underline text-sm"
-                              >
-                                {post.videoLink}
-                              </a>
+                {coachPosts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 border border-dashed border-gray-300 rounded-lg bg-gray-50">
+                    <Video className="h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-700 mb-2">No content yet</h3>
+                    <p className="text-gray-500 mb-4">Create your first workout or blog post to share with your subscribers.</p>
+                    <div className="flex gap-2">
+                      <Button onClick={() => { setPostType("workout"); setCreatingPost(true); }} className="bg-orange-500 text-white">New Workout</Button>
+                      <Button onClick={() => setBlogDialogOpen(true)} className="bg-blue-500 text-white">New Blog Post</Button>
+                    </div>
+                  </div>
+                ) : (
+                  coachPosts.map((post) => (
+                    <Card key={post.id}>
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <h3 className="text-xl font-semibold text-gray-900">{post.title}</h3>
+                              <Badge variant={post.type === "workout" ? "default" : "secondary"}>
+                                {post.type === "workout" ? "Workout" : "Blog"}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                <Lock className="h-3 w-3 mr-1" />
+                                Subscribers Only
+                              </Badge>
                             </div>
-                          )}
+                            <p className="text-gray-600 mb-3">{post.description}</p>
+                            {post.videoLink && (
+                              <div className="flex items-center space-x-2 mb-3">
+                                <ExternalLink className="h-4 w-4 text-blue-600" />
+                                <a
+                                  href={post.videoLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:underline text-sm"
+                                >
+                                  {post.videoLink}
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                          <Badge variant="secondary">{formatDate(post.createdAt)}</Badge>
                         </div>
-                        <Badge variant="secondary">{formatDate(post.createdAt)}</Badge>
-                      </div>
 
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-6 text-sm text-gray-600">
-                          <span className="flex items-center space-x-1">
-                            <Eye className="h-4 w-4" />
-                            <span>{post.views} views</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <Star className="h-4 w-4" />
-                            <span>{post.likes}</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <MessageSquare className="h-4 w-4" />
-                            <span>{post.comments}</span>
-                          </span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-6 text-sm text-gray-600">
+                            <span className="flex items-center space-x-1">
+                              <Eye className="h-4 w-4" />
+                              <span>{post.views} views</span>
+                            </span>
+                            <span className="flex items-center space-x-1">
+                              <Star className="h-4 w-4" />
+                              <span>{post.likes}</span>
+                            </span>
+                            <span className="flex items-center space-x-1">
+                              <MessageSquare className="h-4 w-4" />
+                              <span>{post.comments}</span>
+                            </span>
+                          </div>
+                          <div className="flex space-x-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleEditPost(post)}
+                              disabled={isDeleting}
+                            >
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="text-red-600 hover:text-red-700"
+                              onClick={() => handleDeletePost(post)}
+                              disabled={isDeleting}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex space-x-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => handleEditPost(post)}
-                            disabled={isDeleting}
-                          >
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="text-red-600 hover:text-red-700"
-                            onClick={() => handleDeletePost(post)}
-                            disabled={isDeleting}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
               </div>
             </div>
           </TabsContent>
@@ -1177,37 +1188,45 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           <TabsContent value="subscribers">
             <div className="space-y-6">
               <h1 className="text-3xl font-bold text-gray-900">Subscribers ({dashboardStats.subscribers})</h1>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {subscribers.map((member: any) => {
-                  let subDate = null;
-                  if (member.subscriptionDates) {
-                    const coachId = auth.currentUser?.uid;
-                    subDate = coachId && member.subscriptionDates[coachId]
-                      ? member.subscriptionDates[coachId]
-                      : Object.values(member.subscriptionDates)[0];
-                  }
-                  return (
-                    <Card key={member.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium">M{member.id}</span>
+              {subscribers.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 border border-dashed border-gray-300 rounded-lg bg-gray-50">
+                  <Users className="h-12 w-12 text-gray-400 mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-700 mb-2">No subscribers yet</h3>
+                  <p className="text-gray-500">Share your profile link to start gaining subscribers!</p>
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {subscribers.map((member: any) => {
+                    let subDate = null;
+                    if (member.subscriptionDates) {
+                      const coachId = auth.currentUser?.uid;
+                      subDate = coachId && member.subscriptionDates[coachId]
+                        ? member.subscriptionDates[coachId]
+                        : Object.values(member.subscriptionDates)[0];
+                    }
+                    return (
+                      <Card key={member.id}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                              <span className="text-sm font-medium">M{member.id}</span>
+                            </div>
+                            <div>
+                              <h4 className="font-medium">{member.name || `Member ${member.id}`}</h4>
+                              <p className="text-sm text-gray-600">
+                                Subscribed {formatDate(subDate || null)}
+                              </p>
+                              <Badge variant="outline" className="text-xs mt-1">
+                                Active • $10/month
+                              </Badge>
+                            </div>
                           </div>
-                          <div>
-                            <h4 className="font-medium">{member.name || `Member ${member.id}`}</h4>
-                            <p className="text-sm text-gray-600">
-                              Subscribed {formatDate(subDate || null)}
-                            </p>
-                            <Badge variant="outline" className="text-xs mt-1">
-                              Active • $10/month
-                            </Badge>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </TabsContent>
 

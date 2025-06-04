@@ -27,6 +27,7 @@ import { MemberMessagingInterface } from "./member-messaging-interface"
 import { SubscriptionCheckout } from "./subscription-checkout"
 import { signOut, auth, getMemberProfile, getAllAthletes, getAthletesByIds, rateAthlete } from "@/lib/firebase"
 import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, onSnapshot } from "firebase/firestore"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface MemberDashboardProps {
   onLogout: () => void
@@ -68,7 +69,27 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const [feedbackRequests, setFeedbackRequests] = useState<any[]>([]);
   const [loadingFeedback, setLoadingFeedback] = useState(true);
   const [feedExpanded, setFeedExpanded] = useState(false);
+  const [selectedSport, setSelectedSport] = useState<string>("all")
   const db = getFirestore();
+
+  const sports = [
+    "All Sports",
+    "Tennis",
+    "Soccer",
+    "Swimming",
+    "Basketball",
+    "Volleyball",
+    "Track & Field",
+    "Golf",
+    "Baseball",
+    "Softball",
+    "Wrestling",
+    "Gymnastics",
+    "Cross Country",
+    "Football",
+    "Hockey",
+    "Lacrosse"
+  ]
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -158,7 +179,8 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     (athlete) =>
       (athlete.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         athlete.sport.toLowerCase().includes(searchQuery.toLowerCase())) &&
-      !subscribedIds.has(athlete.id)
+      !subscribedIds.has(athlete.id) &&
+      (selectedSport === "all" || athlete.sport === selectedSport)
   );
 
   const handleSubscribe = (athlete: any) => {
@@ -650,69 +672,77 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
               <h1 className="text-3xl font-bold text-gray-900">My Athletes ({subscribedAthletes.length})</h1>
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {subscribedAthletes.map((athlete) => (
-                  <Card
-                    key={athlete.id}
-                    className="hover:shadow-lg transition-shadow cursor-pointer"
-                    onClick={() => handleViewAthleteProfile(athlete)}
-                  >
-                    <CardContent className="p-6">
-                      <div className="flex items-center space-x-3 mb-4">
-                        <Image
-                          src={athlete.profilePic || "/placeholder.svg"}
-                          alt={athlete.name}
-                          width={60}
-                          height={60}
-                          className="rounded-full"
-                        />
-                        <div>
-                          <h3 className="font-semibold text-lg">{athlete.name}</h3>
-                          <Badge variant="outline">{athlete.sport}</Badge>
+                {subscribedAthletes.length === 0 ? (
+                  <div className="col-span-full text-center py-12">
+                    <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">You have not subscribed to any athletes yet</h3>
+                    <p className="text-gray-600">Browse the Discover tab to find athletes and coaches to subscribe to!</p>
+                  </div>
+                ) : (
+                  subscribedAthletes.map((athlete) => (
+                    <Card
+                      key={athlete.id}
+                      className="hover:shadow-lg transition-shadow cursor-pointer"
+                      onClick={() => handleViewAthleteProfile(athlete)}
+                    >
+                      <CardContent className="p-6">
+                        <div className="flex items-center space-x-3 mb-4">
+                          <Image
+                            src={athlete.profilePic || "/placeholder.svg"}
+                            alt={athlete.name}
+                            width={60}
+                            height={60}
+                            className="rounded-full"
+                          />
+                          <div>
+                            <h3 className="font-semibold text-lg">{athlete.name}</h3>
+                            <Badge variant="outline">{athlete.sport}</Badge>
+                          </div>
                         </div>
-                      </div>
 
-                      <p className="text-sm text-gray-600 mb-4 line-clamp-3">{athlete.bio}</p>
+                        <p className="text-sm text-gray-600 mb-4 line-clamp-3">{athlete.bio}</p>
 
-                      <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
-                        <span className="flex items-center space-x-1">
-                          <Users className="h-4 w-4" />
-                          <span>{athlete.subscribers}</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <Video className="h-4 w-4" />
-                          <span>{athlete.posts} posts</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span>{athlete.rating}</span>
-                        </span>
-                      </div>
+                        <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
+                          <span className="flex items-center space-x-1">
+                            <Users className="h-4 w-4" />
+                            <span>{athlete.subscribers}</span>
+                          </span>
+                          <span className="flex items-center space-x-1">
+                            <Video className="h-4 w-4" />
+                            <span>{athlete.posts} posts</span>
+                          </span>
+                          <span className="flex items-center space-x-1">
+                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                            <span>{athlete.rating}</span>
+                          </span>
+                        </div>
 
-                      <div className="flex items-center justify-between mb-4">
-                        <Badge variant="default" className="bg-green-600">
-                          <CreditCard className="h-3 w-3 mr-1" />
-                          Subscribed
-                        </Badge>
-                        <Badge variant="outline" className="text-xs">
-                          {athlete.subscriptionStatus === "active" ? "Active" : "Inactive"}
-                        </Badge>
-                      </div>
+                        <div className="flex items-center justify-between mb-4">
+                          <Badge variant="default" className="bg-green-600">
+                            <CreditCard className="h-3 w-3 mr-1" />
+                            Subscribed
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {athlete.subscriptionStatus === "active" ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
 
-                      <div className="flex space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setMessagingCoach(athlete)
-                          }}
-                        >
-                          <MessageSquare className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                        <div className="flex space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setMessagingCoach(athlete)
+                            }}
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
               </div>
             </div>
           </TabsContent>
@@ -726,14 +756,28 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                     Find expert athletes and coaches to subscribe to for exclusive content
                   </p>
                 </div>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <Input
-                    placeholder="Search athletes, sports..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 w-80"
-                  />
+                <div className="flex items-center gap-4">
+                  <Select value={selectedSport} onValueChange={setSelectedSport}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Select sport" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sports.map((sport) => (
+                        <SelectItem key={sport} value={sport === "All Sports" ? "all" : sport}>
+                          {sport}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="Search athletes, sports..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 w-80"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -812,43 +856,51 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
               </div>
 
               <div className="grid gap-4">
-                {subscribedAthletes.map((athlete) => (
-                  <Card
-                    key={athlete.id}
-                    className="hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => setMessagingCoach(athlete)}
-                  >
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <Image
-                            src={athlete.profilePic || "/placeholder.svg"}
-                            alt={athlete.name}
-                            width={48}
-                            height={48}
-                            className="rounded-full"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2">
-                              <h3 className="font-semibold text-gray-900">{athlete.name}</h3>
-                              <Badge variant="outline" className="text-xs">
-                                {athlete.sport}
-                              </Badge>
-                              <Badge variant="default" className="text-xs bg-green-600">
-                                Subscribed
-                              </Badge>
+                {subscribedAthletes.length === 0 ? (
+                  <div className="col-span-full text-center py-12">
+                    <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No athletes to message yet</h3>
+                    <p className="text-gray-600">Subscribe to some athletes to start messaging them!</p>
+                  </div>
+                ) : (
+                  subscribedAthletes.map((athlete) => (
+                    <Card
+                      key={athlete.id}
+                      className="hover:shadow-md transition-shadow cursor-pointer"
+                      onClick={() => setMessagingCoach(athlete)}
+                    >
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <Image
+                              src={athlete.profilePic || "/placeholder.svg"}
+                              alt={athlete.name}
+                              width={48}
+                              height={48}
+                              className="rounded-full"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2">
+                                <h3 className="font-semibold text-gray-900">{athlete.name}</h3>
+                                <Badge variant="outline" className="text-xs">
+                                  {athlete.sport}
+                                </Badge>
+                                <Badge variant="default" className="text-xs bg-green-600">
+                                  Subscribed
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-gray-600">Click to start a conversation</p>
                             </div>
-                            <p className="text-sm text-gray-600">Click to start a conversation</p>
                           </div>
+                          <Button variant="outline" size="sm">
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            Message
+                          </Button>
                         </div>
-                        <Button variant="outline" size="sm">
-                          <MessageSquare className="h-4 w-4 mr-2" />
-                          Message
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
               </div>
             </div>
           </TabsContent>
