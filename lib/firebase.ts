@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence } from "firebase/auth";
-import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc, serverTimestamp, onSnapshot, orderBy, query, deleteDoc, increment } from "firebase/firestore";
+import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc, serverTimestamp, onSnapshot, orderBy, query, deleteDoc, increment, enableIndexedDbPersistence } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const firebaseConfig = {
@@ -16,6 +16,18 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
+
+// Enable offline persistence
+enableIndexedDbPersistence(db).catch((err) => {
+  if (err.code === 'failed-precondition') {
+    // Multiple tabs open, persistence can only be enabled in one tab at a time
+    console.warn('Firebase persistence failed: Multiple tabs open');
+  } else if (err.code === 'unimplemented') {
+    // The current browser doesn't support persistence
+    console.warn('Firebase persistence not supported by browser');
+  }
+});
 
 // Set persistence to LOCAL (this will persist the auth state even after page reload)
 setPersistence(auth, browserLocalPersistence)
@@ -23,7 +35,34 @@ setPersistence(auth, browserLocalPersistence)
     console.error("Error setting auth persistence:", error);
   });
 
-const db = getFirestore(app);
+// Initialize connection state
+let isInitialized = false;
+let initializationPromise: Promise<void> | null = null;
+
+export const initializeFirebase = async () => {
+  if (isInitialized) return;
+  
+  if (!initializationPromise) {
+    initializationPromise = (async () => {
+      try {
+        // Wait for auth to be ready
+        await new Promise((resolve) => {
+          const unsubscribe = auth.onAuthStateChanged(() => {
+            unsubscribe();
+            resolve(true);
+          });
+        });
+        
+        isInitialized = true;
+      } catch (error) {
+        console.error('Error initializing Firebase:', error);
+        throw error;
+      }
+    })();
+  }
+  
+  return initializationPromise;
+};
 
 // Function to save athlete profile
 const saveAthleteProfile = async (userId: string, profileData: {

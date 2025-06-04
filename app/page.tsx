@@ -1,7 +1,6 @@
 "use client"
 
-import React from "react"
-import { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -11,7 +10,7 @@ import Link from "next/link"
 import { MemberDashboard } from "../components/member-dashboard"
 import { CoachDashboard } from "../components/coach-dashboard"
 import { AthleteOnboarding } from "../components/athlete-onboarding"
-import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile } from "@/lib/firebase"
+import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile, initializeFirebase } from "@/lib/firebase"
 
 export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false)
@@ -505,6 +504,7 @@ function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsS
   const [error, setError] = useState("")
   const [selectedSport, setSelectedSport] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isInitializing, setIsInitializing] = useState(true)
 
   const sports = [
     "Basketball",
@@ -523,6 +523,21 @@ function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsS
     "Hockey",
     "Lacrosse"
   ]
+
+  // Initialize Firebase when component mounts
+  useEffect(() => {
+    const init = async () => {
+      try {
+        await initializeFirebase();
+      } catch (error) {
+        console.error('Failed to initialize Firebase:', error);
+        setError('Failed to initialize the application. Please try again.');
+      } finally {
+        setIsInitializing(false);
+      }
+    };
+    init();
+  }, []);
 
   const handleRoleSelect = (role: string) => {
     setUserRole(role)
@@ -608,6 +623,18 @@ function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsS
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Show loading state while initializing
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Initializing application...</p>
+        </div>
+      </div>
+    );
   }
 
   // Show Dashboard after successful login
