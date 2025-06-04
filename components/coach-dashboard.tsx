@@ -106,7 +106,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [activeTab, setActiveTab] = useState("dashboard")
   const [creatingPost, setCreatingPost] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false); 
-
   const [postType, setPostType] = useState<"workout" | "blog">("workout")
   const [stripeAccountId, setStripeAccountId] = useState<string | null>("acct_athlete_example")
   const [showStripeOnboarding, setShowStripeOnboarding] = useState(false)
@@ -125,7 +124,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [isUploadingImages, setIsUploadingImages] = useState(false)
   const [workoutVideo, setWorkoutVideo] = useState<File | null>(null)
   const [postImages, setPostImages] = useState<File[]>([])
-
   const [editingProfile, setEditingProfile] = useState(false)
   const [profileData, setProfileData] = useState({
     name: "Sarah Johnson",
@@ -137,7 +135,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     experience: "8 years",
     certifications: ["USPTA Certified", "Mental Performance Coach"],
   })
-
   const [profile, setProfile] = useState<AthleteProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [blogDialogOpen, setBlogDialogOpen] = useState(false)
@@ -148,7 +145,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     images: [] as string[],
   })
   const [blogImageFiles, setBlogImageFiles] = useState<File[]>([])
-
   const [dashboardStats, setDashboardStats] = useState({
     subscribers: 0,
     totalPosts: 0,
@@ -164,20 +160,19 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     },
   });
   const [coachPosts, setCoachPosts] = useState<any[]>([]);
-
   const [messagingMember, setMessagingMember] = useState<any>(null);
   const [subscribers, setSubscribers] = useState<any[]>([]);
-
   const [feedbackRequests, setFeedbackRequests] = useState<any[]>([])
   const [loadingFeedback, setLoadingFeedback] = useState(true)
   const [feedbackPage, setFeedbackPage] = useState(1)
   const [hasMoreFeedback, setHasMoreFeedback] = useState(true)
   const FEEDBACK_PER_PAGE = 5
-
   const [feedbackInputs, setFeedbackInputs] = useState<{[id: string]: {rating: number, text: string, submitting: boolean}}>({});
-
   const [editingPost, setEditingPost] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [feedExpanded, setFeedExpanded] = useState(false);
+
+  const db = getFirestore();
 
   const formatDate = (timestamp: Timestamp | Date | string | null) => {
     if (!timestamp) return 'N/A';
@@ -200,9 +195,206 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     }).format(date);
   };
 
-  const db = getFirestore();
+  // Helper function to render feed posts
+  const getFeedPosts = () => {
+    if (!profile) return [];
+    
+    return [
+      {
+        id: "sample-1",
+        title: "Advanced Tennis Serve Technique",
+        description: "Master the perfect serve with these professional tips",
+        content: "Focus on your toss placement and follow-through for maximum power and accuracy...",
+        type: "workout",
+        authorName: "Marcus Rodriguez",
+        authorSport: "Tennis",
+        authorAvatar: "/placeholder.svg?height=40&width=40",
+        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        views: 156,
+        likes: 23,
+        comments: 8,
+        isLiked: false,
+        videoLink: "https://example.com/tennis-serve",
+        visibility: "public",
+        tags: ["tennis", "serve", "technique"],
+      },
+      {
+        id: "sample-2",
+        title: "Mental Preparation for Competition",
+        description: "How to stay focused and confident during high-pressure moments",
+        content:
+          "Visualization techniques and breathing exercises that have helped me win championships...",
+        type: "blog",
+        authorName: "Sarah Chen",
+        authorSport: "Swimming",
+        authorAvatar: "/placeholder.svg?height=40&width=40",
+        createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
+        views: 89,
+        likes: 15,
+        comments: 12,
+        isLiked: true,
+        images: ["/placeholder.svg?height=200&width=300"],
+        visibility: "public",
+        tags: ["mental", "competition", "preparation"],
+      },
+      ...(coachPosts || []).map((post: any) => ({
+        ...post,
+        authorName: profile.name,
+        authorSport: profile.sport || "Sport",
+        authorAvatar: profileData.profilePicture,
+        isLiked: false,
+        visibility: "public",
+        tags: post.tags || [],
+      })),
+    ].map((post) => (
+      <Card key={post.id}>
+        <CardContent className="p-6">
+          {/* Post Header */}
+          <div className="flex items-center space-x-3 mb-4">
+            <img
+              src={post.authorAvatar || "/placeholder.svg"}
+              alt={post.authorName}
+              className="w-10 h-10 rounded-full"
+            />
+            <div className="flex-1">
+              <div className="flex items-center space-x-2">
+                <h4 className="font-semibold text-gray-900">{post.authorName}</h4>
+                <Badge variant="outline" className="text-xs">
+                  {post.authorSport}
+                </Badge>
+                {post.authorName === profile.name && (
+                  <Badge variant="secondary" className="text-xs">
+                    You
+                  </Badge>
+                )}
+                <Badge variant={post.visibility === "public" ? "default" : "outline"} className="text-xs">
+                  {post.visibility === "public" ? "Public" : "Subscribers Only"}
+                </Badge>
+              </div>
+              <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
+            </div>
+            {post.authorName === profile.name && (
+              <div className="flex space-x-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleEditPost(post)}
+                  disabled={isDeleting}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700"
+                  onClick={() => handleDeletePost(post)}
+                  disabled={isDeleting}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+          {/* Post Content */}
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">{post.title}</h3>
+              <p className="text-gray-600">{post.description}</p>
+            </div>
+            {post.type === "workout" && post.videoLink && (
+              <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                <video
+                  src={post.videoLink}
+                  controls
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            {post.type === "blog" && post.images && post.images.length > 0 && (
+              <div className="grid grid-cols-2 gap-4">
+                {post.images.map((image: string, index: number) => (
+                  <img
+                    key={index}
+                    src={image}
+                    alt={`Blog image ${index + 1}`}
+                    className="w-full h-48 object-cover rounded-lg"
+                  />
+                ))}
+              </div>
+            )}
+            {/* Tags */}
+            {post.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {post.tags.map((tag: string) => (
+                  <Badge key={tag} variant="secondary" className="text-xs">
+                    #{tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center space-x-4 text-sm text-gray-600">
+              <button
+                className={`flex items-center space-x-1 ${
+                  post.isLiked ? "text-red-600" : "hover:text-red-600"
+                }`}
+              >
+                <Star className={`h-4 w-4 ${post.isLiked ? "fill-current" : ""}`} />
+                <span>{post.likes}</span>
+              </button>
+              <span className="flex items-center space-x-1">
+                <MessageSquare className="h-4 w-4" />
+                <span>{post.comments}</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <Eye className="h-4 w-4" />
+                <span>{post.views}</span>
+              </span>
+              <Button variant="ghost" size="sm" className="ml-auto">
+                <Share2 className="h-4 w-4 mr-2" />
+                Share
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    ));
+  };
 
-  // Fetch stats and posts for the logged-in coach
+  // All useEffect hooks moved here, after all useState declarations
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        if (auth.currentUser) {
+          const profileDataFromDb = await getAthleteProfile(auth.currentUser.uid);
+          if (profileDataFromDb) {
+            setProfile(profileDataFromDb as AthleteProfile);
+            setProfileData(prev => ({
+              ...prev,
+              ...profileDataFromDb,
+              specialties: profileDataFromDb.specialties || [],
+              certifications: profileDataFromDb.certifications || [],
+            }));
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
+  useEffect(() => {
+    async function fetchSubscribers() {
+      if (!auth.currentUser) return;
+      const subs = await getSubscribersForAthlete(auth.currentUser.uid);
+      setSubscribers(subs);
+    }
+    fetchSubscribers();
+  }, []);
+
   useEffect(() => {
     async function fetchCoachDashboardData() {
       if (!auth.currentUser) return;
@@ -251,12 +443,43 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     fetchCoachDashboardData();
   }, [profile]);
 
-  // Fetch earnings data
   useEffect(() => {
     if (stripeAccountId) {
       fetchEarnings()
     }
   }, [stripeAccountId])
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    
+    async function fetchFeedbackRequests() {
+      if (!auth.currentUser || activeTab !== "feedback") return;
+      
+      setLoadingFeedback(true);
+      const requestsQuery = query(
+        collection(db, "videoFeedbackRequests"),
+        where("coachId", "==", auth.currentUser.uid),
+        orderBy("createdAt", "desc"),
+        limit(FEEDBACK_PER_PAGE * feedbackPage)
+      );
+      
+      unsubscribe = onSnapshot(requestsQuery, (snapshot) => {
+        const requests = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate()
+        }));
+        setFeedbackRequests(requests);
+        setHasMoreFeedback(requests.length === FEEDBACK_PER_PAGE * feedbackPage);
+        setLoadingFeedback(false);
+      });
+    }
+    
+    fetchFeedbackRequests();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [activeTab, feedbackPage]);
 
   const fetchEarnings = async () => {
     try {
@@ -411,40 +634,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     }
   }
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        if (auth.currentUser) {
-          const profileDataFromDb = await getAthleteProfile(auth.currentUser.uid);
-          if (profileDataFromDb) {
-            setProfile(profileDataFromDb as AthleteProfile);
-            setProfileData(prev => ({
-              ...prev,
-              ...profileDataFromDb,
-              specialties: profileDataFromDb.specialties || [],
-              certifications: profileDataFromDb.certifications || [],
-            }));
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching profile:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProfile();
-  }, []);
-
-  useEffect(() => {
-    async function fetchSubscribers() {
-      if (!auth.currentUser) return;
-      const subs = await getSubscribersForAthlete(auth.currentUser.uid);
-      setSubscribers(subs);
-    }
-    fetchSubscribers();
-  }, []);
-
   const handleBlogInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setNewBlogPost((prev) => ({
@@ -501,43 +690,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     }
   }
   
-
-  // Add this useEffect to fetch feedback requests
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    
-    async function fetchFeedbackRequests() {
-      if (!auth.currentUser || activeTab !== "feedback") return;
-      
-      setLoadingFeedback(true);
-      const requestsQuery = query(
-        collection(db, "videoFeedbackRequests"),
-        where("coachId", "==", auth.currentUser.uid),
-        orderBy("createdAt", "desc"),
-        limit(FEEDBACK_PER_PAGE * feedbackPage)
-      );
-      
-      unsubscribe = onSnapshot(requestsQuery, (snapshot) => {
-        const requests = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate()
-        }));
-        setFeedbackRequests(requests);
-        setHasMoreFeedback(requests.length === FEEDBACK_PER_PAGE * feedbackPage);
-        setLoadingFeedback(false);
-      });
-    }
-    
-    fetchFeedbackRequests();
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [activeTab, feedbackPage]);
-
-  const loadMoreFeedback = () => {
-    setFeedbackPage(prev => prev + 1);
-  };
 
   // Update handleFeedbackResponse to accept rating and text
   const handleFeedbackResponse = async (requestId: string, rating: number, text: string) => {
@@ -625,23 +777,20 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   };
 
   const handleDeletePost = async (post: any) => {
-    if (!auth.currentUser || !confirm("Are you sure you want to delete this post?")) return;
-    
+    if (!auth.currentUser) return;
     setIsDeleting(true);
     try {
       await deleteAthletePost(post.id, auth.currentUser.uid);
-      
-      // Refresh posts
-      const postsQuery = query(collection(db, "athletePosts"), where("userId", "==", auth.currentUser.uid));
-      const postsSnap = await getDocs(postsQuery);
-      const posts = postsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setCoachPosts(posts);
+      setCoachPosts((prev) => prev.filter((p) => p.id !== post.id));
     } catch (error) {
       console.error("Error deleting post:", error);
-      alert("Failed to delete post. Please try again.");
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const loadMoreFeedback = () => {
+    setFeedbackPage(prev => prev + 1);
   };
 
   if (loading) {
@@ -707,12 +856,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 Dashboard
               </Button>
               <Button
-                variant={activeTab === "feed" ? "default" : "outline"}
-                onClick={() => setActiveTab("feed")}
-              >
-                Feed
-              </Button>
-              <Button
                 variant={activeTab === "content" ? "default" : "outline"}
                 onClick={() => setActiveTab("content")}
               >
@@ -746,437 +889,186 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           </div>
 
           <TabsContent value="dashboard">
-            {/* Create Post Card at the top */}
-            <div className="mb-8">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-4">
-                    <img
-                      src={profileData.profilePicture || "/placeholder.svg"}
-                      alt={profile.name}
-                      className="w-10 h-10 rounded-full"
-                    />
-                    <Button
-                      variant="outline"
-                      className="flex-1 justify-start text-gray-500 hover:text-gray-700"
-                      onClick={() => {
-                        setPostType("workout")
-                        setCreatingPost(true)
-                      }}
-                    >
-                      Share a workout, article, or update...
-                    </Button>
-                  </div>
-                  <div className="flex justify-between mt-4 pt-4 border-t">
-                    <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
-                      <Video className="h-5 w-5 mr-2" />
-                      Video
-                    </Button>
-                    <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
-                      <ImageIcon className="h-5 w-5 mr-2" />
-                      Photo
-                    </Button>
-                    <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
-                      <FileText className="h-5 w-5 mr-2" />
-                      Article
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Feed Section below the post composer */}
-            <div className="space-y-4 mb-8">
-              {/* Sample posts from other athletes and coach's own posts */}
-              {[
-                {
-                  id: "sample-1",
-                  title: "Advanced Tennis Serve Technique",
-                  description: "Master the perfect serve with these professional tips",
-                  content: "Focus on your toss placement and follow-through for maximum power and accuracy...",
-                  type: "workout",
-                  authorName: "Marcus Rodriguez",
-                  authorSport: "Tennis",
-                  authorAvatar: "/placeholder.svg?height=40&width=40",
-                  createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-                  views: 156,
-                  likes: 23,
-                  comments: 8,
-                  isLiked: false,
-                  videoLink: "https://example.com/tennis-serve",
-                  visibility: "public",
-                  tags: ["tennis", "serve", "technique"],
-                },
-                {
-                  id: "sample-2",
-                  title: "Mental Preparation for Competition",
-                  description: "How to stay focused and confident during high-pressure moments",
-                  content:
-                    "Visualization techniques and breathing exercises that have helped me win championships...",
-                  type: "blog",
-                  authorName: "Sarah Chen",
-                  authorSport: "Swimming",
-                  authorAvatar: "/placeholder.svg?height=40&width=40",
-                  createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
-                  views: 89,
-                  likes: 15,
-                  comments: 12,
-                  isLiked: true,
-                  images: ["/placeholder.svg?height=200&width=300"],
-                  visibility: "public",
-                  tags: ["mental", "competition", "preparation"],
-                },
-                ...coachPosts.map((post) => ({
-                  ...post,
-                  authorName: profile.name,
-                  authorSport: profile.sport || "Sport",
-                  authorAvatar: profileData.profilePicture,
-                  isLiked: false,
-                  visibility: "public",
-                  tags: post.tags || [],
-                })),
-              ].map((post) => (
-                <Card key={post.id}>
-                  {/* Post Header */}
-                  <div className="flex items-center space-x-3 mb-4">
-                    <img
-                      src={post.authorAvatar || "/placeholder.svg"}
-                      alt={post.authorName}
-                      className="w-10 h-10 rounded-full"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2">
-                        <h4 className="font-semibold text-gray-900">{post.authorName}</h4>
-                        <Badge variant="outline" className="text-xs">
-                          {post.authorSport}
-                        </Badge>
-                        {post.authorName === profile.name && (
-                          <Badge variant="secondary" className="text-xs">
-                            You
-                          </Badge>
-                        )}
-                        <Badge variant={post.visibility === "public" ? "default" : "outline"} className="text-xs">
-                          {post.visibility === "public" ? "Public" : "Subscribers Only"}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
-                    </div>
-                    {post.authorName === profile.name && (
-                      <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditPost(post)}
-                          disabled={isDeleting}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-red-600 hover:text-red-700"
-                          onClick={() => handleDeletePost(post)}
-                          disabled={isDeleting}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Post Content */}
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-xl font-semibold text-gray-900 mb-2">{post.title}</h3>
-                      <p className="text-gray-600">{post.description}</p>
-                    </div>
-
-                    {post.type === "workout" && post.videoLink && (
-                      <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                        <video
-                          src={post.videoLink}
-                          controls
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
-
-                    {post.type === "blog" && post.images && post.images.length > 0 && (
-                      <div className="grid grid-cols-2 gap-4">
-                        {post.images.map((image: string, index: number) => (
-                          <img
-                            key={index}
-                            src={image}
-                            alt={`Blog image ${index + 1}`}
-                            className="w-full h-48 object-cover rounded-lg"
-                          />
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Tags */}
-                    {post.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {post.tags.map((tag: string) => (
-                          <Badge key={tag} variant="secondary" className="text-xs">
-                            #{tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="flex items-center space-x-4 text-sm text-gray-600">
-                      <button
-                        className={`flex items-center space-x-1 ${
-                          post.isLiked ? "text-red-600" : "hover:text-red-600"
-                        }`}
+            {feedExpanded ? (
+              <div className="max-w-3xl mx-auto">
+                <div className="flex justify-between items-center mb-4 mt-8">
+                  <h2 className="text-2xl font-bold text-gray-900">Feed</h2>
+                  <Button variant="outline" size="sm" onClick={() => setFeedExpanded(false)}>
+                    Collapse Feed
+                  </Button>
+                </div>
+                {/* Feed Composer */}
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-4">
+                      <img
+                        src={profileData.profilePicture || "/placeholder.svg"}
+                        alt={profile.name}
+                        className="w-10 h-10 rounded-full"
+                      />
+                      <Button
+                        variant="outline"
+                        className="flex-1 justify-start text-gray-500 hover:text-gray-700"
+                        onClick={() => {
+                          setPostType("workout")
+                          setCreatingPost(true)
+                        }}
                       >
-                        <Star className={`h-4 w-4 ${post.isLiked ? "fill-current" : ""}`} />
-                        <span>{post.likes}</span>
-                      </button>
-                      <span className="flex items-center space-x-1">
-                        <MessageSquare className="h-4 w-4" />
-                        <span>{post.comments}</span>
-                      </span>
-                      <span className="flex items-center space-x-1">
-                        <Eye className="h-4 w-4" />
-                        <span>{post.views}</span>
-                      </span>
-                      <Button variant="ghost" size="sm" className="ml-auto">
-                        <Share2 className="h-4 w-4 mr-2" />
-                        Share
+                        Share a workout, article, or update...
                       </Button>
                     </div>
-                  </div>
+                    <div className="flex justify-between mt-4 pt-4 border-t">
+                      <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+                        <Video className="h-5 w-5 mr-2" />
+                        Video
+                      </Button>
+                      <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+                        <ImageIcon className="h-5 w-5 mr-2" />
+                        Photo
+                      </Button>
+                      <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+                        <FileText className="h-5 w-5 mr-2" />
+                        Article
+                      </Button>
+                    </div>
+                  </CardContent>
                 </Card>
-              ))}
-            </div>
-
-            {/* ...existing dashboard widgets and sidebar remain unchanged... */}
-          </TabsContent>
-
-          <TabsContent value="feed">
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold text-gray-900">Feed</h1>
-                <Button
-                  onClick={() => {
-                    setPostType("workout")
-                    setCreatingPost(true)
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Post
-                </Button>
+                {/* Feed Content */}
+                <div className="space-y-4 mt-4">
+                  {getFeedPosts()}
+                </div>
               </div>
+            ) : (
+              <>
+                {/* Quick Actions at the top */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Plus className="h-5 w-5 text-orange-500" />
+                      <span>Quick Actions</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <Button
+                        onClick={() => {
+                          setPostType("workout")
+                          setCreatingPost(true)
+                        }}
+                        className="h-20 bg-orange-500 hover:bg-orange-600 text-white flex flex-col items-center justify-center space-y-2"
+                      >
+                        <Video className="h-6 w-6" />
+                        <span>Post Workout</span>
+                      </Button>
+                      <Button
+                        onClick={() => setBlogDialogOpen(true)}
+                        className="h-20 bg-blue-500 hover:bg-blue-600 text-white flex flex-col items-center justify-center space-y-2"
+                      >
+                        <FileText className="h-6 w-6" />
+                        <span>Write Blog Post</span>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              {/* Create Post Card */}
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center space-x-4">
-                    <img
-                      src={profileData.profilePicture || "/placeholder.svg"}
-                      alt={profile.name}
-                      className="w-10 h-10 rounded-full"
-                    />
-                    <Button
-                      variant="outline"
-                      className="flex-1 justify-start text-gray-500 hover:text-gray-700"
-                      onClick={() => {
-                        setPostType("workout")
-                        setCreatingPost(true)
-                      }}
-                    >
-                      Share a workout, article, or update...
-                    </Button>
-                  </div>
-                  <div className="flex justify-between mt-4 pt-4 border-t">
-                    <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
-                      <Video className="h-5 w-5 mr-2" />
-                      Video
-                    </Button>
-                    <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
-                      <ImageIcon className="h-5 w-5 mr-2" />
-                      Photo
-                    </Button>
-                    <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
-                      <FileText className="h-5 w-5 mr-2" />
-                      Article
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Feed Content - Mix of own posts and other athletes' posts */}
-              <div className="space-y-4">
-                {/* Sample posts from other athletes */}
-                {[
-                  {
-                    id: "sample-1",
-                    title: "Advanced Tennis Serve Technique",
-                    description: "Master the perfect serve with these professional tips",
-                    content: "Focus on your toss placement and follow-through for maximum power and accuracy...",
-                    type: "workout",
-                    authorName: "Marcus Rodriguez",
-                    authorSport: "Tennis",
-                    authorAvatar: "/placeholder.svg?height=40&width=40",
-                    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-                    views: 156,
-                    likes: 23,
-                    comments: 8,
-                    isLiked: false,
-                    videoLink: "https://example.com/tennis-serve",
-                    visibility: "public",
-                    tags: ["tennis", "serve", "technique"],
-                  },
-                  {
-                    id: "sample-2",
-                    title: "Mental Preparation for Competition",
-                    description: "How to stay focused and confident during high-pressure moments",
-                    content:
-                      "Visualization techniques and breathing exercises that have helped me win championships...",
-                    type: "blog",
-                    authorName: "Sarah Chen",
-                    authorSport: "Swimming",
-                    authorAvatar: "/placeholder.svg?height=40&width=40",
-                    createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
-                    views: 89,
-                    likes: 15,
-                    comments: 12,
-                    isLiked: true,
-                    images: ["/placeholder.svg?height=200&width=300"],
-                    visibility: "public",
-                    tags: ["mental", "competition", "preparation"],
-                  },
-                  ...coachPosts.map((post) => ({
-                    ...post,
-                    authorName: profile.name,
-                    authorSport: profile.sport || "Sport",
-                    authorAvatar: profileData.profilePicture,
-                    isLiked: false,
-                    visibility: "public",
-                    tags: post.tags || [],
-                  })),
-                ].map((post) => (
-                  <Card key={post.id}>
-                    <CardContent className="p-6">
-                      {/* Post Header */}
-                      <div className="flex items-center space-x-3 mb-4">
-                        <img
-                          src={post.authorAvatar || "/placeholder.svg"}
-                          alt={post.authorName}
-                          className="w-10 h-10 rounded-full"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2">
-                            <h4 className="font-semibold text-gray-900">{post.authorName}</h4>
-                            <Badge variant="outline" className="text-xs">
-                              {post.authorSport}
-                            </Badge>
-                            {post.authorName === profile.name && (
-                              <Badge variant="secondary" className="text-xs">
-                                You
-                              </Badge>
-                            )}
-                            <Badge variant={post.visibility === "public" ? "default" : "outline"} className="text-xs">
-                              {post.visibility === "public" ? "Public" : "Subscribers Only"}
-                            </Badge>
-                          </div>
-                          <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
-                        </div>
-                        {post.authorName === profile.name && (
-                          <div className="flex space-x-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleEditPost(post)}
-                              disabled={isDeleting}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-red-600 hover:text-red-700"
-                              onClick={() => handleDeletePost(post)}
-                              disabled={isDeleting}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
+                {/* Row: Messages | Feedback Requests */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                  {/* Messages Section */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <MessageSquare className="h-5 w-5 text-blue-600" />
+                        <span>Messages</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {subscribers.length === 0 ? (
+                          <div className="text-gray-500 text-sm">No subscribers to message yet.</div>
+                        ) : (
+                          subscribers.map((member: any) => (
+                            <div key={member.id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer" onClick={() => setMessagingMember({ id: member.id, name: member.name, coach: profileData.name, coachAvatar: profileData.profilePicture, sport: member.sport || "Sport" })}>
+                              <span className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium">{member.name?.[0] || "M"}</span>
+                              <div className="flex-1">
+                                <p className="font-medium text-sm">{member.name || `Member`}</p>
+                                <p className="text-xs text-gray-600">{member.email}</p>
+                              </div>
+                              <Button variant="outline" size="sm">
+                                <MessageSquare className="h-4 w-4 mr-2" />
+                                Message
+                              </Button>
+                            </div>
+                          ))
                         )}
-                      </div>
-
-                      {/* Post Content */}
-                      <div className="space-y-4">
-                        <div>
-                          <h3 className="text-xl font-semibold text-gray-900 mb-2">{post.title}</h3>
-                          <p className="text-gray-600">{post.description}</p>
-                        </div>
-
-                        {post.type === "workout" && post.videoLink && (
-                          <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                            <video
-                              src={post.videoLink}
-                              controls
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        )}
-
-                        {post.type === "blog" && post.images && post.images.length > 0 && (
-                          <div className="grid grid-cols-2 gap-4">
-                            {post.images.map((image: string, index: number) => (
-                              <img
-                                key={index}
-                                src={image}
-                                alt={`Blog image ${index + 1}`}
-                                className="w-full h-48 object-cover rounded-lg"
-                              />
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Tags */}
-                        {post.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {post.tags.map((tag: string) => (
-                              <Badge key={tag} variant="secondary" className="text-xs">
-                                #{tag}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-
-                        <div className="flex items-center space-x-4 text-sm text-gray-600">
-                          <button
-                            className={`flex items-center space-x-1 ${
-                              post.isLiked ? "text-red-600" : "hover:text-red-600"
-                            }`}
-                          >
-                            <Star className={`h-4 w-4 ${post.isLiked ? "fill-current" : ""}`} />
-                            <span>{post.likes}</span>
-                          </button>
-                          <span className="flex items-center space-x-1">
-                            <MessageSquare className="h-4 w-4" />
-                            <span>{post.comments}</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <Eye className="h-4 w-4" />
-                            <span>{post.views}</span>
-                          </span>
-                          <Button variant="ghost" size="sm" className="ml-auto">
-                            <Share2 className="h-4 w-4 mr-2" />
-                            Share
-                          </Button>
-                        </div>
                       </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
-            </div>
+
+                  {/* Feedback Requests Section */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <Video className="h-5 w-5 text-blue-600" />
+                        <span>Feedback Requests</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {/* ...existing feedback requests rendering... */}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Feed Section below Quick Actions and row */}
+                <div className="space-y-4 mt-8">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-bold text-gray-900">Feed</h2>
+                    <Button variant="outline" size="sm" onClick={() => setFeedExpanded(true)}>
+                      Expand Feed
+                    </Button>
+                  </div>
+                  {/* Feed Composer */}
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center space-x-4">
+                        <img
+                          src={profileData.profilePicture || "/placeholder.svg"}
+                          alt={profile.name}
+                          className="w-10 h-10 rounded-full"
+                        />
+                        <Button
+                          variant="outline"
+                          className="flex-1 justify-start text-gray-500 hover:text-gray-700"
+                          onClick={() => {
+                            setPostType("workout")
+                            setCreatingPost(true)
+                          }}
+                        >
+                          Share a workout, article, or update...
+                        </Button>
+                      </div>
+                      <div className="flex justify-between mt-4 pt-4 border-t">
+                        <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+                          <Video className="h-5 w-5 mr-2" />
+                          Video
+                        </Button>
+                        <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+                          <ImageIcon className="h-5 w-5 mr-2" />
+                          Photo
+                        </Button>
+                        <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+                          <FileText className="h-5 w-5 mr-2" />
+                          Article
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  {/* Feed Content */}
+                  <div className="space-y-4 mt-4">
+                    {getFeedPosts()}
+                  </div>
+                </div>
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="content">
@@ -1286,7 +1178,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
             <div className="space-y-6">
               <h1 className="text-3xl font-bold text-gray-900">Subscribers ({dashboardStats.subscribers})</h1>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {subscribers.map((member, i) => {
+                {subscribers.map((member: any) => {
                   let subDate = null;
                   if (member.subscriptionDates) {
                     const coachId = auth.currentUser?.uid;
@@ -1299,10 +1191,10 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                       <CardContent className="p-4">
                         <div className="flex items-center space-x-3">
                           <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium">M{i + 1}</span>
+                            <span className="text-sm font-medium">M{member.id}</span>
                           </div>
                           <div>
-                            <h4 className="font-medium">{member.name || `Member ${i + 1}`}</h4>
+                            <h4 className="font-medium">{member.name || `Member ${member.id}`}</h4>
                             <p className="text-sm text-gray-600">
                               Subscribed {formatDate(subDate || null)}
                             </p>
@@ -1949,8 +1841,17 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
 
       {/* Create Post Modal */}
       {creatingPost && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" tabIndex={-1} onKeyDown={(e) => { if (e.key === 'Escape') setCreatingPost(false); }}>
+          <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto relative">
+            {/* X Close Button */}
+            <button
+              aria-label="Close"
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl font-bold focus:outline-none"
+              onClick={() => setCreatingPost(false)}
+              tabIndex={0}
+            >
+              ×
+            </button>
             <CardHeader>
               <CardTitle>
                 {editingPost ? "Edit" : "Create"} Post
