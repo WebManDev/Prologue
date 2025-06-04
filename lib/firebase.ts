@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, isSignInWithEmailLink, sendSignInLinkToEmail } from "firebase/auth";
 import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc, serverTimestamp, onSnapshot, orderBy, query, deleteDoc, increment, enableIndexedDbPersistence } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
@@ -39,7 +39,7 @@ setPersistence(auth, browserLocalPersistence)
 let isInitialized = false;
 let initializationPromise: Promise<void> | null = null;
 
-export const initializeFirebase = async () => {
+const initializeFirebase = async () => {
   if (isInitialized) return;
   
   if (!initializationPromise) {
@@ -350,10 +350,43 @@ const deleteAthletePost = async (postId: string, userId: string) => {
   }
 };
 
-export { 
-  auth, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
+// Smart authentication function that uses popup with fallback to redirect
+const smartSignIn = async (provider: GoogleAuthProvider) => {
+  try {
+    // First try popup
+    const result = await signInWithPopup(auth, provider);
+    return result;
+  } catch (error: any) {
+    // If popup fails (e.g., blocked by browser), fall back to redirect
+    if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+      console.log('Popup blocked or closed, falling back to redirect...');
+      await signInWithRedirect(auth, provider);
+      // Note: The redirect result will be handled when the page reloads
+      return null;
+    }
+    throw error;
+  }
+};
+
+// Handle redirect result
+const handleRedirectResult = async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      return result;
+    }
+  } catch (error) {
+    console.error('Error handling redirect result:', error);
+    throw error;
+  }
+  return null;
+};
+
+// Export everything in a single statement
+export {
+  auth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut,
   saveAthleteProfile,
   getAthleteProfile,
@@ -367,4 +400,8 @@ export {
   rateAthlete,
   updateAthletePost,
   deleteAthletePost,
+  GoogleAuthProvider,
+  smartSignIn,
+  handleRedirectResult,
+  initializeFirebase
 }; 
