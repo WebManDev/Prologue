@@ -208,6 +208,44 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     fetchAthleteProfiles();
   }, []);
 
+  // Fetch and cache missing author profiles for posts in the feed
+  useEffect(() => {
+    if (!feedPosts) return;
+
+    // Find userIds that are not in athleteProfiles or memberProfiles
+    const missingUserIds = feedPosts
+      .map((post: any) => post.userId)
+      .filter(
+        userId =>
+          userId !== auth.currentUser?.uid &&
+          !athleteProfiles[userId] &&
+          !memberProfiles[userId]
+      );
+
+    if (missingUserIds.length > 0) {
+      (async () => {
+        const { getAthleteProfile, getMemberProfile } = await import('@/lib/firebase');
+        const newAthletes: Record<string, any> = {};
+        const newMembers: Record<string, any> = {};
+        await Promise.all(
+          missingUserIds.map(async (userId: string) => {
+            try {
+              let profile = await getAthleteProfile(userId);
+              if (profile) {
+                newAthletes[userId] = profile;
+              } else {
+                profile = await getMemberProfile(userId);
+                if (profile) newMembers[userId] = profile;
+              }
+            } catch {}
+          })
+        );
+        if (Object.keys(newAthletes).length > 0) setAthleteProfiles(prev => ({ ...prev, ...newAthletes }));
+        if (Object.keys(newMembers).length > 0) setMemberProfiles(prev => ({ ...prev, ...newMembers }));
+      })();
+    }
+  }, [feedPosts]);
+
   const refreshSubscribedAthletes = async () => {
     if (!auth.currentUser) return;
     const profileData = await getMemberProfile(auth.currentUser.uid);
@@ -311,7 +349,15 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const handleLike = async (postId: string) => {
     if (!currentUserId) return;
     await likePost(postId, currentUserId);
-    // Optionally, refresh feedPosts here
+    // Refresh the feed posts to update the like status
+    const postsQuery = query(
+      collection(db, "athletePosts"),
+      where("visibility", "==", "public"),
+      orderBy("createdAt", "desc")
+    );
+    const postsSnap = await getDocs(postsQuery);
+    const posts = postsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setFeedPosts(posts);
   };
 
   const handleComment = async (postId: string) => {

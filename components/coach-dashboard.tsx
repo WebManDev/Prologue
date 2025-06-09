@@ -35,14 +35,13 @@ import {
   ImageIcon,
   Loader2,
   AlertCircle,
-  Share2,
 } from "lucide-react"
 import { CoachStripeOnboarding } from "./coach-stripe-onboarding"
 import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAthlete, updateAthletePost, deleteAthletePost, saveAthleteProfile, likePost, addCommentToPost } from "@/lib/firebase"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
-import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, limit } from "firebase/firestore"
+import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, limit, increment, arrayUnion } from "firebase/firestore"
 import { MemberMessagingInterface } from "./member-messaging-interface"
 import { STRIPE_CONFIG } from "@/lib/stripe"
 import { format } from 'date-fns'
@@ -202,21 +201,58 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     }).format(date);
   };
 
+  // Add this new function to handle view tracking
+  const trackPostView = async (postId: string) => {
+    if (!auth.currentUser) return;
+    
+    const postRef = doc(db, "athletePosts", postId);
+    try {
+      await updateDoc(postRef, {
+        views: increment(1),
+        viewedBy: arrayUnion(auth.currentUser.uid)
+      });
+    } catch (error) {
+      console.error("Error tracking post view:", error);
+    }
+  };
+
+  // Add this useEffect to track views when posts are loaded
+  useEffect(() => {
+    if (!coachPosts || !auth.currentUser) return;
+
+    const viewedPosts = new Set();
+    coachPosts.forEach(post => {
+      if (!post.viewedBy?.includes(auth.currentUser?.uid)) {
+        trackPostView(post.id);
+        viewedPosts.add(post.id);
+      }
+    });
+  }, [coachPosts]);
+
   // Helper function to render feed posts
   const getFeedPosts = () => {
     if (!profile) return [];
-    
-    return [
-      ...(coachPosts || []).map((post: any) => ({
+
+    return (coachPosts || []).map((post: any) => {
+      let author = profile;
+      let authorAvatar = profileData.profilePicture;
+
+      // If the post is not by the current user, try to get the author's profile
+      if (post.userId !== auth.currentUser?.uid) {
+        author = athleteProfiles[post.userId] || memberProfiles[post.userId] || {};
+        authorAvatar = (author as any).profilePicture || "/placeholder.svg";
+      }
+
+      return {
         ...post,
-        authorName: profile.name,
-        authorSport: profile.sport || "Sport",
-        authorAvatar: profileData.profilePicture,
+        authorName: author.name || "User",
+        authorSport: author.sport || "Sport",
+        authorAvatar,
         isLiked: false,
         visibility: "public",
         tags: post.tags || [],
-      })),
-    ].map((post) => (
+      };
+    }).map(post => (
       <Card key={post.id}>
         <CardContent className="p-6">
           {/* Post Header */}
@@ -330,7 +366,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 <span className="font-medium">
                   {post.comments || 0} Comment{(post.comments || 0) !== 1 ? "s" : ""}
                 </span>
-              </button>              <span className="flex items-center space-x-1 text-gray-500 ml-auto">
+              </button>
+              <span className="flex items-center space-x-1 text-gray-500 ml-auto">
                 <Eye className="h-4 w-4" />
                 <span>{post.views || 0} views</span>
               </span>
@@ -417,10 +454,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 )}
               </div>
             )}
-            <Button variant="ghost" size="sm" className="ml-auto">
-              <Share2 className="h-4 w-4 mr-2" />
-              Share
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -892,7 +925,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       const { getMemberProfile } = await import("@/lib/firebase");
       const newProfiles: { [userId: string]: any } = {};
       await Promise.all(
-        missingUserIds.map(async (userId) => {
+        missingUserIds.map(async (userId: string) => {
           try {
             const profile = await getMemberProfile(userId);
             if (profile) newProfiles[userId] = profile;
@@ -925,6 +958,44 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     setCommentInputs(prev => ({ ...prev, [postId]: "" }));
     fetchComments(postId);
   };
+
+  // Fetch and cache missing author profiles for posts in the feed
+  useEffect(() => {
+    if (!coachPosts) return;
+
+    // Find userIds that are not in athleteProfiles or memberProfiles
+    const missingUserIds = coachPosts
+      .map(post => post.userId)
+      .filter(
+        userId =>
+          userId !== auth.currentUser?.uid &&
+          !athleteProfiles[userId] &&
+          !memberProfiles[userId]
+      );
+
+    if (missingUserIds.length > 0) {
+      (async () => {
+        const { getAthleteProfile, getMemberProfile } = await import('@/lib/firebase');
+        const newAthletes: Record<string, any> = {};
+        const newMembers: Record<string, any> = {};
+        await Promise.all(
+          missingUserIds.map(async (userId: string) => {
+            try {
+              let profile = await getAthleteProfile(userId);
+              if (profile) {
+                newAthletes[userId] = profile;
+              } else {
+                profile = await getMemberProfile(userId);
+                if (profile) newMembers[userId] = profile;
+              }
+            } catch {}
+          })
+        );
+        if (Object.keys(newAthletes).length > 0) setAthleteProfiles(prev => ({ ...prev, ...newAthletes }));
+        if (Object.keys(newMembers).length > 0) setMemberProfiles(prev => ({ ...prev, ...newMembers }));
+      })();
+    }
+  }, [coachPosts]);
 
   if (loading) {
     return (
