@@ -45,6 +45,8 @@ import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, on
 import { MemberMessagingInterface } from "./member-messaging-interface"
 import { STRIPE_CONFIG } from "@/lib/stripe"
 import { format } from 'date-fns'
+import StarRating from "./star-rating"
+import { useRouter } from 'next/navigation';
 
 interface AthleteDashboardProps {
   onLogout: () => void
@@ -75,25 +77,6 @@ interface PostData {
   tags: string[];
 }
 
-function StarRating({ value, onChange, disabled = false }: { value: number, onChange: (v: number) => void, disabled?: boolean }) {
-  return (
-    <div className="flex items-center space-x-1">
-      {[1,2,3,4,5].map((star) => (
-        <button
-          key={star}
-          type="button"
-          onClick={() => !disabled && onChange(star)}
-          disabled={disabled}
-          aria-label={`Rate ${star}`}
-          style={{ background: "none", border: "none", cursor: disabled ? "not-allowed" : "pointer", padding: 0 }}
-        >
-          <Star className={`h-5 w-5 ${value >= star ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
-        </button>
-      ))}
-    </div>
-  )
-}
-
 // Helper to get next payout date (first day of next month)
 function getNextPayoutDate() {
   const now = new Date();
@@ -102,6 +85,7 @@ function getNextPayoutDate() {
 }
 
 export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("dashboard")
   const [creatingPost, setCreatingPost] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false); 
@@ -1036,7 +1020,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           </div>
 
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
+            <Button variant="ghost" className="text-gray-600 hover:text-gray-700" onClick={() => router.push('/coach/settings')}>
               <Settings className="h-5 w-5 mr-2" />
               Settings
             </Button>

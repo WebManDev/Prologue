@@ -2,6 +2,7 @@
 
 import { CoachDashboard } from '@/components/coach-dashboard';
 import { useRouter } from 'next/navigation';
+import StarRating from '@/components/star-rating';
 
 export default function CoachDashboardPage() {
   const router = useRouter();
