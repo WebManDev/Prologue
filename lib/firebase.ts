@@ -382,6 +382,35 @@ const handleRedirectResult = async () => {
   return null;
 };
 
+// Like a post
+export const likePost = async (postId: string, userId: string) => {
+  const postRef = doc(db, "athletePosts", postId);
+  const postSnap = await getDoc(postRef);
+  if (!postSnap.exists()) return;
+  const data = postSnap.data();
+  const likedBy = data.likedBy || [];
+  if (likedBy.includes(userId)) return; // Already liked
+  await updateDoc(postRef, {
+    likedBy: arrayUnion(userId),
+    likes: (data.likes || 0) + 1
+  });
+};
+
+// Add a comment to a post
+export const addCommentToPost = async (postId: string, userId: string, comment: string) => {
+  const postRef = doc(db, "athletePosts", postId);
+  const commentsRef = collection(postRef, "comments");
+  await addDoc(commentsRef, {
+    userId,
+    comment,
+    createdAt: serverTimestamp(),
+  });
+  // Increment comment count
+  await updateDoc(postRef, {
+    comments: increment(1)
+  });
+};
+
 // Export everything in a single statement
 export {
   auth,

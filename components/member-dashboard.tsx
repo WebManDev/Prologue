@@ -25,8 +25,8 @@ import {
 import Image from "next/image"
 import { MemberMessagingInterface } from "./member-messaging-interface"
 import { SubscriptionCheckout } from "./subscription-checkout"
-import { signOut, auth, getMemberProfile, getAllAthletes, getAthletesByIds, rateAthlete } from "@/lib/firebase"
-import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, onSnapshot } from "firebase/firestore"
+import { signOut, auth, getMemberProfile, getAllAthletes, getAthletesByIds, rateAthlete, likePost, addCommentToPost } from "@/lib/firebase"
+import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, onSnapshot, limit } from "firebase/firestore"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface MemberDashboardProps {
@@ -73,6 +73,10 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const [feedPosts, setFeedPosts] = useState<any[]>([]);
   const [loadingFeed, setLoadingFeed] = useState(true);
   const [athleteProfiles, setAthleteProfiles] = useState<{ [userId: string]: any }>({});
+  const [commentInputs, setCommentInputs] = useState<{ [postId: string]: string }>({});
+  const [commentOpen, setCommentOpen] = useState<{ [postId: string]: boolean }>({});
+  const [postComments, setPostComments] = useState<{ [postId: string]: any[] }>({});
+  const currentUserId = auth.currentUser?.uid;
   const db = getFirestore();
 
   const sports = [
@@ -264,6 +268,27 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     )
   }
 
+  // Fetch comments for a post
+  const fetchComments = async (postId: string) => {
+    const postRef = collection(db, "athletePosts", postId, "comments");
+    const q = query(postRef, orderBy("createdAt", "desc"), limit(3));
+    const snap = await getDocs(q);
+    setPostComments(prev => ({ ...prev, [postId]: snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) }));
+  };
+
+  const handleLike = async (postId: string) => {
+    if (!currentUserId) return;
+    await likePost(postId, currentUserId);
+    // Optionally, refresh feedPosts here
+  };
+
+  const handleComment = async (postId: string) => {
+    if (!currentUserId || !commentInputs[postId]?.trim()) return;
+    await addCommentToPost(postId, currentUserId, commentInputs[postId]);
+    setCommentInputs(prev => ({ ...prev, [postId]: "" }));
+    fetchComments(postId);
+  };
+
   // Helper function to render feed posts (no post/edit/delete for members)
   const renderFeedPosts = () => {
     if (loadingFeed) {
@@ -324,14 +349,33 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
               </div>
             )}
             <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <span className="flex items-center space-x-1">
-                <Star className="h-4 w-4" />
+              <Button onClick={() => handleLike(post.id)} disabled={post.likedBy?.includes(currentUserId)}>
+                <Star className={`h-4 w-4 ${post.likedBy?.includes(currentUserId) ? "text-red-600" : "hover:text-red-600"}`} />
                 <span>{post.likes || 0}</span>
-              </span>
-              <span className="flex items-center space-x-1">
+              </Button>
+              <Button onClick={() => { setCommentOpen(prev => ({ ...prev, [post.id]: !prev[post.id] })); fetchComments(post.id); }}>
                 <MessageSquare className="h-4 w-4" />
                 <span>{post.comments || 0}</span>
-              </span>
+              </Button>
+              {commentOpen[post.id] && (
+                <div className="mt-2">
+                  <input
+                    type="text"
+                    value={commentInputs[post.id] || ""}
+                    onChange={e => setCommentInputs(prev => ({ ...prev, [post.id]: e.target.value }))}
+                    placeholder="Add a comment..."
+                    className="border rounded px-2 py-1 w-full"
+                  />
+                  <Button onClick={() => handleComment(post.id)} className="mt-1">Submit</Button>
+                  <div className="mt-2 space-y-1">
+                    {(postComments[post.id] || []).map(c => (
+                      <div key={c.id} className="text-sm text-gray-700 border-b pb-1">
+                        <span className="font-semibold">{athleteProfiles[c.userId]?.name || "User"}:</span> {c.comment}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <span className="flex items-center space-x-1">
                 <Eye className="h-4 w-4" />
                 <span>{post.views || 0}</span>

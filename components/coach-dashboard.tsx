@@ -38,7 +38,7 @@ import {
   Share2,
 } from "lucide-react"
 import { CoachStripeOnboarding } from "./coach-stripe-onboarding"
-import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAthlete, updateAthletePost, deleteAthletePost, saveAthleteProfile } from "@/lib/firebase"
+import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAthlete, updateAthletePost, deleteAthletePost, saveAthleteProfile, likePost, addCommentToPost } from "@/lib/firebase"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
@@ -171,6 +171,10 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [editingPost, setEditingPost] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [feedExpanded, setFeedExpanded] = useState(false);
+  const [commentInputs, setCommentInputs] = useState<{ [postId: string]: string }>({});
+  const [commentOpen, setCommentOpen] = useState<{ [postId: string]: boolean }>({});
+  const [postComments, setPostComments] = useState<{ [postId: string]: any[] }>({});
+  const currentUserId = auth.currentUser?.uid;
 
   const db = getFirestore();
 
@@ -296,18 +300,33 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
               </div>
             )}
             <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <button
-                className={`flex items-center space-x-1 ${
-                  post.isLiked ? "text-red-600" : "hover:text-red-600"
-                }`}
-              >
-                <Star className={`h-4 w-4 ${post.isLiked ? "fill-current" : ""}`} />
-                <span>{post.likes}</span>
-              </button>
-              <span className="flex items-center space-x-1">
+              <Button onClick={() => handleLike(post.id)} disabled={post.likedBy?.includes(currentUserId)}>
+                <Star className={`h-4 w-4 ${post.likedBy?.includes(currentUserId) ? "text-red-600" : "hover:text-red-600"}`} />
+                <span>{post.likes || 0}</span>
+              </Button>
+              <Button onClick={() => { setCommentOpen(prev => ({ ...prev, [post.id]: !prev[post.id] })); fetchComments(post.id); }}>
                 <MessageSquare className="h-4 w-4" />
-                <span>{post.comments}</span>
-              </span>
+                <span>{post.comments || 0}</span>
+              </Button>
+              {commentOpen[post.id] && (
+                <div className="mt-2">
+                  <input
+                    type="text"
+                    value={commentInputs[post.id] || ""}
+                    onChange={e => setCommentInputs(prev => ({ ...prev, [post.id]: e.target.value }))}
+                    placeholder="Add a comment..."
+                    className="border rounded px-2 py-1 w-full"
+                  />
+                  <Button onClick={() => handleComment(post.id)} className="mt-1">Submit</Button>
+                  <div className="mt-2 space-y-1">
+                    {(postComments[post.id] || []).map(c => (
+                      <div key={c.id} className="text-sm text-gray-700 border-b pb-1">
+                        <span className="font-semibold">{c.userId}:</span> {c.comment}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <span className="flex items-center space-x-1">
                 <Eye className="h-4 w-4" />
                 <span>{post.views}</span>
@@ -754,6 +773,26 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
 
   const loadMoreFeedback = () => {
     setFeedbackPage(prev => prev + 1);
+  };
+
+  // Fetch comments for a post
+  const fetchComments = async (postId: string) => {
+    const postRef = collection(db, "athletePosts", postId, "comments");
+    const q = query(postRef, orderBy("createdAt", "desc"), limit(3));
+    const snap = await getDocs(q);
+    setPostComments(prev => ({ ...prev, [postId]: snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) }));
+  };
+
+  const handleLike = async (postId: string) => {
+    if (!currentUserId) return;
+    await likePost(postId, currentUserId);
+  };
+
+  const handleComment = async (postId: string) => {
+    if (!currentUserId || !commentInputs[postId]?.trim()) return;
+    await addCommentToPost(postId, currentUserId, commentInputs[postId]);
+    setCommentInputs(prev => ({ ...prev, [postId]: "" }));
+    fetchComments(postId);
   };
 
   if (loading) {
