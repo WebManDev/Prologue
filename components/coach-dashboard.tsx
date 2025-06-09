@@ -302,7 +302,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
             <div className="flex items-center space-x-4 text-sm text-gray-600 border-t pt-3 mt-4">
               <button
                 onClick={() => handleLike(post.id)}
-                disabled={post.likedBy?.includes(currentUserId)}
                 className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
                   post.likedBy?.includes(currentUserId)
                     ? "bg-orange-100 text-orange-600"

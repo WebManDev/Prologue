@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, isSignInWithEmailLink, sendSignInLinkToEmail } from "firebase/auth";
-import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc, serverTimestamp, onSnapshot, orderBy, query, deleteDoc, increment, enableIndexedDbPersistence } from "firebase/firestore";
+import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc, serverTimestamp, onSnapshot, orderBy, query, deleteDoc, increment, enableIndexedDbPersistence, arrayRemove } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const firebaseConfig = {
@@ -382,18 +382,27 @@ const handleRedirectResult = async () => {
   return null;
 };
 
-// Like a post
+// Like/Unlike a post
 export const likePost = async (postId: string, userId: string) => {
   const postRef = doc(db, "athletePosts", postId);
   const postSnap = await getDoc(postRef);
   if (!postSnap.exists()) return;
   const data = postSnap.data();
   const likedBy = data.likedBy || [];
-  if (likedBy.includes(userId)) return; // Already liked
-  await updateDoc(postRef, {
-    likedBy: arrayUnion(userId),
-    likes: (data.likes || 0) + 1
-  });
+  
+  if (likedBy.includes(userId)) {
+    // Unlike the post
+    await updateDoc(postRef, {
+      likedBy: arrayRemove(userId),
+      likes: Math.max((data.likes || 0) - 1, 0)
+    });
+  } else {
+    // Like the post
+    await updateDoc(postRef, {
+      likedBy: arrayUnion(userId),
+      likes: (data.likes || 0) + 1
+    });
+  }
 };
 
 // Add a comment to a post
