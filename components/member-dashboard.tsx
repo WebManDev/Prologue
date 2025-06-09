@@ -70,6 +70,9 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const [loadingFeedback, setLoadingFeedback] = useState(true);
   const [feedExpanded, setFeedExpanded] = useState(false);
   const [selectedSport, setSelectedSport] = useState<string>("all")
+  const [feedPosts, setFeedPosts] = useState<any[]>([]);
+  const [loadingFeed, setLoadingFeed] = useState(true);
+  const [athleteProfiles, setAthleteProfiles] = useState<{ [userId: string]: any }>({});
   const db = getFirestore();
 
   const sports = [
@@ -160,6 +163,41 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    // Fetch all public posts from athletePosts
+    async function fetchFeedPosts() {
+      setLoadingFeed(true);
+      try {
+        const postsQuery = query(collection(db, "athletePosts"), orderBy("createdAt", "desc"));
+        const postsSnap = await getDocs(postsQuery);
+        const posts = postsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setFeedPosts(posts);
+      } catch (error) {
+        setFeedPosts([]);
+      } finally {
+        setLoadingFeed(false);
+      }
+    }
+    fetchFeedPosts();
+  }, []);
+
+  useEffect(() => {
+    // Fetch all athlete profiles for mapping userId to name/profilePicture
+    async function fetchAthleteProfiles() {
+      try {
+        const athletes = await getAllAthletes();
+        const map: { [userId: string]: any } = {};
+        athletes.forEach((athlete: any) => {
+          map[athlete.id] = athlete;
+        });
+        setAthleteProfiles(map);
+      } catch (error) {
+        setAthleteProfiles({});
+      }
+    }
+    fetchAthleteProfiles();
+  }, []);
+
   const refreshSubscribedAthletes = async () => {
     if (!auth.currentUser) return;
     const profileData = await getMemberProfile(auth.currentUser.uid);
@@ -225,6 +263,85 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
       </div>
     )
   }
+
+  // Helper function to render feed posts (no post/edit/delete for members)
+  const renderFeedPosts = () => {
+    if (loadingFeed) {
+      return <div className="text-center py-8 text-gray-500">Loading feed...</div>;
+    }
+    if (feedPosts.length === 0) {
+      return <div className="text-center py-8 text-gray-500">No posts yet.</div>;
+    }
+    return feedPosts.map((post: any) => {
+      const athlete = athleteProfiles[post.userId] || {};
+      return (
+        <Card key={post.id}>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <img
+                src={athlete.profilePicture || "/placeholder.svg"}
+                alt={athlete.name || "Athlete"}
+                className="w-10 h-10 rounded-full"
+              />
+              <div className="flex-1">
+                <h4 className="font-semibold text-gray-900">{athlete.name || "Athlete"}</h4>
+                <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
+              </div>
+            </div>
+            <div className="mb-2">
+              <h3 className="text-xl font-semibold text-gray-900 mb-1">{post.title}</h3>
+              <p className="text-gray-600 mb-2">{post.description}</p>
+              <p className="text-gray-700">{post.content}</p>
+            </div>
+            {post.type === "workout" && post.videoLink && (
+              <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden mb-2">
+                <video
+                  src={post.videoLink}
+                  controls
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            {post.type === "blog" && post.images && post.images.length > 0 && (
+              <div className="grid grid-cols-2 gap-4 mb-2">
+                {post.images.map((image: string, index: number) => (
+                  <img
+                    key={index}
+                    src={image}
+                    alt={`Blog image ${index + 1}`}
+                    className="w-full h-48 object-cover rounded-lg"
+                  />
+                ))}
+              </div>
+            )}
+            {post.tags && post.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {post.tags.map((tag: string) => (
+                  <Badge key={tag} variant="secondary" className="text-xs">
+                    #{tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center space-x-4 text-sm text-gray-600">
+              <span className="flex items-center space-x-1">
+                <Star className="h-4 w-4" />
+                <span>{post.likes || 0}</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <MessageSquare className="h-4 w-4" />
+                <span>{post.comments || 0}</span>
+              </span>
+              <span className="flex items-center space-x-1">
+                <Eye className="h-4 w-4" />
+                <span>{post.views || 0}</span>
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    });
+  };
 
   if (loading) {
     return (
@@ -349,67 +466,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                     Collapse Feed
                   </Button>
                 </div>
-                {[
-                  {
-                    id: "sample-1",
-                    title: "How I Improved My Serve",
-                    description: "Sharing my journey and tips for a better tennis serve.",
-                    authorName: "Alex Kim",
-                    authorAvatar: "/placeholder.svg?height=40&width=40",
-                    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-                    content: "Practice, video analysis, and feedback from my coach made all the difference!",
-                    likes: 12,
-                    comments: 3,
-                    views: 45,
-                  },
-                  {
-                    id: "sample-2",
-                    title: "Nutrition Tips for Swimmers",
-                    description: "What I eat before and after practice.",
-                    authorName: "Jamie Lee",
-                    authorAvatar: "/placeholder.svg?height=40&width=40",
-                    createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
-                    content: "Carbs before, protein after! Hydration is key.",
-                    likes: 8,
-                    comments: 2,
-                    views: 30,
-                  },
-                ].map((post) => (
-                  <Card key={post.id}>
-                    <CardContent className="p-6">
-                      <div className="flex items-center space-x-3 mb-4">
-                        <img
-                          src={post.authorAvatar}
-                          alt={post.authorName}
-                          className="w-10 h-10 rounded-full"
-                        />
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-gray-900">{post.authorName}</h4>
-                          <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
-                        </div>
-                      </div>
-                      <div className="mb-2">
-                        <h3 className="text-xl font-semibold text-gray-900 mb-1">{post.title}</h3>
-                        <p className="text-gray-600 mb-2">{post.description}</p>
-                        <p className="text-gray-700">{post.content}</p>
-                      </div>
-                      <div className="flex items-center space-x-4 text-sm text-gray-600">
-                        <span className="flex items-center space-x-1">
-                          <Star className="h-4 w-4" />
-                          <span>{post.likes}</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <MessageSquare className="h-4 w-4" />
-                          <span>{post.comments}</span>
-                        </span>
-                        <span className="flex items-center space-x-1">
-                          <Eye className="h-4 w-4" />
-                          <span>{post.views}</span>
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                {renderFeedPosts()}
               </div>
             ) : (
               <>
@@ -566,68 +623,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                       {feedExpanded ? 'Collapse Feed' : 'Expand Feed'}
                     </Button>
                   </div>
-                  {/* Example feed posts, replace with real data as needed */}
-                  {[
-                    {
-                      id: "sample-1",
-                      title: "How I Improved My Serve",
-                      description: "Sharing my journey and tips for a better tennis serve.",
-                      authorName: "Alex Kim",
-                      authorAvatar: "/placeholder.svg?height=40&width=40",
-                      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-                      content: "Practice, video analysis, and feedback from my coach made all the difference!",
-                      likes: 12,
-                      comments: 3,
-                      views: 45,
-                    },
-                    {
-                      id: "sample-2",
-                      title: "Nutrition Tips for Swimmers",
-                      description: "What I eat before and after practice.",
-                      authorName: "Jamie Lee",
-                      authorAvatar: "/placeholder.svg?height=40&width=40",
-                      createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
-                      content: "Carbs before, protein after! Hydration is key.",
-                      likes: 8,
-                      comments: 2,
-                      views: 30,
-                    },
-                  ].map((post) => (
-                    <Card key={post.id}>
-                      <CardContent className="p-6">
-                        <div className="flex items-center space-x-3 mb-4">
-                          <img
-                            src={post.authorAvatar}
-                            alt={post.authorName}
-                            className="w-10 h-10 rounded-full"
-                          />
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900">{post.authorName}</h4>
-                            <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
-                          </div>
-                        </div>
-                        <div className="mb-2">
-                          <h3 className="text-xl font-semibold text-gray-900 mb-1">{post.title}</h3>
-                          <p className="text-gray-600 mb-2">{post.description}</p>
-                          <p className="text-gray-700">{post.content}</p>
-                        </div>
-                        <div className="flex items-center space-x-4 text-sm text-gray-600">
-                          <span className="flex items-center space-x-1">
-                            <Star className="h-4 w-4" />
-                            <span>{post.likes}</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <MessageSquare className="h-4 w-4" />
-                            <span>{post.comments}</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <Eye className="h-4 w-4" />
-                            <span>{post.views}</span>
-                          </span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                  {renderFeedPosts()}
                 </div>
 
                 {/* Hide the rest of the dashboard widgets if feed is expanded */}
