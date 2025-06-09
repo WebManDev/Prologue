@@ -299,43 +299,90 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 ))}
               </div>
             )}
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <Button onClick={() => handleLike(post.id)} disabled={post.likedBy?.includes(currentUserId)}>
-                <Star className={`h-4 w-4 ${post.likedBy?.includes(currentUserId) ? "text-red-600" : "hover:text-red-600"}`} />
-                <span>{post.likes || 0}</span>
-              </Button>
-              <Button onClick={() => { setCommentOpen(prev => ({ ...prev, [post.id]: !prev[post.id] })); fetchComments(post.id); }}>
+            <div className="flex items-center space-x-4 text-sm text-gray-600 border-t pt-3 mt-4">
+              <button
+                onClick={() => handleLike(post.id)}
+                disabled={post.likedBy?.includes(currentUserId)}
+                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                  post.likedBy?.includes(currentUserId)
+                    ? "bg-orange-100 text-orange-600"
+                    : "hover:bg-orange-50 text-gray-600 hover:text-orange-600"
+                }`}
+              >
+                <Star className={`h-4 w-4 ${post.likedBy?.includes(currentUserId) ? "fill-orange-600" : ""}`} />
+                <span className="font-medium">
+                  {post.likes || 0} Like{(post.likes || 0) !== 1 ? "s" : ""}
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  setCommentOpen((prev) => ({ ...prev, [post.id]: !prev[post.id] }))
+                  fetchComments(post.id)
+                }}
+                className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-orange-50 text-gray-600 hover:text-orange-600 transition-colors"
+              >
                 <MessageSquare className="h-4 w-4" />
-                <span>{post.comments || 0}</span>
-              </Button>
-              {commentOpen[post.id] && (
-                <div className="mt-2">
-                  <input
-                    type="text"
-                    value={commentInputs[post.id] || ""}
-                    onChange={e => setCommentInputs(prev => ({ ...prev, [post.id]: e.target.value }))}
-                    placeholder="Add a comment..."
-                    className="border rounded px-2 py-1 w-full"
+                <span className="font-medium">
+                  {post.comments || 0} Comment{(post.comments || 0) !== 1 ? "s" : ""}
+                </span>
+              </button>              <span className="flex items-center space-x-1 text-gray-500 ml-auto">
+                <Eye className="h-4 w-4" />
+                <span>{post.views || 0} views</span>
+              </span>
+            </div>
+            {commentOpen[post.id] && (
+              <div className="mt-4 border-t pt-4 bg-gray-50 rounded-lg p-4">
+                <div className="flex items-start space-x-3 mb-4">
+                  <img
+                    src={profileData.profilePicture || "/placeholder.svg"}
+                    alt="Your avatar"
+                    className="w-8 h-8 rounded-full"
                   />
-                  <Button onClick={() => handleComment(post.id)} className="mt-1">Submit</Button>
-                  <div className="mt-2 space-y-1">
-                    {(postComments[post.id] || []).map(c => (
-                      <div key={c.id} className="text-sm text-gray-700 border-b pb-1">
-                        <span className="font-semibold">{c.userId}:</span> {c.comment}
+                  <div className="flex-1">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={commentInputs[post.id] || ""}
+                        onChange={(e) => setCommentInputs((prev) => ({ ...prev, [post.id]: e.target.value }))}
+                        placeholder="Add a comment..."
+                        className="w-full border border-gray-300 rounded-full px-4 py-2 pr-20 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                      />
+                      <button
+                        onClick={() => handleComment(post.id)}
+                        disabled={!commentInputs[post.id]?.trim()}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 py-1 rounded-full text-sm font-medium transition-colors"
+                      >
+                        Post
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                {(postComments[post.id] || []).length > 0 && (
+                  <div className="space-y-3">
+                    {(postComments[post.id] || []).map((c) => (
+                      <div key={c.id} className="flex items-start space-x-3">
+                        <img src="/placeholder.svg" alt="Commenter avatar" className="w-8 h-8 rounded-full" />
+                        <div className="flex-1">
+                          <div className="bg-white rounded-lg px-3 py-2 border">
+                            <div className="font-semibold text-sm text-gray-900">{c.userId}</div>
+                            <div className="text-sm text-gray-700 mt-1">{c.comment}</div>
+                          </div>
+                          <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500">
+                            <button className="hover:text-orange-600 transition-colors">Like</button>
+                            <button className="hover:text-orange-600 transition-colors">Reply</button>
+                            <span>Just now</span>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-              <span className="flex items-center space-x-1">
-                <Eye className="h-4 w-4" />
-                <span>{post.views}</span>
-              </span>
-              <Button variant="ghost" size="sm" className="ml-auto">
-                <Share2 className="h-4 w-4 mr-2" />
-                Share
-              </Button>
-            </div>
+                )}
+              </div>
+            )}
+            <Button variant="ghost" size="sm" className="ml-auto">
+              <Share2 className="h-4 w-4 mr-2" />
+              Share
+            </Button>
           </div>
         </CardContent>
       </Card>
