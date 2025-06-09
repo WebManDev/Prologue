@@ -900,37 +900,65 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 {/* Feed Composer */}
                 <Card>
                   <CardContent className="p-4">
-                    <div className="flex items-center space-x-4">
-                      <img
-                        src={profileData.profilePicture || "/placeholder.svg"}
-                        alt={profile.name}
-                        className="w-10 h-10 rounded-full"
-                      />
-                      <Button
-                        variant="outline"
-                        className="flex-1 justify-start text-gray-500 hover:text-gray-700"
-                        onClick={() => {
-                          setPostType("workout")
-                          setCreatingPost(true)
-                        }}
-                      >
-                        Share a workout, article, or update...
-                      </Button>
-                    </div>
-                    <div className="flex justify-between mt-4 pt-4 border-t">
-                      <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
-                        <Video className="h-5 w-5 mr-2" />
-                        Video
-                      </Button>
-                      <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
-                        <ImageIcon className="h-5 w-5 mr-2" />
-                        Photo
-                      </Button>
-                      <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
-                        <FileText className="h-5 w-5 mr-2" />
-                        Article
-                      </Button>
-                    </div>
+                  <div className="flex items-start space-x-4">
+  <img
+    src={profileData.profilePicture || "/placeholder.svg"}
+    alt={profile.name}
+    className="w-10 h-10 rounded-full mt-1"
+  />
+  <div className="flex-1">
+    <Textarea
+      value={newPost.content}
+      onChange={e => setNewPost({ ...newPost, content: e.target.value })}
+      placeholder="What's on your mind?"
+      rows={3}
+      className="resize-none"
+    />
+    <div className="flex items-center justify-between mt-2">
+      <div className="flex gap-2">
+        <Button variant="ghost" size="icon" asChild>
+          <label>
+            <ImageIcon className="h-5 w-5 text-gray-500" />
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+          </label>
+        </Button>
+        <Button variant="ghost" size="icon" asChild>
+          <label>
+            <Video className="h-5 w-5 text-gray-500" />
+            <input
+              type="file"
+              accept="video/*"
+              onChange={handleWorkoutVideoUpload}
+              className="hidden"
+            />
+          </label>
+        </Button>
+        {postImages.length > 0 && (
+          <span className="text-xs text-gray-600">{postImages.length} image{postImages.length !== 1 ? 's' : ''}</span>
+        )}
+        {workoutVideo && (
+          <span className="text-xs text-gray-600">{workoutVideo.name}</span>
+        )}
+      </div>
+      <Button
+        className="bg-blue-600 hover:bg-blue-700 text-white"
+        onClick={handleCreatePost}
+        disabled={!newPost.content.trim() && postImages.length === 0 && !workoutVideo}
+      >
+        {isUploadingVideo || isUploadingImages ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : null}
+        Post
+      </Button>
+    </div>
+  </div>
+</div>
                   </CardContent>
                 </Card>
                 {/* Feed Content */}
@@ -1026,39 +1054,67 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                       Expand Feed
                     </Button>
                   </div>
-                  {/* Feed Composer */}
+                  {/* Feed Composer - now full composer, not just a button */}
                   <Card>
                     <CardContent className="p-4">
-                      <div className="flex items-center space-x-4">
+                      <div className="flex items-start space-x-4">
                         <img
                           src={profileData.profilePicture || "/placeholder.svg"}
                           alt={profile.name}
-                          className="w-10 h-10 rounded-full"
+                          className="w-10 h-10 rounded-full mt-1"
                         />
-                        <Button
-                          variant="outline"
-                          className="flex-1 justify-start text-gray-500 hover:text-gray-700"
-                          onClick={() => {
-                            setPostType("workout")
-                            setCreatingPost(true)
-                          }}
-                        >
-                          Share a workout, article, or update...
-                        </Button>
-                      </div>
-                      <div className="flex justify-between mt-4 pt-4 border-t">
-                        <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
-                          <Video className="h-5 w-5 mr-2" />
-                          Video
-                        </Button>
-                        <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
-                          <ImageIcon className="h-5 w-5 mr-2" />
-                          Photo
-                        </Button>
-                        <Button variant="ghost" className="text-gray-600 hover:text-gray-700">
-                          <FileText className="h-5 w-5 mr-2" />
-                          Article
-                        </Button>
+                        <div className="flex-1">
+                          <Textarea
+                            value={newPost.content}
+                            onChange={e => setNewPost({ ...newPost, content: e.target.value })}
+                            placeholder="What's on your mind?"
+                            rows={3}
+                            className="resize-none"
+                          />
+                          <div className="flex items-center justify-between mt-2">
+                            <div className="flex gap-2">
+                              <Button variant="ghost" size="icon" asChild>
+                                <label>
+                                  <ImageIcon className="h-5 w-5 text-gray-500" />
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={handleImageUpload}
+                                    className="hidden"
+                                  />
+                                </label>
+                              </Button>
+                              <Button variant="ghost" size="icon" asChild>
+                                <label>
+                                  <Video className="h-5 w-5 text-gray-500" />
+                                  <input
+                                    type="file"
+                                    accept="video/*"
+                                    onChange={handleWorkoutVideoUpload}
+                                    className="hidden"
+                                  />
+                                </label>
+                              </Button>
+                              {postImages.length > 0 && (
+                                <span className="text-xs text-gray-600">{postImages.length} image{postImages.length !== 1 ? 's' : ''}</span>
+                              )}
+                              {workoutVideo && (
+                                <span className="text-xs text-gray-600">{workoutVideo.name}</span>
+                              )}
+                            </div>
+                            <Button
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              onClick={handleCreatePost}
+                              disabled={!newPost.content.trim() && postImages.length === 0 && !workoutVideo}
+                            >
+                              {isUploadingVideo || isUploadingImages ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : null}
+                              Post
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
