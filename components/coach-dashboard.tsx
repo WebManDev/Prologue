@@ -175,6 +175,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [commentOpen, setCommentOpen] = useState<{ [postId: string]: boolean }>({});
   const [postComments, setPostComments] = useState<{ [postId: string]: any[] }>({});
   const currentUserId = auth.currentUser?.uid;
+  const [memberProfiles, setMemberProfiles] = useState<{ [userId: string]: any }>({});
+  const [athleteProfiles, setAthleteProfiles] = useState<{ [userId: string]: any }>({});
 
   const db = getFirestore();
 
@@ -358,22 +360,31 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 </div>
                 {(postComments[post.id] || []).length > 0 && (
                   <div className="space-y-3">
-                    {(postComments[post.id] || []).map((c) => (
-                      <div key={c.id} className="flex items-start space-x-3">
-                        <img src="/placeholder.svg" alt="Commenter avatar" className="w-8 h-8 rounded-full" />
-                        <div className="flex-1">
-                          <div className="bg-white rounded-lg px-3 py-2 border">
-                            <div className="font-semibold text-sm text-gray-900">{c.userId}</div>
-                            <div className="text-sm text-gray-700 mt-1">{c.comment}</div>
-                          </div>
-                          <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500">
-                            <button className="hover:text-orange-600 transition-colors">Like</button>
-                            <button className="hover:text-orange-600 transition-colors">Reply</button>
-                            <span>Just now</span>
+                    {(postComments[post.id] || []).map((c) => {
+                      const commenter = (athleteProfiles?.[c.userId] || memberProfiles[c.userId] || {});
+                      return (
+                        <div key={c.id} className="flex items-start space-x-3">
+                          <img
+                            src={commenter.profilePicture || "/placeholder.svg"}
+                            alt="Commenter avatar"
+                            className="w-8 h-8 rounded-full"
+                          />
+                          <div className="flex-1">
+                            <div className="bg-white rounded-lg px-3 py-2 border">
+                              <div className="font-semibold text-sm text-gray-900">
+                                {commenter.name || "User"}
+                              </div>
+                              <div className="text-sm text-gray-700 mt-1">{c.comment}</div>
+                            </div>
+                            <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500">
+                              <button className="hover:text-orange-600 transition-colors">Like</button>
+                              <button className="hover:text-orange-600 transition-colors">Reply</button>
+                              <span>Just now</span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -826,7 +837,33 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     const postRef = collection(db, "athletePosts", postId, "comments");
     const q = query(postRef, orderBy("createdAt", "desc"), limit(3));
     const snap = await getDocs(q);
-    setPostComments(prev => ({ ...prev, [postId]: snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) }));
+    const comments = snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as any) }));
+    setPostComments(prev => ({ ...prev, [postId]: comments }));
+
+    // Find userIds that are not in athleteProfiles or memberProfiles
+    const missingUserIds = comments
+      .map(c => c.userId)
+      .filter(
+        (userId) =>
+          !athleteProfiles?.[userId] &&
+          !memberProfiles[userId]
+      );
+    // Fetch missing member profiles
+    if (missingUserIds.length > 0) {
+      const { getMemberProfile } = await import("@/lib/firebase");
+      const newProfiles: { [userId: string]: any } = {};
+      await Promise.all(
+        missingUserIds.map(async (userId) => {
+          try {
+            const profile = await getMemberProfile(userId);
+            if (profile) newProfiles[userId] = profile;
+          } catch {}
+        })
+      );
+      if (Object.keys(newProfiles).length > 0) {
+        setMemberProfiles(prev => ({ ...prev, ...newProfiles }));
+      }
+    }
   };
 
   const handleLike = async (postId: string) => {
