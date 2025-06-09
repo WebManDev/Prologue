@@ -200,43 +200,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     if (!profile) return [];
     
     return [
-      {
-        id: "sample-1",
-        title: "Advanced Tennis Serve Technique",
-        description: "Master the perfect serve with these professional tips",
-        content: "Focus on your toss placement and follow-through for maximum power and accuracy...",
-        type: "workout",
-        authorName: "Marcus Rodriguez",
-        authorSport: "Tennis",
-        authorAvatar: "/placeholder.svg?height=40&width=40",
-        createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        views: 156,
-        likes: 23,
-        comments: 8,
-        isLiked: false,
-        videoLink: "https://example.com/tennis-serve",
-        visibility: "public",
-        tags: ["tennis", "serve", "technique"],
-      },
-      {
-        id: "sample-2",
-        title: "Mental Preparation for Competition",
-        description: "How to stay focused and confident during high-pressure moments",
-        content:
-          "Visualization techniques and breathing exercises that have helped me win championships...",
-        type: "blog",
-        authorName: "Sarah Chen",
-        authorSport: "Swimming",
-        authorAvatar: "/placeholder.svg?height=40&width=40",
-        createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
-        views: 89,
-        likes: 15,
-        comments: 12,
-        isLiked: true,
-        images: ["/placeholder.svg?height=200&width=300"],
-        visibility: "public",
-        tags: ["mental", "competition", "preparation"],
-      },
       ...(coachPosts || []).map((post: any) => ({
         ...post,
         authorName: profile.name,
