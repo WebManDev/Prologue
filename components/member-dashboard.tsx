@@ -174,7 +174,11 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     async function fetchFeedPosts() {
       setLoadingFeed(true);
       try {
-        const postsQuery = query(collection(db, "athletePosts"), orderBy("createdAt", "desc"));
+        const postsQuery = query(
+          collection(db, "athletePosts"),
+          where("visibility", "==", "public"),
+          orderBy("createdAt", "desc")
+        );
         const postsSnap = await getDocs(postsQuery);
         const posts = postsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setFeedPosts(posts);

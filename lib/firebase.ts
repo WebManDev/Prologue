@@ -388,7 +388,7 @@ export const likePost = async (postId: string, userId: string) => {
   const postSnap = await getDoc(postRef);
   if (!postSnap.exists()) return;
   const data = postSnap.data();
-  const likedBy = data.likedBy || [];
+  const likedBy = Array.isArray(data.likedBy) ? data.likedBy : [];
   
   if (likedBy.includes(userId)) {
     // Unlike the post
