@@ -76,6 +76,11 @@ interface PostData {
   images?: string[];
   visibility: "public" | "subscribers";
   tags: string[];
+  userId: string;
+  createdAt: any;
+  views?: number;
+  likes?: number;
+  comments?: number;
 }
 
 // Helper to get next payout date (first day of next month)
@@ -145,6 +150,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     },
   });
   const [coachPosts, setCoachPosts] = useState<any[]>([]);
+  const [ownPosts, setOwnPosts] = useState<any[]>([]);
   const [messagingMember, setMessagingMember] = useState<any>(null);
   const [subscribers, setSubscribers] = useState<any[]>([]);
   const [feedbackRequests, setFeedbackRequests] = useState<any[]>([])
@@ -483,21 +489,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   useEffect(() => {
     async function fetchCoachDashboardData() {
       if (!auth.currentUser) return;
-      // Fetch all public posts from all coaches
-      const publicPostsQuery = query(
-        collection(db, "athletePosts"),
-        where("visibility", "==", "public"),
-        orderBy("createdAt", "desc")
-      );
-      const publicPostsSnap = await getDocs(publicPostsQuery);
-      const publicPosts = publicPostsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setCoachPosts(publicPosts);
-
-      // Calculate stats (still use only the current user's posts for stats)
-      let ownPosts: any[] = [];
-      if (auth.currentUser) {
-        ownPosts = (publicPosts as any[]).filter(post => post.userId === auth.currentUser.uid);
-      }
+      
       let totalViews = 0;
       let totalLikes = 0;
       let totalComments = 0;
@@ -506,17 +498,34 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       let thisWeekRevenue = 0;
       const now = new Date();
       const weekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
-      ownPosts.forEach(post => {
-        totalViews += (post as any).views || 0;
-        totalLikes += (post as any).likes || 0;
-        totalComments += (post as any).comments || 0;
-        const createdAt = (post as any).createdAt && (post as any).createdAt.toDate ? (post as any).createdAt.toDate() : ((post as any).createdAt ? new Date((post as any).createdAt) : null);
-        if (createdAt && createdAt > weekAgo) {
-          thisWeekContent++;
-          thisWeekViews += (post as any).views || 0;
-          thisWeekRevenue += 10; // Assume $10 per post for this example
-        }
-      });
+
+      // Fetch all public posts from all coaches
+      const publicPostsQuery = query(
+        collection(db, "athletePosts"),
+        where("visibility", "==", "public"),
+        orderBy("createdAt", "desc")
+      );
+      const publicPostsSnap = await getDocs(publicPostsQuery);
+      const publicPosts = publicPostsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as unknown as PostData[];
+      setCoachPosts(publicPosts);
+
+      // Calculate stats (still use only the current user's posts for stats)
+      if (auth.currentUser) {
+        const ownPosts = publicPosts.filter(post => post.userId === auth.currentUser.uid);
+        setOwnPosts(ownPosts);
+        
+        ownPosts.forEach(post => {
+          totalViews += post.views || 0;
+          totalLikes += post.likes || 0;
+          totalComments += post.comments || 0;
+          const createdAt = post.createdAt && post.createdAt.toDate ? post.createdAt.toDate() : post.createdAt ? new Date(post.createdAt) : null;
+          if (createdAt && createdAt > weekAgo) {
+            thisWeekContent++;
+            thisWeekViews += post.views || 0;
+            thisWeekRevenue += 10; // Assume $10 per post for this example
+          }
+        });
+      }
       // Fetch subscribers from profile
       if (auth.currentUser) {
         const profileData = await getAthleteProfile(auth.currentUser.uid);
@@ -668,6 +677,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         type: newPost.type,
         visibility: "public", // Feed posts are always public
         tags: newPost.tags,
+        userId: auth.currentUser.uid,
+        createdAt: serverTimestamp(),
       };
       await saveAthletePost(auth.currentUser.uid, postData);
 
