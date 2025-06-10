@@ -441,5 +441,6 @@ export {
   GoogleAuthProvider,
   smartSignIn,
   handleRedirectResult,
-  initializeFirebase
+  initializeFirebase,
+  db
 }; 

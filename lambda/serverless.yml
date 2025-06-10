@@ -1,0 +1,26 @@
+service: prologue-payout-processor
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1
+  environment:
+    STRIPE_SECRET_KEY: ${env:STRIPE_SECRET_KEY}
+    FIREBASE_PROJECT_ID: ${env:FIREBASE_PROJECT_ID}
+    FIREBASE_CLIENT_EMAIL: ${env:FIREBASE_CLIENT_EMAIL}
+    FIREBASE_PRIVATE_KEY: ${env:FIREBASE_PRIVATE_KEY}
+
+functions:
+  processPayouts:
+    handler: dist/process-payouts.handler
+    events:
+      - schedule: cron(0 0 1 * ? *) # Run at midnight on the first day of each month
+    timeout: 30
+    memorySize: 256
+
+plugins:
+  - serverless-plugin-typescript
+
+custom:
+  serverless-plugin-typescript:
+    tsConfigFileLocation: './tsconfig.json' 

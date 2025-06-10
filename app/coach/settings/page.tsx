@@ -8,12 +8,11 @@ import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
-import { getFirestore, collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { CreditCard, MessageSquare, Shield } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { CoachStripeOnboarding } from "@/components/coach-stripe-onboarding";
-
-const db = getFirestore();
+import { db } from "@/lib/firebase";
 
 export default function CoachSettingsPage() {
   const [email, setEmail] = useState("");
@@ -117,18 +116,6 @@ export default function CoachSettingsPage() {
               >
                 <CreditCard className="h-4 w-4 mr-2" />
                 Payment Settings
-              </Button>
-              <Button variant="outline" className="w-full justify-start">
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Notification Preferences
-              </Button>
-              <Button variant="outline" className="w-full justify-start">
-                <Shield className="h-4 w-4 mr-2" />
-                Privacy Settings
-              </Button>
-              <Button variant="outline" className="w-full justify-start">
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Messages
               </Button>
             </div>
           </CardContent>

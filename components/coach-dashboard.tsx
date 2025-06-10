@@ -29,6 +29,7 @@ import {
   Target,
   CreditCard,
   ArrowRight,
+  
   Play,
   Settings,
   LogOut,

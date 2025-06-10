@@ -5,15 +5,40 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { CheckCircle, ArrowRight } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
+import { auth, saveAthleteProfile } from "@/lib/firebase"
 
 export default function StripeSuccessPage() {
   const [isVerified, setIsVerified] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
-    // Here you would verify the Stripe account setup
-    // and update the coach's status in your database
-    setTimeout(() => setIsVerified(true), 2000)
-  }, [])
+    async function handleProfile() {
+      const user = auth.currentUser;
+      if (!user) {
+        // Not logged in, redirect to settings
+        router.push("/coach/settings");
+        return;
+      }
+      // Save or update the coach profile
+      await saveAthleteProfile(user.uid, {
+        name: user.displayName || "Coach",
+        email: user.email || "",
+        sport: "",
+        role: "coach",
+        bio: "",
+        specialties: [],
+        location: "",
+        experience: "",
+        certifications: [],
+        profilePicture: user.photoURL || "/placeholder.svg",
+      });
+      setIsVerified(true);
+      // Redirect to dashboard after a short delay
+      setTimeout(() => router.push("/coach/dashboard"), 1500);
+    }
+    handleProfile();
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
