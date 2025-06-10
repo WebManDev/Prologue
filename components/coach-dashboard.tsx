@@ -1020,10 +1020,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           </div>
 
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" className="text-gray-600 hover:text-gray-700" onClick={() => router.push('/coach/settings')}>
-              <Settings className="h-5 w-5 mr-2" />
-              Settings
-            </Button>
+          
             <Button variant="ghost" onClick={handleLogout} className="text-gray-600 hover:text-gray-700">
               <LogOut className="h-5 w-5 mr-2" />
               Logout
@@ -1072,6 +1069,12 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 onClick={() => setActiveTab("feedback")}
               >
                 Feedback Requests
+              </Button>
+              <Button
+                variant={activeTab === "settings" ? "default" : "outline"}
+                onClick={() => router.push('/coach/settings')}
+              >
+                Settings
               </Button>
             </div>
           </div>
