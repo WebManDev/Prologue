@@ -1885,36 +1885,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                       </div>
                     </CardContent>
                   </Card>
-
-                  {/* Account Settings */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Account Settings</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <Button variant="outline" className="w-full justify-start">
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Payment Settings
-                      </Button>
-                      <Button variant="outline" className="w-full justify-start">
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Notification Preferences
-                      </Button>
-                      <Button variant="outline" className="w-full justify-start">
-                        <Shield className="h-4 w-4 mr-2" />
-                        Privacy Settings
-                      </Button>
-                      <Button variant="outline" className="w-full justify-start" onClick={() => setMessagingMember({
-                        name: "Test Member",
-                        coach: profileData.name,
-                        coachAvatar: profileData.profilePicture,
-                        sport: profileData.specialties[0] || "Sport"
-                      })}>
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Messages
-                      </Button>
-                    </CardContent>
-                  </Card>
                 </div>
               </div>
 
