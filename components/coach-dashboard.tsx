@@ -1079,84 +1079,39 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           <TabsContent value="dashboard">
             {feedExpanded ? (
               <div className="max-w-3xl mx-auto">
-                <div className="flex justify-between items-center mb-4 mt-8">
-                  <h2 className="text-2xl font-bold text-gray-900">Feed</h2>
+                {/* Latest Exclusive Content */}
+                <Card className="mb-8">
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Lock className="h-5 w-5 text-orange-500" />
+                      <span>Latest Exclusive Content</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {ownPosts.slice(0, 3).map((post: any) => (
+                        <div key={post.id} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-gray-900">{post.title}</h3>
+                            <p className="text-sm text-gray-600 mt-1">{post.content}</p>
+                            <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                              <span>{formatDate(post.createdAt)}</span>
+                              <span>{post.views || 0} views</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+                {/* Community Feed */}
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
                   <Button variant="outline" size="sm" onClick={() => setFeedExpanded(false)}>
                     Collapse Feed
                   </Button>
                 </div>
-                {/* Feed Composer */}
-                <Card>
-                  <CardContent className="p-4">
-                  <div className="flex items-start space-x-4">
-  <img
-    src={profileData.profilePicture || "/placeholder.svg"}
-    alt={profile.name}
-    className="w-10 h-10 rounded-full mt-1"
-  />
-  <div className="flex-1">
-    <Textarea
-      value={newPost.content}
-      onChange={e => setNewPost({ ...newPost, content: e.target.value })}
-      placeholder="What's on your mind?"
-      rows={3}
-      className="resize-none"
-    />
-    <div className="flex items-center justify-between mt-2">
-      <div className="flex gap-2">
-        <Button variant="ghost" size="icon" asChild>
-          <label>
-            <ImageIcon className="h-5 w-5 text-gray-500" />
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleImageUpload}
-              className="hidden"
-            />
-          </label>
-        </Button>
-        <Button variant="ghost" size="icon" asChild>
-          <label>
-            <Video className="h-5 w-5 text-gray-500" />
-            <input
-              type="file"
-              accept="video/*"
-              onChange={handleWorkoutVideoUpload}
-              className="hidden"
-            />
-          </label>
-        </Button>
-        {postImages.length > 0 && (
-          <span className="text-xs text-gray-600">{postImages.length} image{postImages.length !== 1 ? 's' : ''}</span>
-        )}
-        {workoutVideo && (
-          <span className="text-xs text-gray-600">{workoutVideo.name}</span>
-        )}
-      </div>
-      <Button
-        className="bg-blue-600 hover:bg-blue-700 text-white"
-        onClick={() => {
-          // Set visibility to 'public' for feed composer posts
-          setNewPost(prev => ({ ...prev, visibility: 'public' }));
-          handleCreatePost();
-        }}
-        disabled={!newPost.content.trim() && postImages.length === 0 && !workoutVideo}
-      >
-        {isUploadingVideo || isUploadingImages ? (
-          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-        ) : null}
-        Post
-      </Button>
-    </div>
-  </div>
-</div>
-                  </CardContent>
-                </Card>
-                {/* Feed Content */}
-                <div className="space-y-4 mt-4">
-                  {getFeedPosts()}
-                </div>
+                {getFeedPosts()}
               </div>
             ) : (
               <>

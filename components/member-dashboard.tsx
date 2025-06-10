@@ -793,7 +793,34 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                   </Card>
                 </div>
 
-                {/* Community Feed Section below Quick Actions */}
+                {/* Latest Content from Subscribed Athletes */}
+                <Card className="mb-8">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span className="flex items-center space-x-2">
+                        <Lock className="h-5 w-5 text-blue-600" />
+                        <span>Latest Exclusive Content</span>
+                      </span>
+                      <Button variant="ghost" size="sm" onClick={() => setActiveTab("athletes")}>View All</Button>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-blue-600 mb-1">{subscribedAthletes.length}</div>
+                        <div className="text-sm text-gray-600">Active Subscriptions</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-orange-500 mb-1">
+                          {subscribedAthletes.reduce((sum, athlete) => sum + athlete.posts, 0)}
+                        </div>
+                        <div className="text-sm text-gray-600">Total Content</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Community Feed Section below Latest Exclusive Content */}
                 <div className={`space-y-4 mt-8 ${feedExpanded ? '' : 'mb-8'}`}>
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
@@ -803,40 +830,6 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                   </div>
                   {renderFeedPosts()}
                 </div>
-
-                {/* Hide the rest of the dashboard widgets if feed is expanded */}
-                {!feedExpanded && (
-                  <>
-                    {/* Latest Content from Subscribed Athletes */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center justify-between">
-                          <span className="flex items-center space-x-2">
-                            <Lock className="h-5 w-5 text-blue-600" />
-                            <span>Latest Exclusive Content</span>
-                          </span>
-                          <Button variant="ghost" size="sm" onClick={() => setActiveTab("athletes")}>
-                            View All
-                          </Button>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div className="text-center">
-                            <div className="text-3xl font-bold text-blue-600 mb-1">{subscribedAthletes.length}</div>
-                            <div className="text-sm text-gray-600">Active Subscriptions</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-3xl font-bold text-orange-500 mb-1">
-                              {subscribedAthletes.reduce((sum, athlete) => sum + athlete.posts, 0)}
-                            </div>
-                            <div className="text-sm text-gray-600">Total Content</div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </>
-                )}
               </>
             )}
           </TabsContent>
