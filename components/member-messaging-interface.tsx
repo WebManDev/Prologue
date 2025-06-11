@@ -286,14 +286,14 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
               {/* Video Feedback Tab */}
               {activeTab === "feedback" && (
                 <CardContent className="flex-1 p-6">
-                  <div className="space-y-6">
+                  <div className="space-y-3 sm:space-y-6">
                     <div className="text-center">
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">Request Video Feedback</h3>
                       <p className="text-gray-600">
                         Upload a video and get personalized feedback from {coachInfo.name}
                       </p>
                     </div>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-8 text-center w-full max-w-full mx-auto">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-8 text-center w-full max-w-full mx-auto -mt-2 sm:mt-0">
                       <Video className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <p className="text-lg font-medium text-gray-900 mb-2">Upload Training Video</p>
                       <p className="text-sm text-gray-600">MP4, MOV, AVI up to 100MB</p>
