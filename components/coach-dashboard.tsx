@@ -36,14 +36,15 @@ import {
   ImageIcon,
   Loader2,
   AlertCircle,
+  X,
 } from "lucide-react"
 import { CoachStripeOnboarding } from "./coach-stripe-onboarding"
-import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAthlete, updateAthletePost, deleteAthletePost, saveAthleteProfile, likePost, addCommentToPost } from "@/lib/firebase"
+import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAthlete, updateAthletePost, deleteAthletePost, saveAthleteProfile, likePost, addCommentToPost, sendMessage, getChatId } from "@/lib/firebase"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
 import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, limit, increment, arrayUnion } from "firebase/firestore"
-import { MemberMessagingInterface } from "./member-messaging-interface"
+import { CoachMessagingInterface } from "./coach-messaging-interface"
 import { STRIPE_CONFIG } from "@/lib/stripe"
 import { format } from 'date-fns'
 import StarRating from "./star-rating"
@@ -153,8 +154,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [ownPosts, setOwnPosts] = useState<any[]>([]);
   const [messagingMember, setMessagingMember] = useState<any>(null);
   const [subscribers, setSubscribers] = useState<any[]>([]);
-  const [feedbackRequests, setFeedbackRequests] = useState<any[]>([])
-  const [loadingFeedback, setLoadingFeedback] = useState(true)
+  const [showFeedbackRequests, setShowFeedbackRequests] = useState(false);
+  const [feedbackRequests, setFeedbackRequests] = useState<any[]>([]);
+  const [loadingFeedback, setLoadingFeedback] = useState(true);
   const [feedbackPage, setFeedbackPage] = useState(1)
   const [hasMoreFeedback, setHasMoreFeedback] = useState(true)
   const FEEDBACK_PER_PAGE = 5
@@ -168,6 +170,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const currentUserId = auth.currentUser?.uid;
   const [memberProfiles, setMemberProfiles] = useState<{ [userId: string]: any }>({});
   const [athleteProfiles, setAthleteProfiles] = useState<{ [userId: string]: any }>({});
+  const [showMessagingDialog, setShowMessagingDialog] = useState(false);
+  const [messageInput, setMessageInput] = useState("");
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
 
   const db = getFirestore();
 
@@ -649,9 +654,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       let imageUrls: string[] = [];
       
       // Upload video if one was selected
-      if (workoutVideo) {
+      if (workoutVideo && auth.currentUser) {
         const storage = getStorage();
-        const fileRef = storageRef(storage, `workout-videos/${auth.currentUser!.uid}/${Date.now()}_${workoutVideo.name}`);
+        const fileRef = storageRef(storage, `workout-videos/${auth.currentUser.uid}/${Date.now()}_${workoutVideo.name}`);
         await uploadBytes(fileRef, workoutVideo);
         videoUrl = await getDownloadURL(fileRef);
       }
@@ -993,6 +998,50 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     }
   }, [coachPosts]);
 
+  // Add this function to handle sending messages
+  const handleSendMessage = async (memberId: string) => {
+    if (!auth.currentUser || !messageInput.trim()) return;
+    
+    try {
+      await sendMessage({
+        memberId,
+        athleteId: auth.currentUser.uid,
+        senderId: auth.currentUser.uid,
+        senderRole: "coach",
+        content: messageInput.trim()
+      });
+      setMessageInput("");
+      // Refresh messages
+      fetchMessages(memberId);
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
+  };
+
+  // Add this function to fetch messages
+  const fetchMessages = async (memberId: string) => {
+    if (!auth.currentUser) return;
+    
+    const chatId = getChatId(memberId, auth.currentUser.uid);
+    const messagesRef = collection(db, "chats", chatId, "messages");
+    const q = query(messagesRef, orderBy("timestamp", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setChatMessages(messages);
+    });
+    return unsubscribe;
+  };
+
+  // Update the messaging button click handler
+  const handleMessagingClick = () => {
+    setShowMessagingDialog(true);
+  };
+
+  // Update the feedback requests button click handler
+  const handleFeedbackRequestsClick = () => {
+    setActiveTab("feedback");
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -1016,7 +1065,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   }
 
   if (messagingMember) {
-    return <MemberMessagingInterface coach={messagingMember} onBack={() => setMessagingMember(null)} />;
+    return <CoachMessagingInterface coach={messagingMember} onBack={() => setMessagingMember(null)} />;
   }
 
   return (
@@ -1078,7 +1127,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
               </Button>
               <Button
                 variant={activeTab === "feedback" ? "default" : "outline"}
-                onClick={() => setActiveTab("feedback")}
+                onClick={handleFeedbackRequestsClick}
               >
                 Feedback Requests
               </Button>
@@ -1168,58 +1217,33 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                         <FileText className="h-6 w-6" />
                         <span>Write Blog Post</span>
                       </Button>
+                      <Button
+                        onClick={handleMessagingClick}
+                        className="h-20 bg-green-500 hover:bg-green-600 text-white flex flex-col items-center justify-center space-y-2"
+                      >
+                        <MessageSquare className="h-6 w-6" />
+                        <span>Messages</span>
+                        {subscribers.length > 0 && (
+                          <Badge variant="secondary" className="absolute top-2 right-2">
+                            {subscribers.length}
+                          </Badge>
+                        )}
+                      </Button>
+                      <Button
+                        onClick={handleFeedbackRequestsClick}
+                        className="h-20 bg-purple-500 hover:bg-purple-600 text-white flex flex-col items-center justify-center space-y-2"
+                      >
+                        <Star className="h-6 w-6" />
+                        <span>Feedback Requests</span>
+                        {feedbackRequests.length > 0 && (
+                          <Badge variant="secondary" className="absolute top-2 right-2">
+                            {feedbackRequests.length}
+                          </Badge>
+                        )}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
-
-                {/* Row: Messages | Feedback Requests */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-                  {/* Messages Section */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center space-x-2">
-                        <MessageSquare className="h-5 w-5 text-blue-600" />
-                        <span>Messages</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {subscribers.length === 0 ? (
-                          <div className="text-gray-500 text-sm">No subscribers to message yet.</div>
-                        ) : (
-                          subscribers.map((member: any) => (
-                            <div key={member.id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer" onClick={() => setMessagingMember({ id: member.id, name: member.name, coach: profileData.name, coachAvatar: profileData.profilePicture, sport: member.sport || "Sport" })}>
-                              <span className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium">{member.name?.[0] || "M"}</span>
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">{member.name || `Member`}</p>
-                                <p className="text-xs text-gray-600">{member.email}</p>
-                              </div>
-                              <Button variant="outline" size="sm">
-                                <MessageSquare className="h-4 w-4 mr-2" />
-                                Message
-                              </Button>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Feedback Requests Section */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center space-x-2">
-                        <Video className="h-5 w-5 text-blue-600" />
-                        <span>Feedback Requests</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {feedbackRequests.length === 0 ? (
-                        <div className="text-gray-500 text-center py-6">No feedback requests yet.</div>
-                      ) : null}
-                    </CardContent>
-                  </Card>
-                </div>
 
                 {/* Feed Section below Quick Actions and row */}
                 <div className="space-y-4 mt-8">
@@ -2321,6 +2345,137 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Messaging Dialog */}
+      {showMessagingDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <Card className="max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <CardHeader className="flex-none">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center space-x-2">
+                  <MessageSquare className="h-5 w-5 text-green-600" />
+                  <span>Messages</span>
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowMessagingDialog(false);
+                    setMessagingMember(null);
+                    setChatMessages([]);
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-hidden flex">
+              {/* Subscribers List */}
+              <div className="w-1/3 border-r pr-4 overflow-y-auto">
+                <div className="space-y-2">
+                  {subscribers.length === 0 ? (
+                    <div className="text-gray-500 text-sm p-4">No subscribers to message yet.</div>
+                  ) : (
+                    subscribers.map((member: any) => (
+                      <div
+                        key={member.id}
+                        className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                          messagingMember?.id === member.id ? 'bg-green-50' : 'hover:bg-gray-50'
+                        }`}
+                        onClick={() => {
+                          setMessagingMember({
+                            id: member.id,
+                            name: member.name,
+                            email: member.email,
+                            sport: member.sport || "Sport"
+                          });
+                          fetchMessages(member.id);
+                        }}
+                      >
+                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium">
+                          {member.name?.[0] || "M"}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{member.name || "Member"}</p>
+                          <p className="text-xs text-gray-600 truncate">{member.email}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Chat Area */}
+              <div className="flex-1 flex flex-col pl-4">
+                {messagingMember ? (
+                  <>
+                    {/* Chat Header */}
+                    <div className="flex items-center space-x-3 pb-4 border-b">
+                      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium">
+                        {messagingMember.name?.[0] || "M"}
+                      </div>
+                      <div>
+                        <p className="font-medium">{messagingMember.name}</p>
+                        <p className="text-sm text-gray-600">{messagingMember.sport}</p>
+                      </div>
+                    </div>
+
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto py-4 space-y-4">
+                      {chatMessages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={`flex ${message.senderId === auth.currentUser?.uid ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[70%] rounded-lg p-3 ${
+                              message.senderId === auth.currentUser?.uid
+                                ? 'bg-green-500 text-white'
+                                : 'bg-gray-100 text-gray-900'
+                            }`}
+                          >
+                            <p className="text-sm">{message.content}</p>
+                            <p className="text-xs mt-1 opacity-70">
+                              {message.timestamp?.toDate ? formatDate(message.timestamp.toDate()) : 'Just now'}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Message Input */}
+                    <div className="flex-none pt-4 border-t">
+                      <div className="flex space-x-2">
+                        <Input
+                          value={messageInput}
+                          onChange={(e) => setMessageInput(e.target.value)}
+                          placeholder="Type a message..."
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSendMessage(messagingMember.id);
+                            }
+                          }}
+                        />
+                        <Button
+                          onClick={() => handleSendMessage(messagingMember.id)}
+                          disabled={!messageInput.trim()}
+                        >
+                          Send
+                        </Button>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-gray-500">
+                    Select a subscriber to start messaging
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

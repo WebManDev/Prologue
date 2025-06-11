@@ -26,6 +26,8 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [feedbackText, setFeedbackText] = useState("")
   const [isUploading, setIsUploading] = useState(false)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
 
   // Determine roles and IDs
   const currentUser = auth.currentUser
@@ -97,6 +99,30 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
       alert("Upload failed: " + (error as Error).message);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleSendImage = async (file: File) => {
+    if (!file || !memberId || !athleteId || !senderId) return;
+    setIsUploadingImage(true);
+    try {
+      const storage = getStorage();
+      const storageRef = ref(storage, `chat-images/${senderId}/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+      await sendMessage({
+        memberId,
+        athleteId,
+        senderId,
+        senderRole,
+        content: downloadURL,
+        type: "image"
+      });
+      setImageFile(null);
+    } catch (error) {
+      alert("Image upload failed");
+    } finally {
+      setIsUploadingImage(false);
     }
   };
 
@@ -199,7 +225,11 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                                 msg.senderId === auth.currentUser?.uid ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-900"
                               }`}
                             >
-                              <p className="text-sm">{msg.content}</p>
+                              {msg.type === "image" ? (
+                                <img src={msg.content} alt="sent image" className="max-w-[200px] max-h-[200px] rounded-lg" />
+                              ) : (
+                                <p className="text-sm">{msg.content}</p>
+                              )}
                               <p
                                 className={`text-xs mt-1 ${
                                   msg.senderId === auth.currentUser?.uid ? "text-blue-100" : "text-gray-500"
@@ -217,9 +247,23 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                   {/* Message Input */}
                   <div className="border-t p-4">
                     <div className="flex space-x-2">
-                      <Button variant="ghost" size="sm">
-                        <Paperclip className="h-4 w-4" />
-                      </Button>
+                      <label>
+                        <Button variant="ghost" size="sm" asChild>
+                          <span><Paperclip className="h-4 w-4" /></span>
+                        </Button>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: "none" }}
+                          onChange={e => {
+                            if (e.target.files && e.target.files[0]) {
+                              setImageFile(e.target.files[0]);
+                              handleSendImage(e.target.files[0]);
+                            }
+                          }}
+                          disabled={isUploadingImage}
+                        />
+                      </label>
                       <Input
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
@@ -231,7 +275,7 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                           }
                         }}
                       />
-                      <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSend}>
+                      <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSend} disabled={isUploadingImage}>
                         <Send className="h-4 w-4" />
                       </Button>
                     </div>

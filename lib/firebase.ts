@@ -264,12 +264,13 @@ export function getChatId(userA: string, userB: string) {
 }
 
 // Send a message
-export async function sendMessage({ memberId, athleteId, senderId, senderRole, content }: {
+export async function sendMessage({ memberId, athleteId, senderId, senderRole, content, type = "text" }: {
   memberId: string,
   athleteId: string,
   senderId: string,
   senderRole: string,
   content: string,
+  type?: string,
 }) {
   const db = getFirestore();
   const chatId = getChatId(memberId, athleteId);
@@ -278,6 +279,7 @@ export async function sendMessage({ memberId, athleteId, senderId, senderRole, c
     senderId,
     senderRole,
     content,
+    type,
     timestamp: serverTimestamp(),
   });
 }
