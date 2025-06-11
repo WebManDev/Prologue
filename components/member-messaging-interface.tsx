@@ -173,7 +173,7 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
         <div className="grid lg:grid-cols-4 gap-6">
           {/* Chat Area */}
           <div className="lg:col-span-3">
-            <Card className="flex flex-col flex-1 h-full sm:h-[600px]">
+            <Card className="flex flex-col flex-1 h-full sm:h-[600px] min-h-[700px]">
               {/* Chat Header */}
               <CardHeader className="border-b">
                 <div className="flex items-center justify-between">
@@ -293,7 +293,7 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                         Upload a video and get personalized feedback from {coachInfo.name}
                       </p>
                     </div>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg py-12 px-4 sm:p-8 text-center w-full max-w-full mx-auto flex flex-col justify-center min-h-[400px] sm:min-h-0">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg py-12 px-4 sm:p-8 text-center w-full max-w-full mx-auto flex flex-col justify-center">
                       <Video className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <p className="text-lg font-medium text-gray-900 mb-2">Upload Training Video</p>
                       <p className="text-sm text-gray-600">MP4, MOV, AVI up to 100MB</p>
@@ -309,29 +309,20 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                           <span>{videoFile ? videoFile.name : "Choose File"}</span>
                         </Button>
                       </label>
-                      <div className="mt-6 w-full">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          What would you like feedback on?
-                        </label>
-                        <Textarea
-                          placeholder="Describe what you're working on and specific areas you'd like feedback on..."
-                          rows={4}
-                          value={feedbackText}
-                          onChange={e => setFeedbackText(e.target.value)}
-                        />
-                      </div>
-                      {/* Mobile only: Button inside dashed box */}
-                      <Button
-                        className="w-full bg-orange-500 hover:bg-orange-600 mt-6 sm:hidden"
-                        onClick={handleSubmit}
-                        disabled={isUploading}
-                      >
-                        {isUploading ? "Uploading..." : "Submit for Feedback"}
-                      </Button>
                     </div>
-                    {/* Desktop only: Button outside dashed box but inside Card */}
+                    <div className="mt-6 w-full text-left">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        What would you like feedback on?
+                      </label>
+                      <Textarea
+                        placeholder="Describe what you're working on and specific areas you'd like feedback on..."
+                        rows={4}
+                        value={feedbackText}
+                        onChange={e => setFeedbackText(e.target.value)}
+                      />
+                    </div>
                     <Button
-                      className="w-full bg-orange-500 hover:bg-orange-600 mt-6 hidden sm:block"
+                      className="w-full bg-orange-500 hover:bg-orange-600 mt-6"
                       onClick={handleSubmit}
                       disabled={isUploading}
                     >
