@@ -636,202 +636,163 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
       <div className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsContent value="dashboard">
-            {feedExpanded ? (
-              <div className="max-w-3xl mx-auto">
-                <div className="flex justify-between items-center mb-4 mt-8">
-                  <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
-                  <Button variant="outline" size="sm" onClick={() => setFeedExpanded(false)}>
-                    Collapse Feed
-                  </Button>
-                </div>
-                {renderFeedPosts()}
-              </div>
-            ) : (
-              <>
-                {/* Quick Actions */}
+            <div className="max-w-3xl mx-auto">
+              {/* Quick Actions */}
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Target className="h-5 w-5 text-orange-500" />
+                    <span>Quick Actions</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <Button
+                      onClick={() => setActiveTab("discover")}
+                      className="h-20 bg-orange-500 hover:bg-orange-600 text-white flex flex-col items-center justify-center space-y-2"
+                    >
+                      <Plus className="h-6 w-6" />
+                      <span>Find Athletes</span>
+                    </Button>
+                    <Button
+                      onClick={() => setActiveTab("athletes")}
+                      variant="outline"
+                      className="h-20 flex flex-col items-center justify-center space-y-2"
+                    >
+                      <Users className="h-6 w-6" />
+                      <span>My Athletes</span>
+                    </Button>
+                    <Button
+                      onClick={() => setActiveTab("messages")}
+                      variant="outline"
+                      className="h-20 flex flex-col items-center justify-center space-y-2"
+                    >
+                      <MessageSquare className="h-6 w-6" />
+                      <span>Messages</span>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Row: Messages | My Feedback Requests */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                {/* Messages Section */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
-                      <Target className="h-5 w-5 text-orange-500" />
-                      <span>Quick Actions</span>
+                      <MessageSquare className="h-5 w-5 text-blue-600" />
+                      <span>Messages</span>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid md:grid-cols-3 gap-4">
-                      <Button
-                        onClick={() => setActiveTab("discover")}
-                        className="h-20 bg-orange-500 hover:bg-orange-600 text-white flex flex-col items-center justify-center space-y-2"
-                      >
-                        <Plus className="h-6 w-6" />
-                        <span>Find Athletes</span>
-                      </Button>
-                      <Button
-                        onClick={() => setActiveTab("athletes")}
-                        variant="outline"
-                        className="h-20 flex flex-col items-center justify-center space-y-2"
-                      >
-                        <Users className="h-6 w-6" />
-                        <span>My Athletes</span>
-                      </Button>
-                      <Button
-                        onClick={() => setActiveTab("messages")}
-                        variant="outline"
-                        className="h-20 flex flex-col items-center justify-center space-y-2"
-                      >
-                        <MessageSquare className="h-6 w-6" />
-                        <span>Messages</span>
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Row: Messages | My Feedback Requests */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-                  {/* Messages Section */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center space-x-2">
-                        <MessageSquare className="h-5 w-5 text-blue-600" />
-                        <span>Messages</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {subscribedAthletes.length === 0 ? (
-                          <div className="text-gray-500 text-sm">No athletes to message yet.</div>
-                        ) : (
-                          subscribedAthletes.map((athlete) => (
-                            <div key={athlete.id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer" onClick={() => setMessagingCoach(athlete)}>
-                              <Image src={athlete.profilePic || "/placeholder.svg"} alt={athlete.name} width={32} height={32} className="rounded-full" />
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">{athlete.name}</p>
-                                <p className="text-xs text-gray-600">{athlete.sport}</p>
-                              </div>
-                              <Button variant="outline" size="sm">
-                                <MessageSquare className="h-4 w-4 mr-2" />
-                                Message
-                              </Button>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* My Feedback Requests Section */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center space-x-2">
-                        <Video className="h-5 w-5 text-blue-600" />
-                        <span>My Feedback Requests</span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {loadingFeedback ? (
-                        <div className="text-center py-6">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                          <h3 className="text-base font-medium text-gray-900 mb-1">Loading feedback requests...</h3>
-                        </div>
-                      ) : feedbackRequests.length === 0 ? (
-                        <div className="text-center py-6">
-                          <Video className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                          <h3 className="text-base font-medium text-gray-900 mb-1">No feedback requests yet</h3>
-                          <p className="text-gray-600 text-xs">When you request video feedback, it will appear here.</p>
-                        </div>
+                    <div className="space-y-3">
+                      {subscribedAthletes.length === 0 ? (
+                        <div className="text-gray-500 text-sm">No athletes to message yet.</div>
                       ) : (
-                        <div className="space-y-4">
-                          {feedbackRequests.map((request) => (
-                            <Card key={request.id} className="bg-gray-50">
-                              <CardContent className="p-3">
-                                <div className="flex items-start justify-between mb-2">
-                                  <div className="flex-1">
-                                    <div className="flex items-center space-x-2 mb-1">
-                                      <span className="font-semibold text-gray-900 text-sm">Video Feedback Request</span>
-                                      <Badge variant={
-                                        request.status === "pending_payment" ? "destructive" :
-                                        request.status === "pending" ? "default" :
-                                        request.status === "completed" ? "secondary" : "outline"
-                                      }>
-                                        {request.status === "pending_payment" ? "Payment Pending" :
-                                         request.status === "pending" ? "Pending Review" :
-                                         request.status === "completed" ? "Completed" : request.status}
-                                      </Badge>
-                                    </div>
-                                    <p className="text-gray-600 text-xs mb-1 line-clamp-2">{request.feedbackText}</p>
-                                    {request.status === "completed" && (
-                                      <div className="bg-green-50 p-2 rounded-lg border border-green-200 mt-1">
-                                        <span className="font-medium text-green-700 text-xs">Coach's Feedback:</span>
-                                        <p className="text-xs text-gray-700 mt-1">{request.response}</p>
-                                        <div className="flex items-center mt-2">
-                                          <span className="text-xs text-gray-600 mr-2">Rating:</span>
-                                          {request.rating ? (
-                                            <div className="flex items-center space-x-1">
-                                              {[1,2,3,4,5].map((star) => (
-                                                <Star key={star} className={`h-4 w-4 ${request.rating >= star ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
-                                              ))}
-                                              <span className="ml-1 text-xs text-gray-700">({request.rating})</span>
-                                            </div>
-                                          ) : (
-                                            <span className="text-xs text-gray-400">Not rated</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-xs text-gray-500">
-                                      {formatDate(request.createdAt)}
-                                    </p>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
+                        subscribedAthletes.map((athlete) => (
+                          <div key={athlete.id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer" onClick={() => setMessagingCoach(athlete)}>
+                            <Image src={athlete.profilePic || "/placeholder.svg"} alt={athlete.name} width={32} height={32} className="rounded-full" />
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">{athlete.name}</p>
+                              <p className="text-xs text-gray-600">{athlete.sport}</p>
+                            </div>
+                            <Button variant="outline" size="sm">
+                              <MessageSquare className="h-4 w-4 mr-2" />
+                              Message
+                            </Button>
+                          </div>
+                        ))
                       )}
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Latest Content from Subscribed Athletes */}
-                <Card className="mb-8">
-                  <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                      <span className="flex items-center space-x-2">
-                        <Lock className="h-5 w-5 text-blue-600" />
-                        <span>Latest Exclusive Content</span>
-                      </span>
-                      <Button variant="ghost" size="sm" onClick={() => setActiveTab("athletes")}>View All</Button>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-blue-600 mb-1">{subscribedAthletes.length}</div>
-                        <div className="text-sm text-gray-600">Active Subscriptions</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-3xl font-bold text-orange-500 mb-1">
-                          {subscribedAthletes.reduce((sum, athlete) => sum + athlete.posts, 0)}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Content</div>
-                      </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Community Feed Section below Latest Exclusive Content */}
-                <div className={`space-y-4 mt-8 ${feedExpanded ? '' : 'mb-8'}`}>
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
-                    <Button variant="outline" size="sm" onClick={() => setFeedExpanded(f => !f)}>
-                      {feedExpanded ? 'Collapse Feed' : 'Expand Feed'}
-                    </Button>
+                {/* My Feedback Requests Section */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Video className="h-5 w-5 text-blue-600" />
+                      <span>My Feedback Requests</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {loadingFeedback ? (
+                      <div className="text-center py-6">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                        <h3 className="text-base font-medium text-gray-900 mb-1">Loading feedback requests...</h3>
+                      </div>
+                    ) : feedbackRequests.length === 0 ? (
+                      <div className="text-center py-6">
+                        <Video className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <h3 className="text-base font-medium text-gray-900 mb-1">No feedback requests yet</h3>
+                        <p className="text-gray-600 text-xs">When you request video feedback, it will appear here.</p>
+                      </div>
+                    ) :
+                      <div className="space-y-4">
+                        {feedbackRequests.map((request) => (
+                          <Card key={request.id} className="bg-gray-50">
+                            <CardContent className="p-3">
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-2 mb-1">
+                                    <span className="font-semibold text-gray-900 text-sm">Video Feedback Request</span>
+                                    <Badge variant={
+                                      request.status === "pending_payment" ? "destructive" :
+                                      request.status === "pending" ? "default" :
+                                      request.status === "completed" ? "secondary" : "outline"
+                                    }>
+                                      {request.status === "pending_payment" ? "Payment Pending" :
+                                       request.status === "pending" ? "Pending Review" :
+                                       request.status === "completed" ? "Completed" : request.status}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-gray-600 text-xs mb-1 line-clamp-2">{request.feedbackText}</p>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    }
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Latest Content from Subscribed Athletes */}
+              <Card className="mb-8 mt-8">
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span className="flex items-center space-x-2">
+                      <Lock className="h-5 w-5 text-blue-600" />
+                      <span>Latest Exclusive Content</span>
+                    </span>
+                    <Button variant="ghost" size="sm" onClick={() => setActiveTab("athletes")}>View All</Button>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-blue-600 mb-1">{subscribedAthletes.length}</div>
+                      <div className="text-sm text-gray-600">Active Subscriptions</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-orange-500 mb-1">
+                        {subscribedAthletes.reduce((sum, athlete) => sum + athlete.posts, 0)}
+                      </div>
+                      <div className="text-sm text-gray-600">Total Content</div>
+                    </div>
                   </div>
-                  {renderFeedPosts()}
+                </CardContent>
+              </Card>
+
+              {/* Community Feed Section below Latest Exclusive Content */}
+              <div className="space-y-4 mt-8 mb-8">
+                <div className="mb-4">
+                  <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
                 </div>
-              </>
-            )}
+                {renderFeedPosts()}
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="athletes">

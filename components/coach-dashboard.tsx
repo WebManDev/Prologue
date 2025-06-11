@@ -38,6 +38,7 @@ import {
   AlertCircle,
   X,
   Home,
+  Image,
 } from "lucide-react"
 import { CoachStripeOnboarding } from "./coach-stripe-onboarding"
 import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAthlete, updateAthletePost, deleteAthletePost, saveAthleteProfile, likePost, addCommentToPost, sendMessage, getChatId } from "@/lib/firebase"
@@ -228,14 +229,14 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
 
   // Helper function to render feed posts
   const getFeedPosts = () => {
-    if (!profile) return [];
+    if (!profile || !auth.currentUser) return [];
 
     return (coachPosts || []).map((post: any) => {
       let author = profile;
       let authorAvatar = profileData.profilePicture;
 
       // If the post is not by the current user, try to get the author's profile
-      if (post.userId !== auth.currentUser?.uid) {
+      if (post.userId !== auth.currentUser.uid) {
         author = athleteProfiles[post.userId] || memberProfiles[post.userId] || {};
         authorAvatar = (author as any).profilePicture || "/placeholder.svg";
       }
@@ -265,7 +266,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 <Badge variant="outline" className="text-xs">
                   {post.authorSport}
                 </Badge>
-                {post.authorName === profile.name && (
+                {post.authorName === profile.name && auth.currentUser && (
                   <Badge variant="secondary" className="text-xs">
                     You
                   </Badge>
@@ -276,7 +277,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
               </div>
               <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
             </div>
-            {post.authorName === profile.name && (
+            {post.authorName === profile.name && auth.currentUser && (
               <div className="flex space-x-2">
                 <Button
                   size="sm"
@@ -603,21 +604,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   }
 
   const handleWorkoutVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    // Check if file is a video
-    if (!file.type.startsWith('video/')) {
-      alert('Please upload a video file');
-      return;
-    }
-    
-    // Check file size (100MB limit)
-    if (file.size > 100 * 1024 * 1024) {
-      alert('Video must be less than 100MB');
-      return;
-    }
-    
+    if (!e.target.files || !e.target.files[0]) return;
+    const file = e.target.files[0];
     setWorkoutVideo(file);
   };
 
@@ -1149,193 +1137,160 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           </div>
 
           <TabsContent value="dashboard">
-            {feedExpanded ? (
-              <div className="max-w-3xl mx-auto">
-                {/* Latest Exclusive Content */}
-                <Card className="mb-8">
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Lock className="h-5 w-5 text-orange-500" />
-                      <span>Latest Exclusive Content</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {ownPosts.slice(0, 3).map((post: any) => (
-                        <div key={post.id} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-gray-900">{post.title}</h3>
-                            <p className="text-sm text-gray-600 mt-1">{post.content}</p>
-                            <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                              <span>{formatDate(post.createdAt)}</span>
-                              <span>{post.views || 0} views</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-                {/* Community Feed */}
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
-                  <Button variant="outline" size="sm" onClick={() => setFeedExpanded(false)}>
-                    Collapse Feed
-                  </Button>
-                </div>
-                {getFeedPosts()}
-              </div>
-            ) : (
-              <>
-                {/* Quick Actions at the top */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Plus className="h-5 w-5 text-orange-500" />
-                      <span>Quick Actions</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <Button
-                        onClick={() => {
-                          setPostType("workout")
-                          setNewPost({
-                            ...newPost,
-                            type: "workout",
-                            visibility: "subscribers",
-                          })
-                          setCreatingPost(true)
-                        }}
-                        className="h-20 bg-orange-500 hover:bg-orange-600 text-white flex flex-col items-center justify-center space-y-2"
-                      >
-                        <Video className="h-6 w-6" />
-                        <span>Post Workout</span>
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setBlogDialogOpen(true)
-                          setNewBlogPost({
-                            ...newBlogPost,
-                            visibility: "subscribers",
-                          })
-                        }}
-                        className="h-20 bg-blue-500 hover:bg-blue-600 text-white flex flex-col items-center justify-center space-y-2"
-                      >
-                        <FileText className="h-6 w-6" />
-                        <span>Write Blog Post</span>
-                      </Button>
-                      <Button
-                        onClick={handleMessagingClick}
-                        className="h-20 bg-green-500 hover:bg-green-600 text-white flex flex-col items-center justify-center space-y-2"
-                      >
-                        <MessageSquare className="h-6 w-6" />
-                        <span>Messages</span>
-                        {subscribers.length > 0 && (
-                          <Badge variant="secondary" className="absolute top-2 right-2">
-                            {subscribers.length}
-                          </Badge>
-                        )}
-                      </Button>
-                      <Button
-                        onClick={handleFeedbackRequestsClick}
-                        className="h-20 bg-purple-500 hover:bg-purple-600 text-white flex flex-col items-center justify-center space-y-2"
-                      >
-                        <Star className="h-6 w-6" />
-                        <span>Feedback Requests</span>
-                        {feedbackRequests.length > 0 && (
-                          <Badge variant="secondary" className="absolute top-2 right-2">
-                            {feedbackRequests.length}
-                          </Badge>
-                        )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Feed Section below Quick Actions and row */}
-                <div className="space-y-4 mt-8">
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-bold text-gray-900">Feed</h2>
-                    <Button variant="outline" size="sm" onClick={() => setFeedExpanded(true)}>
-                      Expand Feed
+            <div className="max-w-3xl mx-auto">
+              {/* Quick Actions at the top */}
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Plus className="h-5 w-5 text-orange-500" />
+                    <span>Quick Actions</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <Button
+                      onClick={() => setCreatingPost(true)}
+                      className="h-20 bg-orange-500 hover:bg-orange-600 text-white flex flex-col items-center justify-center space-y-2"
+                    >
+                      <FileText className="h-6 w-6" />
+                      <span>New Post</span>
+                    </Button>
+                    <Button
+                      onClick={() => setCreatingPost(true)}
+                      className="h-20 bg-blue-500 hover:bg-blue-600 text-white flex flex-col items-center justify-center space-y-2"
+                    >
+                      <Video className="h-6 w-6" />
+                      <span>New Workout</span>
+                    </Button>
+                    <Button
+                      onClick={() => setShowFeedbackRequests(true)}
+                      className="h-20 bg-purple-500 hover:bg-purple-600 text-white flex flex-col items-center justify-center space-y-2"
+                    >
+                      <Star className="h-6 w-6" />
+                      <span>Feedback Requests</span>
+                      {feedbackRequests.length > 0 && (
+                        <Badge variant="secondary" className="absolute top-2 right-2">
+                          {feedbackRequests.length}
+                        </Badge>
+                      )}
                     </Button>
                   </div>
-                  {/* Feed Composer - now full composer, not just a button */}
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="flex items-start space-x-4">
-                        <img
-                          src={profileData.profilePicture || "/placeholder.svg"}
-                          alt={profile.name}
-                          className="w-10 h-10 rounded-full mt-1"
-                        />
+                </CardContent>
+              </Card>
+
+              {/* Latest Exclusive Content */}
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Lock className="h-5 w-5 text-orange-500" />
+                    <span>Latest Exclusive Content</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {ownPosts.slice(0, 3).map((post: any) => (
+                      <div key={post.id} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
                         <div className="flex-1">
-                          <Textarea
-                            value={newPost.content}
-                            onChange={e => setNewPost({ ...newPost, content: e.target.value })}
-                            placeholder="What's on your mind?"
-                            rows={3}
-                            className="resize-none"
-                          />
-                          <div className="flex items-center justify-between mt-2">
-                            <div className="flex gap-2">
-                              <Button variant="ghost" size="icon" asChild>
-                                <label>
-                                  <ImageIcon className="h-5 w-5 text-gray-500" />
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    multiple
-                                    onChange={handleImageUpload}
-                                    className="hidden"
-                                  />
-                                </label>
-                              </Button>
-                              <Button variant="ghost" size="icon" asChild>
-                                <label>
-                                  <Video className="h-5 w-5 text-gray-500" />
-                                  <input
-                                    type="file"
-                                    accept="video/*"
-                                    onChange={handleWorkoutVideoUpload}
-                                    className="hidden"
-                                  />
-                                </label>
-                              </Button>
-                              {postImages.length > 0 && (
-                                <span className="text-xs text-gray-600">{postImages.length} image{postImages.length !== 1 ? 's' : ''}</span>
-                              )}
-                              {workoutVideo && (
-                                <span className="text-xs text-gray-600">{workoutVideo.name}</span>
-                              )}
-                            </div>
-                            <Button
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                              onClick={() => {
-                                // Set visibility to 'public' for feed composer posts
-                                setNewPost(prev => ({ ...prev, visibility: 'public' }));
-                                handleCreatePost();
-                              }}
-                              disabled={!newPost.content.trim() && postImages.length === 0 && !workoutVideo}
-                            >
-                              {isUploadingVideo || isUploadingImages ? (
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              ) : null}
-                              Post
-                            </Button>
+                          <h3 className="font-semibold text-gray-900">{post.title}</h3>
+                          <p className="text-sm text-gray-600 mt-1">{post.content}</p>
+                          <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                            <span>{formatDate(post.createdAt)}</span>
+                            <span>{post.views || 0} views</span>
                           </div>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                  {/* Feed Content */}
-                  <div className="space-y-4 mt-4">
-                    {getFeedPosts()}
+                    ))}
                   </div>
-                </div>
-              </>
-            )}
+                </CardContent>
+              </Card>
+
+              {/* Community Feed */}
+              <div className="mb-4">
+                <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
+              </div>
+
+              {/* Feed Composer */}
+              <Card className="mb-8">
+                <CardContent className="p-4">
+                  <div className="flex items-start space-x-4">
+                    <img
+                      src={profileData.profilePicture || "/placeholder.svg"}
+                      alt={profile.name}
+                      className="w-10 h-10 rounded-full mt-1"
+                    />
+                    <div className="flex-1">
+                      <div className="border rounded-lg p-4">
+                        <textarea
+                          value={newPost.content}
+                          onChange={(e) => setNewPost(prev => ({ ...prev, content: e.target.value }))}
+                          placeholder="Share something with your community..."
+                          className="w-full border-none focus:ring-0 resize-none min-h-[100px]"
+                        />
+                        <div className="flex items-center justify-between mt-4">
+                          <div className="flex items-center space-x-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => document.getElementById('image-upload')?.click()}
+                            >
+                              <Image className="h-4 w-4 mr-2" />
+                              Add Images
+                            </Button>
+                            <input
+                              id="image-upload"
+                              type="file"
+                              multiple
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleImageUpload}
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => document.getElementById('video-upload')?.click()}
+                            >
+                              <Video className="h-4 w-4 mr-2" />
+                              Add Video
+                            </Button>
+                            <input
+                              id="video-upload"
+                              type="file"
+                              accept="video/*"
+                              className="hidden"
+                              onChange={handleWorkoutVideoUpload}
+                            />
+                            {postImages.length > 0 && (
+                              <span className="text-xs text-gray-600">{postImages.length} images selected</span>
+                            )}
+                            {workoutVideo && (
+                              <span className="text-xs text-gray-600">{workoutVideo.name}</span>
+                            )}
+                          </div>
+                          <Button
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() => {
+                              setNewPost(prev => ({ ...prev, visibility: 'public' }));
+                              handleCreatePost();
+                            }}
+                            disabled={!newPost.content.trim() && postImages.length === 0 && !workoutVideo}
+                          >
+                            {isUploadingVideo || isUploadingImages ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : null}
+                            Post
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Feed Content */}
+              <div className="space-y-4">
+                {getFeedPosts()}
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="content">
