@@ -293,7 +293,7 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                         Upload a video and get personalized feedback from {coachInfo.name}
                       </p>
                     </div>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 sm:p-8 text-center w-full max-w-full mx-auto -mt-2 sm:mt-0">
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 sm:p-8 text-center w-full max-w-full mx-auto -mt-2 sm:mt-0 min-h-[220px] sm:min-h-0 flex flex-col justify-center">
                       <Video className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <p className="text-lg font-medium text-gray-900 mb-2">Upload Training Video</p>
                       <p className="text-sm text-gray-600">MP4, MOV, AVI up to 100MB</p>
