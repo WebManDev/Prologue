@@ -345,28 +345,30 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
               {post.content && (
                 <div className="text-gray-800 mt-2 whitespace-pre-line">{post.content}</div>
               )}
-            </div>
-            {post.type === "workout" && post.videoLink && (
-              <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                <video
-                  src={post.videoLink}
-                  controls
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-            {post.type === "blog" && post.images && post.images.length > 0 && (
-              <div className="grid grid-cols-2 gap-4">
-                {post.images.map((image: string, index: number) => (
-                  <img
-                    key={index}
-                    src={image}
-                    alt={`Blog image ${index + 1}`}
-                    className="w-full h-48 object-cover rounded-lg"
+              {/* Render video for any post with videoLink */}
+              {post.videoLink && (
+                <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden mb-3">
+                  <video
+                    src={post.videoLink}
+                    controls
+                    className="w-full h-full object-cover"
                   />
-                ))}
-              </div>
-            )}
+                </div>
+              )}
+              {/* Render images for blog or workout posts */}
+              {post.images && post.images.length > 0 && (
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  {post.images.map((image: string, index: number) => (
+                    <img
+                      key={index}
+                      src={image}
+                      alt={`Post image ${index + 1}`}
+                      className="w-full h-48 object-cover rounded-lg"
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
             {/* Tags */}
             {post.tags.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -954,7 +956,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     setIsDeleting(true);
     try {
       await deleteAthletePost(post.id, auth.currentUser.uid);
+      // Update both states to remove the deleted post
       setCoachPosts((prev) => prev.filter((p) => p.id !== post.id));
+      setOwnPosts((prev) => prev.filter((p) => p.id !== post.id));
     } catch (error) {
       console.error("Error deleting post:", error);
     } finally {
@@ -1524,7 +1528,30 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                             {post.content && (
                               <div className="text-gray-800 mt-2 whitespace-pre-line">{post.content}</div>
                             )}
-                            {post.videoLink && (
+                            {/* Render video for workout posts */}
+                            {post.type === "workout" && post.videoLink && (
+                              <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden mb-3">
+                                <video
+                                  src={post.videoLink}
+                                  controls
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            )}
+                            {/* Render images for blog or workout posts */}
+                            {post.images && post.images.length > 0 && (
+                              <div className="grid grid-cols-2 gap-4 mb-3">
+                                {post.images.map((image: string, index: number) => (
+                                  <img
+                                    key={index}
+                                    src={image}
+                                    alt={`Post image ${index + 1}`}
+                                    className="w-full h-48 object-cover rounded-lg"
+                                  />
+                                ))}
+                              </div>
+                            )}
+                            {post.videoLink && post.type !== "workout" && (
                               <div className="flex items-center space-x-2 mb-3">
                                 <ExternalLink className="h-4 w-4 text-blue-600" />
                                 <a
