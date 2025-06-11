@@ -37,6 +37,7 @@ import {
   Loader2,
   AlertCircle,
   X,
+  Home,
 } from "lucide-react"
 import { CoachStripeOnboarding } from "./coach-stripe-onboarding"
 import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAthlete, updateAthletePost, deleteAthletePost, saveAthleteProfile, likePost, addCommentToPost, sendMessage, getChatId } from "@/lib/firebase"
@@ -1099,42 +1100,49 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 variant={activeTab === "dashboard" ? "default" : "outline"}
                 onClick={() => setActiveTab("dashboard")}
               >
+                <Home className="h-5 w-5 mr-2" />
                 Dashboard
               </Button>
               <Button
                 variant={activeTab === "content" ? "default" : "outline"}
                 onClick={() => setActiveTab("content")}
               >
+                <FileText className="h-5 w-5 mr-2" />
                 Content
               </Button>
               <Button
                 variant={activeTab === "subscribers" ? "default" : "outline"}
                 onClick={() => setActiveTab("subscribers")}
               >
+                <Users className="h-5 w-5 mr-2" />
                 Subscribers
               </Button>
               <Button
                 variant={activeTab === "earnings" ? "default" : "outline"}
                 onClick={() => setActiveTab("earnings")}
               >
+                <DollarSign className="h-5 w-5 mr-2" />
                 Earnings
               </Button>
               <Button
                 variant={activeTab === "profile" ? "default" : "outline"}
                 onClick={() => setActiveTab("profile")}
               >
+                <User className="h-5 w-5 mr-2" />
                 Profile
               </Button>
               <Button
                 variant={activeTab === "feedback" ? "default" : "outline"}
                 onClick={handleFeedbackRequestsClick}
               >
+                <Star className="h-5 w-5 mr-2" />
                 Feedback Requests
               </Button>
               <Button
                 variant={activeTab === "settings" ? "default" : "outline"}
                 onClick={() => router.push('/coach/settings')}
               >
+                <Settings className="h-5 w-5 mr-2" />
                 Settings
               </Button>
             </div>
