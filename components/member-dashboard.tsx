@@ -363,7 +363,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const handleComment = async (postId: string) => {
     if (!currentUserId || !commentInputs[postId]?.trim()) return;
     await addCommentToPost(postId, currentUserId, commentInputs[postId]);
-    setCommentInputs(prev => ({ ...prev, [postId]: "" }));
+    setCommentInputs(prev => ({ ...prev, [post.id]: "" }));
     fetchComments(postId);
   };
 
@@ -690,13 +690,21 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                         <div className="text-gray-500 text-sm">No athletes to message yet.</div>
                       ) : (
                         subscribedAthletes.map((athlete) => (
-                          <div key={athlete.id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer" onClick={() => setMessagingCoach(athlete)}>
-                            <Image src={athlete.profilePic || "/placeholder.svg"} alt={athlete.name} width={32} height={32} className="rounded-full" />
-                            <div className="flex-1">
+                          <div
+                            key={athlete.id}
+                            className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                            onClick={() => setMessagingCoach(athlete)}
+                          >
+                            <Image src={athlete.profilePic || "/placeholder.svg"} alt={athlete.name} width={32} height={32} className="rounded-full mx-auto sm:mx-0" />
+                            <div className="flex-1 min-w-0 text-center sm:text-left">
                               <p className="font-medium text-sm">{athlete.name}</p>
-                              <p className="text-xs text-gray-600">{athlete.sport}</p>
+                              <div className="flex flex-wrap justify-center sm:justify-start gap-1 mt-1">
+                                <Badge variant="outline" className="text-xs">{athlete.sport}</Badge>
+                                <Badge variant="default" className="text-xs bg-green-600">Subscribed</Badge>
+                              </div>
+                              <p className="text-sm text-gray-500 mt-1">Click to start a conversation</p>
                             </div>
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" className="w-full sm:w-auto mt-2 sm:mt-0">
                               <MessageSquare className="h-4 w-4 mr-2" />
                               Message
                             </Button>

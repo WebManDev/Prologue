@@ -2534,7 +2534,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     subscribers.map((member: any) => (
                       <div
                         key={member.id}
-                        className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                        className={`flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0 p-3 rounded-lg cursor-pointer transition-colors ${
                           messagingMember?.id === member.id ? 'bg-green-50' : 'hover:bg-gray-50'
                         }`}
                         onClick={() => {
@@ -2547,13 +2547,22 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                           fetchMessages(member.id);
                         }}
                       >
-                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium">
+                        <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-sm font-medium mx-auto sm:mx-0">
                           {member.name?.[0] || "M"}
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 text-center sm:text-left">
                           <p className="font-medium text-sm truncate">{member.name || "Member"}</p>
-                          <p className="text-xs text-gray-600 truncate">{member.email}</p>
+                          <div className="flex flex-wrap justify-center sm:justify-start gap-1 mt-1">
+                            <Badge variant="outline" className="text-xs">{member.sport || "Sport"}</Badge>
+                            <Badge variant="default" className="text-xs bg-green-600">Subscribed</Badge>
+                          </div>
+                          <p className="text-xs text-gray-600 truncate mt-1">{member.email}</p>
+                          <p className="text-sm text-gray-500 mt-1">Click to start a conversation</p>
                         </div>
+                        <Button variant="outline" size="sm" className="w-full sm:w-auto mt-2 sm:mt-0">
+                          <MessageSquare className="h-4 w-4 mr-2" />
+                          Message
+                        </Button>
                       </div>
                     ))
                   )}
