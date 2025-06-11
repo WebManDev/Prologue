@@ -320,14 +320,23 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                           onChange={e => setFeedbackText(e.target.value)}
                         />
                       </div>
+                      {/* Mobile only: Button inside dashed box */}
                       <Button
-                        className="w-full bg-orange-500 hover:bg-orange-600 mt-6"
+                        className="w-full bg-orange-500 hover:bg-orange-600 mt-6 sm:hidden"
                         onClick={handleSubmit}
                         disabled={isUploading}
                       >
                         {isUploading ? "Uploading..." : "Submit for Feedback"}
                       </Button>
                     </div>
+                    {/* Desktop only: Button outside dashed box but inside Card */}
+                    <Button
+                      className="w-full bg-orange-500 hover:bg-orange-600 mt-6 hidden sm:block"
+                      onClick={handleSubmit}
+                      disabled={isUploading}
+                    >
+                      {isUploading ? "Uploading..." : "Submit for Feedback"}
+                    </Button>
                   </div>
                 </CardContent>
               )}
