@@ -168,7 +168,7 @@ const uploadProfilePicture = async (userId: string, file: File) => {
   }
 };
 
-// Function to save athlete post (blog or workout)
+// Function to save athlete post (blog, workout, or community)
 const saveAthletePost = async (
   userId: string,
   post: { 
@@ -176,16 +176,21 @@ const saveAthletePost = async (
     content: string; 
     description?: string;
     videoLink?: string;
-    type: "blog" | "workout";
+    type: "blog" | "workout" | "community";
     images?: string[];
-    visibility: "public" | "subscribers";
     tags: string[];
   }
 ) => {
   try {
+    // Force visibility based on post type
+    let enforcedVisibility: "public" | "subscribers" = "subscribers";
+    if (post.type === "community") {
+      enforcedVisibility = "public";
+    }
     // Add the post
     const postRef = await addDoc(collection(db, "athletePosts"), {
       ...post,
+      visibility: enforcedVisibility, // Override any provided visibility
       userId,
       createdAt: Timestamp.now(),
       views: 0,
@@ -316,7 +321,7 @@ const updateAthletePost = async (
     content?: string;
     description?: string;
     videoLink?: string;
-    type?: "blog" | "workout";
+    type?: "blog" | "workout" | "community";
     images?: string[];
     visibility?: "public" | "subscribers";
     tags?: string[];

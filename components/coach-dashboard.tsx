@@ -75,7 +75,7 @@ interface PostData {
   content: string;
   description?: string;
   videoLink?: string;
-  type: "blog" | "workout";
+  type: "blog" | "workout" | "community";
   images?: string[];
   visibility: "public" | "subscribers";
   tags: string[];
@@ -84,6 +84,17 @@ interface PostData {
   views?: number;
   likes?: number;
   comments?: number;
+}
+
+interface PostUpdate {
+  title?: string;
+  content?: string;
+  description?: string;
+  videoLink?: string;
+  type?: "blog" | "workout" | "community";
+  images?: string[];
+  visibility?: "public" | "subscribers";
+  tags?: string[];
 }
 
 // Helper to get next payout date (first day of next month)
@@ -98,20 +109,47 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [activeTab, setActiveTab] = useState("dashboard")
   const [creatingPost, setCreatingPost] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false); 
-  const [postType, setPostType] = useState<"workout" | "blog">("workout")
+  const [postType, setPostType] = useState<"workout" | "blog" | "community">("workout")
   const [stripeAccountId, setStripeAccountId] = useState<string | null>("acct_athlete_example")
   const [showStripeOnboarding, setShowStripeOnboarding] = useState(false)
   const [earnings, setEarnings] = useState<any>(null)
-  const [newPost, setNewPost] = useState({
+  const [newPost, setNewPost] = useState<PostData>({
     title: "",
     description: "",
     content: "",
     videoLink: "",
-    type: "workout" as "workout" | "blog",
-    images: [] as string[],
-    visibility: "subscribers" as "public" | "subscribers",
-    tags: [] as string[],
-  })
+    type: "community",
+    images: [],
+    visibility: "public",
+    tags: [],
+    userId: "",
+    createdAt: null,
+  });
+  const [newPrivatePost, setNewPrivatePost] = useState<PostData>({
+    title: "",
+    description: "",
+    content: "",
+    videoLink: "",
+    type: "blog",
+    images: [],
+    visibility: "subscribers",
+    tags: [],
+    userId: "",
+    createdAt: null,
+  });
+  const [newWorkoutPost, setNewWorkoutPost] = useState<PostData>({
+    title: "",
+    description: "",
+    content: "",
+    videoLink: "",
+    type: "workout",
+    images: [],
+    visibility: "subscribers",
+    tags: [],
+    userId: "",
+    createdAt: null,
+  });
+
   const [isUploadingVideo, setIsUploadingVideo] = useState(false)
   const [isUploadingImages, setIsUploadingImages] = useState(false)
   const [workoutVideo, setWorkoutVideo] = useState<File | null>(null)
@@ -236,7 +274,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       let authorAvatar = profileData.profilePicture;
 
       // If the post is not by the current user, try to get the author's profile
-      if (post.userId !== auth.currentUser.uid) {
+      if (auth.currentUser && post.userId !== auth.currentUser.uid) {
         author = athleteProfiles[post.userId] || memberProfiles[post.userId] || {};
         authorAvatar = (author as any).profilePicture || "/placeholder.svg";
       }
@@ -506,39 +544,44 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       const now = new Date();
       const weekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
 
-      // Fetch all public posts from all coaches
-      const publicPostsQuery = query(
+      // Fetch all posts from the current coach
+      const allPostsQuery = query(
         collection(db, "athletePosts"),
-        where("visibility", "==", "public"),
+        where("userId", "==", auth.currentUser.uid),
         orderBy("createdAt", "desc")
       );
-      const publicPostsSnap = await getDocs(publicPostsQuery);
-      const publicPosts = publicPostsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as unknown as PostData[];
+      const allPostsSnap = await getDocs(allPostsQuery);
+      const allPosts = allPostsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as unknown as PostData[];
+
+      // Separate posts by visibility
+      const publicPosts = allPosts.filter(post => post.visibility === "public");
+      const subscriberPosts = allPosts.filter(post => post.visibility === "subscribers");
+
+      // Set public posts for the community feed
       setCoachPosts(publicPosts);
 
-      // Calculate stats (still use only the current user's posts for stats)
-      if (auth.currentUser) {
-        const ownPosts = publicPosts.filter(post => post.userId === auth.currentUser.uid);
-        setOwnPosts(ownPosts);
-        
-        ownPosts.forEach(post => {
-          totalViews += post.views || 0;
-          totalLikes += post.likes || 0;
-          totalComments += post.comments || 0;
-          const createdAt = post.createdAt && post.createdAt.toDate ? post.createdAt.toDate() : post.createdAt ? new Date(post.createdAt) : null;
-          if (createdAt && createdAt > weekAgo) {
-            thisWeekContent++;
-            thisWeekViews += post.views || 0;
-            thisWeekRevenue += 10; // Assume $10 per post for this example
-          }
-        });
-      }
+      // Set subscriber posts for the content section
+      setOwnPosts(subscriberPosts);
+
+      // Calculate stats using subscriber-only posts
+      subscriberPosts.forEach(post => {
+        totalViews += post.views || 0;
+        totalLikes += post.likes || 0;
+        totalComments += post.comments || 0;
+        const createdAt = post.createdAt && post.createdAt.toDate ? post.createdAt.toDate() : post.createdAt ? new Date(post.createdAt) : null;
+        if (createdAt && createdAt > weekAgo) {
+          thisWeekContent++;
+          thisWeekViews += post.views || 0;
+          thisWeekRevenue += 10; // Assume $10 per post for this example
+        }
+      });
+
       // Fetch subscribers from profile
       if (auth.currentUser) {
         const profileData = await getAthleteProfile(auth.currentUser.uid);
         setDashboardStats({
           subscribers: profileData?.subscribers || 0,
-          totalPosts: ownPosts.length,
+          totalPosts: subscriberPosts.length,
           totalViews,
           monthlyEarnings: (profileData?.subscribers || 0) * 10,
           totalEarnings: ((profileData?.subscribers || 0) * 10) * 5, // Example: 5 months
@@ -548,6 +591,21 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
             contentPublished: thisWeekContent,
             totalViews: thisWeekViews,
             revenue: thisWeekRevenue,
+          },
+        });
+      } else {
+        setDashboardStats({
+          subscribers: 0,
+          totalPosts: 0,
+          totalViews: 0,
+          monthlyEarnings: 0,
+          totalEarnings: 0,
+          activeSubscriptions: 0,
+          thisWeek: {
+            newSubscribers: 0,
+            contentPublished: 0,
+            totalViews: 0,
+            revenue: 0,
           },
         });
       }
@@ -669,10 +727,10 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         videoLink: videoUrl,
         images: imageUrls,
         type: newPost.type,
-        visibility: "public", // Feed posts are always public
         tags: newPost.tags,
         userId: auth.currentUser.uid,
         createdAt: serverTimestamp(),
+        visibility: undefined as any, // Satisfy type, backend will override
       };
       await saveAthletePost(auth.currentUser.uid, postData);
 
@@ -682,10 +740,12 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         description: "", 
         content: "", 
         videoLink: "", 
-        type: "workout",
+        type: "community",
         images: [],
-        visibility: "public", // Keep default as public for feed posts
+        visibility: "public",
         tags: [],
+        userId: "",
+        createdAt: null,
       });
       setWorkoutVideo(null);
       setPostImages([]);
@@ -777,7 +837,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         type: "blog",
         description: newBlogPost.title,
         videoLink: "",
-        visibility: "subscribers", // Blog posts are always subscriber-only
         tags: [],
       })
       setBlogDialogOpen(false)
@@ -816,6 +875,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       images: post.images || [],
       visibility: post.visibility,
       tags: post.tags || [],
+      userId: post.userId,
+      createdAt: post.createdAt,
     });
     setPostType(post.type);
     setCreatingPost(true);
@@ -837,7 +898,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       }
 
       // Update post in Firebase
-      await updateAthletePost(editingPost.id, {
+      const updates: PostUpdate = {
         title: newPost.title,
         description: newPost.description,
         content: newPost.content,
@@ -846,18 +907,21 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         type: newPost.type,
         visibility: newPost.visibility,
         tags: newPost.tags,
-      });
+      };
+      await updateAthletePost(editingPost.id, updates);
 
       // Reset form and state
-      setNewPost({ 
-        title: "", 
-        description: "", 
-        content: "", 
-        videoLink: "", 
-        type: "workout",
+      setNewPost({
+        title: "",
+        description: "",
+        content: "",
+        videoLink: "",
+        type: "community",
         images: [],
-        visibility: "subscribers",
+        visibility: "public",
         tags: [],
+        userId: "",
+        createdAt: null,
       });
       setWorkoutVideo(null);
       setPostImages([]);
@@ -1031,6 +1095,86 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     setActiveTab("feedback");
   };
 
+  // Handler for community (public) post
+  const handleCreateCommunityPost = async () => {
+    if (!auth.currentUser) return;
+    await saveAthletePost(auth.currentUser.uid, {
+      title: newPost.title,
+      description: newPost.description,
+      content: newPost.content,
+      videoLink: newPost.videoLink,
+      type: newPost.type as "community",
+      images: newPost.images,
+      tags: newPost.tags,
+    });
+    setNewPost({
+      title: "",
+      description: "",
+      content: "",
+      videoLink: "",
+      type: "community" as "community",
+      images: [],
+      visibility: "public" as "public",
+      tags: [],
+      userId: "",
+      createdAt: null,
+    });
+    setCreatingPost(false);
+  };
+
+  // Handler for private blog post
+  const handleCreatePrivateBlogPost = async () => {
+    if (!auth.currentUser) return;
+    await saveAthletePost(auth.currentUser.uid, {
+      title: newPrivatePost.title,
+      description: newPrivatePost.description,
+      content: newPrivatePost.content,
+      videoLink: newPrivatePost.videoLink,
+      type: newPrivatePost.type as "blog",
+      images: newPrivatePost.images,
+      tags: newPrivatePost.tags,
+    });
+    setNewPrivatePost({
+      title: "",
+      description: "",
+      content: "",
+      videoLink: "",
+      type: "blog" as "blog",
+      images: [],
+      tags: [],
+      userId: "",
+      createdAt: null,
+    });
+    setCreatingPost(false);
+  };
+
+  // Handler for private workout post
+  const handleCreateWorkoutPost = async () => {
+    if (!auth.currentUser) return;
+    await saveAthletePost(auth.currentUser.uid, {
+      title: newWorkoutPost.title,
+      description: newWorkoutPost.description,
+      content: newWorkoutPost.content,
+      videoLink: newWorkoutPost.videoLink,
+      type: newWorkoutPost.type,
+      images: newWorkoutPost.images,
+      tags: newWorkoutPost.tags,
+    });
+    setNewWorkoutPost({
+      title: "",
+      description: "",
+      content: "",
+      videoLink: "",
+      type: "workout" as "workout",
+      images: [],
+      visibility: "subscribers" as "subscribers",
+      tags: [],
+      userId: "",
+      createdAt: null,
+    });
+    setCreatingPost(false);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -1163,6 +1307,13 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                       <span>New Workout</span>
                     </Button>
                     <Button
+                      onClick={() => setShowMessagingDialog(true)}
+                      className="h-20 bg-green-600 hover:bg-green-700 text-white flex flex-col items-center justify-center space-y-2"
+                    >
+                      <MessageSquare className="h-6 w-6" />
+                      <span>Message</span>
+                    </Button>
+                    <Button
                       onClick={() => setShowFeedbackRequests(true)}
                       className="h-20 bg-purple-500 hover:bg-purple-600 text-white flex flex-col items-center justify-center space-y-2"
                     >
@@ -1269,8 +1420,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                           <Button
                             className="bg-blue-600 hover:bg-blue-700 text-white"
                             onClick={() => {
-                              setNewPost(prev => ({ ...prev, visibility: 'public' }));
-                              handleCreatePost();
+                              // Always set type to 'community' before posting to the community feed
+                              setNewPost(prev => ({ ...prev, type: 'community' }));
+                              setTimeout(() => handleCreatePost(), 0); // Ensure state is updated before posting
                             }}
                             disabled={!newPost.content.trim() && postImages.length === 0 && !workoutVideo}
                           >
@@ -1285,6 +1437,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Divider between post creation and feed */}
+              <hr className="my-6 border-t border-gray-300" />
 
               {/* Feed Content */}
               <div className="space-y-4">
@@ -1305,6 +1460,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                         ...newPost,
                         type: "workout",
                         visibility: "subscribers",
+                        userId: "",
+                        createdAt: null,
                       })
                       setCreatingPost(true)
                     }}
@@ -1329,18 +1486,18 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 </div>
               </div>
               <div className="space-y-4">
-                {coachPosts.length === 0 ? (
+                {ownPosts.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 border border-dashed border-gray-300 rounded-lg bg-gray-50">
                     <Video className="h-12 w-12 text-gray-400 mb-4" />
                     <h3 className="text-lg font-semibold text-gray-700 mb-2">No content yet</h3>
                     <p className="text-gray-500 mb-4">Create your first workout or blog post to share with your subscribers.</p>
                     <div className="flex gap-2">
-                      <Button onClick={() => { setPostType("workout"); setNewPost({ ...newPost, type: "workout", visibility: "subscribers" }); setCreatingPost(true); }} className="bg-orange-500 text-white">New Workout</Button>
+                      <Button onClick={() => { setPostType("workout"); setNewPost({ ...newPost, type: "workout", visibility: "subscribers", userId: "", createdAt: null }); setCreatingPost(true); }} className="bg-orange-500 text-white">New Workout</Button>
                       <Button onClick={() => { setBlogDialogOpen(true); setNewBlogPost({ ...newBlogPost, visibility: "subscribers" }); }} className="bg-blue-500 text-white">New Blog Post</Button>
                     </div>
                   </div>
                 ) : (
-                  coachPosts.map((post) => (
+                  ownPosts.map((post) => (
                     <Card key={post.id}>
                       <CardContent className="p-6">
                         <div className="flex items-start justify-between mb-4">
@@ -2283,9 +2440,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
               <select
                 id="visibility"
                 name="visibility"
-                value={newBlogPost.visibility}
-                onChange={e => setNewBlogPost(prev => ({ ...prev, visibility: e.target.value as "public" | "subscribers" }))}
-                className="border rounded-md px-2 py-1 text-sm"
+                value="subscribers"
+                disabled
+                className="border rounded-md px-2 py-1 text-sm bg-gray-100 cursor-not-allowed"
               >
                 <option value="subscribers">Subscribers Only</option>
               </select>
