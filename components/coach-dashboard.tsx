@@ -274,7 +274,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       let authorAvatar = profileData.profilePicture;
 
       // If the post is not by the current user, try to get the author's profile
-      if (auth.currentUser && post.userId !== auth.currentUser.uid) {
+      if (post.userId !== auth.currentUser?.uid) {
         author = athleteProfiles[post.userId] || memberProfiles[post.userId] || {};
         authorAvatar = (author as any).profilePicture || "/placeholder.svg";
       }
@@ -284,11 +284,11 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         authorName: author.name || "User",
         authorSport: author.sport || "Sport",
         authorAvatar,
-        isLiked: false,
-        visibility: "public",
+        isLiked: post.likedBy?.includes(auth.currentUser?.uid) || false,
+        visibility: post.visibility || "public",
         tags: post.tags || [],
       };
-    }).map(post => (
+    }).map((post) => (
       <Card key={post.id}>
         <CardContent className="p-6">
           {/* Post Header */}
@@ -304,7 +304,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                 <Badge variant="outline" className="text-xs">
                   {post.authorSport}
                 </Badge>
-                {post.authorName === profile.name && auth.currentUser && (
+                {post.userId === auth.currentUser?.uid && (
                   <Badge variant="secondary" className="text-xs">
                     You
                   </Badge>
@@ -315,7 +315,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
               </div>
               <p className="text-sm text-gray-500">{formatDate(post.createdAt)}</p>
             </div>
-            {post.authorName === profile.name && auth.currentUser && (
+            {post.userId === auth.currentUser?.uid && (
               <div className="flex space-x-2">
                 <Button
                   size="sm"
@@ -381,12 +381,12 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
               <button
                 onClick={() => handleLike(post.id)}
                 className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
-                  post.likedBy?.includes(currentUserId)
+                  post.isLiked
                     ? "bg-orange-100 text-orange-600"
                     : "hover:bg-orange-50 text-gray-600 hover:text-orange-600"
                 }`}
               >
-                <Star className={`h-4 w-4 ${post.likedBy?.includes(currentUserId) ? "fill-orange-600" : ""}`} />
+                <Star className={`h-4 w-4 ${post.isLiked ? "fill-orange-600" : ""}`} />
                 <span className="font-medium">
                   {post.likes || 0} Like{(post.likes || 0) !== 1 ? "s" : ""}
                 </span>
@@ -545,26 +545,31 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       const weekAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
 
       // Fetch all posts from the current coach
-      const allPostsQuery = query(
+      const ownPostsQuery = query(
         collection(db, "athletePosts"),
         where("userId", "==", auth.currentUser.uid),
         orderBy("createdAt", "desc")
       );
-      const allPostsSnap = await getDocs(allPostsQuery);
-      const allPosts = allPostsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as unknown as PostData[];
+      const ownPostsSnap = await getDocs(ownPostsQuery);
+      const ownPosts = ownPostsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as unknown as PostData[];
 
-      // Separate posts by visibility
-      const publicPosts = allPosts.filter(post => post.visibility === "public");
-      const subscriberPosts = allPosts.filter(post => post.visibility === "subscribers");
+      // Fetch all public posts from everyone
+      const publicPostsQuery = query(
+        collection(db, "athletePosts"),
+        where("visibility", "==", "public"),
+        orderBy("createdAt", "desc")
+      );
+      const publicPostsSnap = await getDocs(publicPostsQuery);
+      const publicPosts = publicPostsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as unknown as PostData[];
 
       // Set public posts for the community feed
       setCoachPosts(publicPosts);
 
       // Set subscriber posts for the content section
-      setOwnPosts(subscriberPosts);
+      setOwnPosts(ownPosts.filter(post => post.visibility === "subscribers"));
 
       // Calculate stats using subscriber-only posts
-      subscriberPosts.forEach(post => {
+      ownPosts.filter(post => post.visibility === "subscribers").forEach(post => {
         totalViews += post.views || 0;
         totalLikes += post.likes || 0;
         totalComments += post.comments || 0;
@@ -581,7 +586,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         const profileData = await getAthleteProfile(auth.currentUser.uid);
         setDashboardStats({
           subscribers: profileData?.subscribers || 0,
-          totalPosts: subscriberPosts.length,
+          totalPosts: ownPosts.filter(post => post.visibility === "subscribers").length,
           totalViews,
           monthlyEarnings: (profileData?.subscribers || 0) * 10,
           totalEarnings: ((profileData?.subscribers || 0) * 10) * 5, // Example: 5 months
@@ -730,7 +735,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         tags: newPost.tags,
         userId: auth.currentUser.uid,
         createdAt: serverTimestamp(),
-        visibility: undefined as any, // Satisfy type, backend will override
+        visibility: newPost.visibility || "public", // Set the actual visibility
       };
       await saveAthletePost(auth.currentUser.uid, postData);
 
@@ -838,6 +843,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         description: newBlogPost.title,
         videoLink: "",
         tags: [],
+        visibility: newBlogPost.visibility || "public",
+        userId: auth.currentUser.uid,
+        createdAt: serverTimestamp(),
       })
       setBlogDialogOpen(false)
       setNewBlogPost({ title: "", content: "", images: [], visibility: "subscribers" })
@@ -1019,7 +1027,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
 
     // Find userIds that are not in athleteProfiles or memberProfiles
     const missingUserIds = coachPosts
-      .map(post => post.userId)
+      .map((post: any) => post.userId)
       .filter(
         userId =>
           userId !== auth.currentUser?.uid &&
