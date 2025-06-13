@@ -46,6 +46,7 @@ interface MemberProfile {
     notifications: boolean;
     emailUpdates: boolean;
   };
+  subscriptionPlans?: { [athleteId: string]: 'basic' | 'pro' | 'premium' };
 }
 
 function formatDate(ts: any) {
@@ -294,7 +295,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     const isSubscribed = subscribedAthletes.some((sub) => sub.id === athlete.id);
     if (isSubscribed) {
       // Fetch posts for this athlete
-      const postsQuery = query(collection(db, "athletePosts"), where("userId", "==", athlete.id));
+      const postsQuery = query(collection(db, "athletePosts"), where("athleteId", "==", athlete.id));
       const postsSnap = await getDocs(postsQuery);
       const posts = postsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setViewingAthleteProfile({ ...athlete, recentPosts: posts });
@@ -852,7 +853,9 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                         <div className="flex items-center justify-between mb-4">
                           <Badge variant="default" className="bg-green-600">
                             <CreditCard className="h-3 w-3 mr-1" />
-                            Subscribed
+                            {profile?.subscriptionPlans?.[athlete.id] ? 
+                              `${profile.subscriptionPlans[athlete.id].charAt(0).toUpperCase() + profile.subscriptionPlans[athlete.id].slice(1)} Plan` : 
+                              'Subscribed'}
                           </Badge>
                           <Badge variant="outline" className="text-xs">
                             {athlete.subscriptionStatus === "active" ? "Active" : "Inactive"}

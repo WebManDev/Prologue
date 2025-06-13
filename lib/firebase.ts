@@ -221,13 +221,14 @@ const getAllAthletes = async () => {
 };
 
 // Add athleteId to member's subscriptions
-const addSubscriptionForMember = async (userId: string, athleteId: string) => {
+const addSubscriptionForMember = async (userId: string, athleteId: string, plan: 'basic' | 'pro' | 'premium') => {
   const userRef = doc(db, "members", userId);
   const userSnap = await getDoc(userRef);
   const member = userSnap.data() || {};
   await updateDoc(userRef, {
     subscriptions: arrayUnion(athleteId),
-    subscriptionDates: { ...(member.subscriptionDates || {}), [athleteId]: new Date().toISOString() }
+    subscriptionDates: { ...(member.subscriptionDates || {}), [athleteId]: new Date().toISOString() },
+    subscriptionPlans: { ...(member.subscriptionPlans || {}), [athleteId]: plan }
   });
   // Increment the athlete's subscribers count
   const athleteRef = doc(db, "athletes", athleteId);

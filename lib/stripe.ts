@@ -1,7 +1,9 @@
 import Stripe from "stripe"
 
-// Initialize Stripe with secret key
-export const stripe = new Stripe("sk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu")
+// Initialize Stripe with the secret key
+export const stripe = new Stripe('sk_test_51RTKV905oLGlYeZ0Xn4UdqK51tP3a8yUFs0fqHUQr56s7AKx2uUeNjbgb9K2g0EL4suY05tfROpWYhasGgL3Rec400yiOHmTON', {
+  apiVersion: '2025-05-28.basil',
+})
 
 // Stripe configuration
 export const STRIPE_CONFIG = {
