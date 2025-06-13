@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { stripe } from '@/lib/stripe'
+import { adminDb } from '@/lib/firebase-admin'
 import Stripe from 'stripe'
 
 const PLAN_PRICES = {
@@ -14,7 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { memberEmail, memberName, plan, paymentMethodId } = req.body
+    const { memberEmail, memberName, plan, paymentMethodId, userId } = req.body
 
     // Validate required fields
     if (!memberEmail || !memberName || !plan || !paymentMethodId) {
@@ -40,6 +41,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         email: memberEmail,
         name: memberName
       })
+    }
+
+    // Always update the member's Firestore document with the Stripe customer ID if userId is provided
+    if (userId) {
+      const memberRef = adminDb.collection('members').doc(userId);
+      const memberSnap = await memberRef.get();
+      if (memberSnap.exists) {
+        await memberRef.update({ stripeCustomerId: customer.id });
+      } else {
+        await memberRef.set({
+          name: memberName,
+          email: memberEmail,
+          stripeCustomerId: customer.id,
+          createdAt: new Date().toISOString(),
+        }, { merge: true });
+      }
     }
 
     // Attach payment method to customer

@@ -1,13 +1,9 @@
 import * as admin from 'firebase-admin';
+import serviceAccount from '../prologue-16d46-firebase-adminsdk-fbsvc-37f79df5f5.json';
 
 if (!admin.apps.length) {
   admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: "prologue-16d46",
-      clientEmail: "firebase-adminsdk-xxxxx@prologue-16d46.iam.gserviceaccount.com",
-      privateKey: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC9QFi67K6ZQZxX\nYOUR_ACTUAL_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n"
-    }),
-    databaseURL: "https://prologue-16d46.firebaseio.com"
+    credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
   });
 }
 
