@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Upload, User, DollarSign, CheckCircle, ArrowRight } from "lucide-react"
 import Image from "next/image"
 import { auth, saveAthleteProfile, uploadProfilePicture } from "@/lib/firebase"
+import { Logo } from "@/components/logo"
 
 interface AthleteOnboardingProps {
   onComplete: () => void
@@ -97,12 +98,7 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">P</span>
-            </div>
-            <span className="text-2xl font-bold text-blue-600">PROLOGUE</span>
-          </div>
+          <Logo />
           <Button onClick={onLogout} variant="outline">
             Logout
           </Button>

@@ -10,6 +10,7 @@ import { ArrowLeft, Send, Paperclip, Video, Phone, MoreVertical, Star, Calendar,
 import { auth, listenForMessages, sendMessage } from "@/lib/firebase"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { getFirestore, collection, addDoc, serverTimestamp, updateDoc, doc, increment } from "firebase/firestore"
+import { Logo } from "@/components/logo"
 
 interface MemberMessagingInterfaceProps {
   coach: any
@@ -142,6 +143,7 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
       <header className="bg-white border-b border-gray-200 p-4">
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
+            <Logo />
             <Button variant="ghost" onClick={onBack}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Messages

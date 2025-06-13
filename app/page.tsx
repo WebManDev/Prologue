@@ -11,6 +11,7 @@ import { MemberDashboard } from "../components/member-dashboard"
 import { CoachDashboard } from "../components/coach-dashboard"
 import { AthleteOnboarding } from "../components/athlete-onboarding"
 import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider } from "@/lib/firebase"
+import { Logo } from "@/components/logo"
 
 export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false)
@@ -35,12 +36,7 @@ export default function LandingPage() {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">P</span>
-            </div>
-            <span className="text-2xl font-bold text-blue-600">PROLOGUE</span>
-          </div>
+          <Logo />
 
           <nav className="hidden md:flex items-center space-x-8">
             <Link href="#courses" className="text-gray-600 hover:text-blue-600 transition-colors">
@@ -747,10 +743,7 @@ function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsS
           <div className="bg-white rounded-2xl shadow-xl p-8">
             <div className="text-center mb-8">
               <div className="flex items-center justify-center space-x-2 mb-4">
-                <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-                  <span className="text-white font-bold text-xl">P</span>
-                </div>
-                <span className="text-2xl font-bold text-blue-600">PROLOGUE</span>
+                <Logo />
               </div>
               <h1 className="text-2xl font-bold text-gray-900 mb-2">I am a...</h1>
               <p className="text-gray-600">
@@ -808,10 +801,7 @@ function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsS
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center space-x-2 mb-4">
-              <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-xl">P</span>
-              </div>
-              <span className="text-2xl font-bold text-blue-600">PROLOGUE</span>
+              <Logo />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">
               {isSignUp

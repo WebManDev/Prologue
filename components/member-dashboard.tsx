@@ -28,6 +28,7 @@ import { SubscriptionCheckout } from "./subscription-checkout"
 import { signOut, auth, getMemberProfile, getAllAthletes, getAthletesByIds, rateAthlete, likePost, addCommentToPost } from "@/lib/firebase"
 import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, onSnapshot, limit } from "firebase/firestore"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Logo } from "@/components/logo"
 
 interface MemberDashboardProps {
   onLogout: () => void
@@ -585,12 +586,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">P</span>
-            </div>
-            <span className="text-2xl font-bold text-blue-600">PROLOGUE</span>
-          </div>
+          <Logo />
 
           {/* Mobile back button - only visible on small screens */}
           <div className="md:hidden">

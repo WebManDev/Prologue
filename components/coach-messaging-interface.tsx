@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Send, Paperclip, MoreVertical } from "lucide-react"
 import { auth, listenForMessages, sendMessage } from "@/lib/firebase"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import { Logo } from "@/components/logo"
 
 interface CoachMessagingInterfaceProps {
   coach: any
@@ -89,6 +90,7 @@ export function CoachMessagingInterface({ coach, onBack }: CoachMessagingInterfa
       <header className="bg-white border-b border-gray-200 p-4">
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
+            <Logo />
             <Button variant="ghost" onClick={onBack}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Messages
