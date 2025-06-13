@@ -29,6 +29,7 @@ import { signOut, auth, getMemberProfile, getAllAthletes, getAthletesByIds, rate
 import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, onSnapshot, limit } from "firebase/firestore"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Logo } from "@/components/logo"
+import { useRouter } from "next/navigation"
 
 interface MemberDashboardProps {
   onLogout: () => void
@@ -82,6 +83,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const [postComments, setPostComments] = useState<{ [postId: string]: any[] }>({});
   const currentUserId = auth.currentUser?.uid;
   const db = getFirestore();
+  const router = useRouter();
 
   const sports = [
     "All Sports",
@@ -365,7 +367,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const handleComment = async (postId: string) => {
     if (!currentUserId || !commentInputs[postId]?.trim()) return;
     await addCommentToPost(postId, currentUserId, commentInputs[postId]);
-    setCommentInputs(prev => ({ ...prev, [post.id]: "" }));
+    setCommentInputs(prev => ({ ...prev, [postId]: "" }));
     fetchComments(postId);
   };
 
@@ -378,7 +380,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
       return <div className="text-center py-8 text-gray-500">No posts yet.</div>;
     }
     return feedPosts.map((post: any) => {
-      const athlete = athleteProfiles[post.userId] || {};
+      const athlete = athleteProfiles[post?.userId as string] || {};
       return (
         <Card key={post.id}>
           <CardContent className="p-6">
@@ -666,6 +668,14 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                     >
                       <MessageSquare className="h-6 w-6" />
                       <span>Messages</span>
+                    </Button>
+                    <Button
+                      onClick={() => router.push('/member/settings')}
+                      variant="outline"
+                      className="h-20 flex flex-col items-center justify-center space-y-2"
+                    >
+                      <CreditCard className="h-6 w-6" />
+                      <span>Settings</span>
                     </Button>
                   </div>
                 </CardContent>
