@@ -25,6 +25,10 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
     bio: "",
     specialties: [] as string[],
     profilePicture: null as File | null,
+    pricing: {
+      pro: 9.99,
+      premium: 19.99
+    }
   })
 
   const availableSports = [
@@ -239,16 +243,68 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
                 )}
               </div>
 
-              {/* Fixed Pricing Info */}
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                <div className="flex items-center space-x-3">
-                  <DollarSign className="h-5 w-5 text-orange-600" />
-                  <div>
-                    <h4 className="font-medium text-orange-900 mb-1">Monthly Coaching Rate</h4>
-                    <p className="text-sm text-orange-800">
-                      All athletes on PROLOGUE charge <strong>$10/month</strong> for ongoing coaching and mentorship.
-                    </p>
+              {/* Custom Pricing Section */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900">Subscription Pricing</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  Set your custom pricing for Pro and Premium tiers. Basic tier remains at $4.99/month.
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Pro Tier Price ($/month)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        min="5"
+                        max="50"
+                        step="0.01"
+                        value={profileData.pricing.pro}
+                        onChange={(e) => setProfileData(prev => ({
+                          ...prev,
+                          pricing: {
+                            ...prev.pricing,
+                            pro: e.target.value === "" ? 9.99 : parseFloat(e.target.value)
+                          }
+                        }))}
+                        className="pl-7 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                      />
+                    </div>
                   </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Premium Tier Price ($/month)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                      <input
+                        type="number"
+                        min="10"
+                        max="100"
+                        step="0.01"
+                        value={profileData.pricing.premium}
+                        onChange={(e) => setProfileData(prev => ({
+                          ...prev,
+                          pricing: {
+                            ...prev.pricing,
+                            premium: e.target.value === "" ? 19.99 : parseFloat(e.target.value)
+                          }
+                        }))}
+                        className="pl-7 w-full rounded-md border border-gray-300 px-3 py-2 focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 p-4 bg-orange-50 rounded-lg">
+                  <p className="text-sm text-orange-800">
+                    <strong>Note:</strong> Your pricing will be visible to potential subscribers. Consider your expertise, 
+                    content quality, and market rates when setting your prices.
+                  </p>
                 </div>
               </div>
 

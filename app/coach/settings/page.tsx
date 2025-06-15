@@ -126,15 +126,14 @@ export default function CoachSettingsPage() {
           <DialogHeader>
             <DialogTitle>Payment Settings</DialogTitle>
             <DialogDescription>
-              Connect or update your Stripe account to receive payouts.
+              Enter your bank account information to receive payouts directly. Your information is securely processed.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <CoachStripeOnboarding
-              onComplete={(accountId) => {
-                setStripeAccountId(accountId);
-                setShowPaymentModal(false);
-              }}
+            <BankInfoForm
+              coachName={name}
+              coachEmail={email}
+              onSuccess={() => setShowPaymentModal(false)}
             />
           </div>
           <DialogFooter>
@@ -145,5 +144,78 @@ export default function CoachSettingsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function BankInfoForm({ coachName, coachEmail, onSuccess }: { coachName: string, coachEmail: string, onSuccess: () => void }) {
+  const [routingNumber, setRoutingNumber] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setMessage("");
+    try {
+      // Get the current user ID (coach)
+      const user = auth.currentUser;
+      if (!user) {
+        setMessage("You must be logged in.");
+        setLoading(false);
+        return;
+      }
+      const res = await fetch("/api/stripe/setup-athlete-bank", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          athleteId: user.uid,
+          accountNumber,
+          routingNumber,
+          accountHolderName: coachName || coachEmail,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage("Bank account setup successful!");
+        setTimeout(() => {
+          setMessage("");
+          onSuccess();
+        }, 1500);
+      } else {
+        setMessage(data.error || "Failed to set up bank account");
+      }
+    } catch (err: any) {
+      setMessage("An error occurred. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label>Routing Number</Label>
+        <Input
+          type="text"
+          value={routingNumber}
+          onChange={e => setRoutingNumber(e.target.value)}
+          required
+        />
+      </div>
+      <div>
+        <Label>Account Number</Label>
+        <Input
+          type="text"
+          value={accountNumber}
+          onChange={e => setAccountNumber(e.target.value)}
+          required
+        />
+      </div>
+      <Button type="submit" disabled={loading} className="w-full">
+        {loading ? "Saving..." : "Save Bank Info"}
+      </Button>
+      {message && <div className="text-center text-sm mt-2">{message}</div>}
+    </form>
   );
 } 

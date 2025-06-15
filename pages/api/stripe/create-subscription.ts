@@ -3,29 +3,32 @@ import { stripe } from '@/lib/stripe'
 import { adminDb } from '@/lib/firebase-admin'
 import Stripe from 'stripe'
 
-const PLAN_PRICES = {
-  basic: 499, // $4.99
-  pro: 999,   // $9.99
-  premium: 1999 // $19.99
-}
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
-    const { memberEmail, memberName, plan, paymentMethodId, userId } = req.body
+    const { memberEmail, memberName, plan, paymentMethodId, userId, athleteId } = req.body
 
     // Validate required fields
-    if (!memberEmail || !memberName || !plan || !paymentMethodId) {
-      console.error('Missing required fields:', { memberEmail, memberName, plan, paymentMethodId })
+    if (!memberEmail || !memberName || !plan || !paymentMethodId || !athleteId) {
+      console.error('Missing required fields:', { memberEmail, memberName, plan, paymentMethodId, athleteId })
       return res.status(400).json({ error: 'Missing required fields' })
     }
 
     if (!['basic', 'pro', 'premium'].includes(plan)) {
       return res.status(400).json({ error: 'Invalid plan selected' })
     }
+
+    // Get athlete's pricing from Firestore
+    const athleteDoc = await adminDb.collection('athletes').doc(athleteId).get()
+    if (!athleteDoc.exists) {
+      return res.status(404).json({ error: 'Athlete not found' })
+    }
+
+    const athleteData = athleteDoc.data()
+    const price = athleteData?.pricing?.[plan] ?? 9.99 // Default to 9.99 if price not found
 
     // Create or get customer
     let customer
@@ -72,8 +75,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
 
     // Create a price for the subscription
-    const price = await stripe.prices.create({
-      unit_amount: PLAN_PRICES[plan as keyof typeof PLAN_PRICES],
+    const priceObj = await stripe.prices.create({
+      unit_amount: Math.round(price * 100), // Convert to cents
       currency: 'usd',
       recurring: { interval: 'month' },
       product_data: {
@@ -84,9 +87,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Create the subscription
     const subscription = await stripe.subscriptions.create({
       customer: customer.id,
-      items: [{ price: price.id }],
+      items: [{ price: priceObj.id }],
       metadata: {
-        plan
+        plan,
+        athleteId
       },
       default_payment_method: paymentMethodId,
     })

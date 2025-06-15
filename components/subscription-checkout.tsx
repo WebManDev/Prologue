@@ -22,6 +22,11 @@ interface SubscriptionCheckoutProps {
     posts: number
     rating: number
     stripeAccountId?: string // Optional for test mode
+    pricing: {
+      basic: number
+      pro: number
+      premium: number
+    }
   }
   memberEmail: string
   memberName: string
@@ -130,6 +135,7 @@ function CheckoutForm({ athlete, memberEmail, memberName, onSuccess, onCancel }:
           onSelectPlan={setSelectedPlan}
           selectedPlan={selectedPlan}
           isLoading={isProcessing}
+          prices={athlete.pricing}
         />
       </div>
 

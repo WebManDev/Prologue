@@ -69,6 +69,10 @@ interface AthleteProfile {
   subscriptionStatus: string;
   specialties: string[];
   certifications: string[];
+  pricing?: {
+    pro?: number;
+    premium?: number;
+  };
 }
 
 interface PostData {
@@ -165,6 +169,10 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     location: "Los Angeles, CA",
     experience: "8 years",
     certifications: ["USPTA Certified", "Mental Performance Coach"],
+    pricing: {
+      pro: 9.99,
+      premium: 19.99
+    }
   })
   const [profile, setProfile] = useState<AthleteProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -512,6 +520,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
               ...profileDataFromDb,
               specialties: profileDataFromDb.specialties || [],
               certifications: profileDataFromDb.certifications || [],
+              pricing: profileDataFromDb.pricing || { pro: 9.99, premium: 19.99 }
             }));
           }
         }
@@ -1782,7 +1791,63 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
               <div className="flex justify-between items-center">
                 <h1 className="text-3xl font-bold text-gray-900">Profile Settings</h1>
                 <Button
-                  onClick={() => setEditingProfile(!editingProfile)}
+                  onClick={async () => {
+                    if (editingProfile) {
+                      if (!auth.currentUser) return;
+                      // 1. Save to Firestore
+                      const payload = {
+                        name: profileData.name,
+                        email: profileData.email,
+                        sport: profile?.sport || '',
+                        role: profile?.role || '',
+                        bio: profileData.bio,
+                        specialties: profileData.specialties,
+                        profilePicture: profileData.profilePicture,
+                        location: profileData.location,
+                        experience: profileData.experience,
+                        certifications: profileData.certifications,
+                        pricing: profileData.pricing
+                      };
+                      await saveAthleteProfile(auth.currentUser.uid, payload);
+
+                      // 2. Call Stripe pricing API
+                      try {
+                        const res = await fetch("/api/stripe/update-coach-pricing", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            userId: auth.currentUser.uid,
+                            proPrice: profileData.pricing?.pro || 9.99,
+                            premiumPrice: profileData.pricing?.premium || 19.99,
+                            coachName: profileData.name,
+                          }),
+                        });
+                        const data = await res.json();
+                        if (data.stripePriceIds) {
+                          // 3. Update Firestore with Stripe Price IDs (merge)
+                          await saveAthleteProfile(auth.currentUser.uid, {
+                            stripePriceIds: data.stripePriceIds,
+                          });
+                        }
+                      } catch (err) {
+                        console.error("Failed to sync Stripe pricing:", err);
+                      }
+
+                      // 4. Refetch profile to ensure UI is up to date
+                      const updatedProfile = await getAthleteProfile(auth.currentUser.uid);
+                      if (updatedProfile) {
+                        setProfile(updatedProfile as AthleteProfile);
+                        setProfileData(prev => ({
+                          ...prev,
+                          ...updatedProfile,
+                          specialties: updatedProfile.specialties || [],
+                          certifications: updatedProfile.certifications || [],
+                          pricing: updatedProfile.pricing || { pro: 9.99, premium: 19.99 }
+                        }));
+                      }
+                    }
+                    setEditingProfile(!editingProfile);
+                  }}
                   className={editingProfile ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"}
                 >
                   {editingProfile ? (
@@ -2036,15 +2101,74 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-center p-4 bg-green-50 rounded-lg">
-                        <div className="text-3xl font-bold text-green-600 mb-2">$10</div>
-                        <div className="text-sm text-green-800">per month</div>
-                        <div className="text-xs text-gray-600 mt-2">Fixed rate for all athletes</div>
-                      </div>
+                      {editingProfile ? (
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="block text-sm font-medium text-gray-700">
+                                Pro Tier Price ($/month)
+                              </label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                                <Input
+                                  type="number"
+                                  min="5"
+                                  max="50"
+                                  step="0.01"
+                                  value={profileData.pricing?.pro || 9.99}
+                                  onChange={(e) => setProfileData(prev => ({
+                                    ...prev,
+                                    pricing: {
+                                      ...prev.pricing,
+                                      pro: e.target.value === "" ? 9.99 : parseFloat(e.target.value)
+                                    }
+                                  }))}
+                                  className="pl-7"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="block text-sm font-medium text-gray-700">
+                                Premium Tier Price ($/month)
+                              </label>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                                <Input
+                                  type="number"
+                                  min="10"
+                                  max="100"
+                                  step="0.01"
+                                  value={profileData.pricing?.premium || 19.99}
+                                  onChange={(e) => setProfileData(prev => ({
+                                    ...prev,
+                                    pricing: {
+                                      ...prev.pricing,
+                                      premium: e.target.value === "" ? 19.99 : parseFloat(e.target.value)
+                                    }
+                                  }))}
+                                  className="pl-7"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-4 p-4 bg-orange-50 rounded-lg">
+                            <p className="text-sm text-orange-800">
+                              <strong>Note:</strong> Your pricing will be visible to potential subscribers. Consider your expertise, 
+                              content quality, and market rates when setting your prices.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center p-4 bg-green-50 rounded-lg">
+                          <div className="text-3xl font-bold text-green-600 mb-2">Pro: ${profileData.pricing?.pro || 9.99} / Premium: ${profileData.pricing?.premium || 19.99}</div>
+                          <div className="text-sm text-green-800">per month</div>
+                          <div className="text-xs text-gray-600 mt-2">Set your own rates for Pro and Premium tiers</div>
+                        </div>
+                      )}
                       <div className="mt-4 text-sm text-gray-600">
                         <p>
-                          All athletes on PROLOGUE charge the same monthly rate, ensuring fair and accessible pricing
-                          for members.
+                          Members will see your current prices when subscribing.
                         </p>
                       </div>
                     </CardContent>
@@ -2074,43 +2198,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   </Card>
                 </div>
               </div>
-
-              {editingProfile && (
-                <Button
-                  className="mt-4 bg-green-600 hover:bg-green-700"
-                  onClick={async () => {
-                    if (!auth.currentUser) return;
-                    // Ensure required fields are present
-                    const payload = {
-                      name: profileData.name,
-                      email: profileData.email,
-                      sport: profile?.sport || '',
-                      role: profile?.role || '',
-                      bio: profileData.bio,
-                      specialties: profileData.specialties,
-                      profilePicture: profileData.profilePicture,
-                      location: profileData.location,
-                      experience: profileData.experience,
-                      certifications: profileData.certifications,
-                    };
-                    await saveAthleteProfile(auth.currentUser.uid, payload);
-                    // Refetch profile to ensure UI is up to date
-                    const updatedProfile = await getAthleteProfile(auth.currentUser.uid);
-                    if (updatedProfile) {
-                      setProfile(updatedProfile as AthleteProfile);
-                      setProfileData(prev => ({
-                        ...prev,
-                        ...updatedProfile,
-                        specialties: updatedProfile.specialties || [],
-                        certifications: updatedProfile.certifications || [],
-                      }));
-                    }
-                    setEditingProfile(false);
-                  }}
-                >
-                  Save Changes
-                </Button>
-              )}
             </div>
           </TabsContent>
 

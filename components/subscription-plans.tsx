@@ -9,51 +9,55 @@ interface SubscriptionPlansProps {
   onSelectPlan: (plan: 'basic' | 'pro' | 'premium') => void
   selectedPlan?: 'basic' | 'pro' | 'premium'
   isLoading?: boolean
+  prices?: {
+    basic?: number
+    pro?: number
+    premium?: number
+  }
 }
 
-const plans = [
-  {
-    id: 'basic',
-    name: 'Basic',
-    price: 4.99,
-    description: 'Perfect for getting started',
-    features: [
-      'Access to basic training content',
-      'Monthly Q&A session',
-      'Basic progress tracking',
-      'Community forum access'
-    ]
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: 9.99,
-    description: 'For serious athletes',
-    features: [
-      'Everything in Basic',
-      'Weekly video feedback',
-      'Personalized training plans',
-      'Priority support',
-      'Advanced analytics'
-    ]
-  },
-  {
-    id: 'premium',
-    name: 'Premium',
-    price: 19.99,
-    description: 'Elite level coaching',
-    features: [
-      'Everything in Pro',
-      '1-on-1 coaching sessions',
-      'Custom workout programs',
-      'Nutrition planning',
-      '24/7 priority support',
-      'Exclusive content access'
-    ]
-  }
-]
-
-export function SubscriptionPlans({ onSelectPlan, selectedPlan, isLoading }: SubscriptionPlansProps) {
+export function SubscriptionPlans({ onSelectPlan, selectedPlan, isLoading, prices }: SubscriptionPlansProps) {
+  const plans = [
+    {
+      id: 'basic',
+      name: 'Basic',
+      price: prices?.basic ?? 4.99,
+      description: 'Perfect for getting started',
+      features: [
+        'Access to basic training content',
+        'Monthly Q&A session',
+        'Basic progress tracking',
+        'Community forum access'
+      ]
+    },
+    {
+      id: 'pro',
+      name: 'Pro',
+      price: prices?.pro ?? 9.99,
+      description: 'For serious athletes',
+      features: [
+        'Everything in Basic',
+        'Weekly video feedback',
+        'Personalized training plans',
+        'Priority support',
+        'Advanced analytics'
+      ]
+    },
+    {
+      id: 'premium',
+      name: 'Premium',
+      price: prices?.premium ?? 19.99,
+      description: 'Elite level coaching',
+      features: [
+        'Everything in Pro',
+        '1-on-1 coaching sessions',
+        'Custom workout programs',
+        'Nutrition planning',
+        '24/7 priority support',
+        'Exclusive content access'
+      ]
+    }
+  ];
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {plans.map((plan) => (

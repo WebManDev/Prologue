@@ -65,29 +65,11 @@ const initializeFirebase = async () => {
 };
 
 // Function to save athlete profile
-const saveAthleteProfile = async (userId: string, profileData: {
-  name: string;
-  email: string;
-  sport: string;
-  role: string;
-  bio?: string;
-  specialties?: string[];
-  location?: string;
-  experience?: string;
-  certifications?: string[];
-  achievements?: string;
-  profilePicture?: string;
-}) => {
+const saveAthleteProfile = async (userId: string, profileData: Record<string, any>) => {
   try {
     await setDoc(doc(db, "athletes", userId), {
       ...profileData,
-      createdAt: new Date().toISOString(),
-      subscribers: 0,
-      posts: 0,
-      rating: 0,
-      stripeAccountId: null,
-      subscriptionStatus: "inactive"
-    });
+    }, { merge: true });
   } catch (error) {
     console.error("Error saving athlete profile:", error);
     throw error;

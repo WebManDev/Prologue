@@ -1263,14 +1263,63 @@ function AthleteProfileView({
               <Card className="border-2 border-orange-200 bg-orange-50">
                 <CardContent className="p-8 text-center">
                   <Lock className="h-12 w-12 text-orange-500 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">Unlock All Content</h3>
-                  <p className="text-gray-600 mb-6">
-                    Subscribe to {athlete.name} for $10/month to access all exclusive workouts, blog posts, and direct
-                    messaging.
-                  </p>
-                  <Button onClick={() => onSubscribe(athlete)} className="bg-orange-500 hover:bg-orange-600 px-8 py-3">
-                    Subscribe Now - $10/month
-                  </Button>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Choose Your Plan</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+                    {/* Basic Plan */}
+                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                      <h4 className="font-bold text-lg mb-2">Basic</h4>
+                      <p className="text-2xl font-bold text-gray-900 mb-2">$4.99<span className="text-sm text-gray-500">/month</span></p>
+                      <ul className="text-sm text-gray-600 space-y-2 mb-4">
+                        <li>• Access to basic content</li>
+                        <li>• Monthly Q&A session</li>
+                        <li>• Community access</li>
+                      </ul>
+                      <Button 
+                        onClick={() => onSubscribe({...athlete, plan: 'basic'})} 
+                        className="w-full bg-orange-500 hover:bg-orange-600"
+                      >
+                        Subscribe
+                      </Button>
+                    </div>
+
+                    {/* Pro Plan */}
+                    <div className="bg-white p-4 rounded-lg border-2 border-orange-200">
+                      <div className="bg-orange-100 text-orange-800 text-xs font-bold px-2 py-1 rounded-full inline-block mb-2">POPULAR</div>
+                      <h4 className="font-bold text-lg mb-2">Pro</h4>
+                      <p className="text-2xl font-bold text-gray-900 mb-2">${athlete.pricing?.pro || 9.99}<span className="text-sm text-gray-500">/month</span></p>
+                      <ul className="text-sm text-gray-600 space-y-2 mb-4">
+                        <li>• Everything in Basic</li>
+                        <li>• Weekly video feedback</li>
+                        <li>• Personalized training</li>
+                        <li>• Priority support</li>
+                      </ul>
+                      <Button 
+                        onClick={() => onSubscribe({...athlete, plan: 'pro'})} 
+                        className="w-full bg-orange-500 hover:bg-orange-600"
+                      >
+                        Subscribe
+                      </Button>
+                    </div>
+
+                    {/* Premium Plan */}
+                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                      <h4 className="font-bold text-lg mb-2">Premium</h4>
+                      <p className="text-2xl font-bold text-gray-900 mb-2">${athlete.pricing?.premium || 19.99}<span className="text-sm text-gray-500">/month</span></p>
+                      <ul className="text-sm text-gray-600 space-y-2 mb-4">
+                        <li>• Everything in Pro</li>
+                        <li>• 1-on-1 coaching</li>
+                        <li>• Custom programs</li>
+                        <li>• Nutrition planning</li>
+                        <li>• 24/7 priority support</li>
+                      </ul>
+                      <Button 
+                        onClick={() => onSubscribe({...athlete, plan: 'premium'})} 
+                        className="w-full bg-orange-500 hover:bg-orange-600"
+                      >
+                        Subscribe
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </div>
