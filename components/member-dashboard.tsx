@@ -81,6 +81,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const [commentInputs, setCommentInputs] = useState<{ [postId: string]: string }>({});
   const [commentOpen, setCommentOpen] = useState<{ [postId: string]: boolean }>({});
   const [postComments, setPostComments] = useState<{ [postId: string]: any[] }>({});
+  const [totalPrivateContent, setTotalPrivateContent] = useState(0);
   const currentUserId = auth.currentUser?.uid;
   const db = getFirestore();
   const router = useRouter();
@@ -297,10 +298,10 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     const isSubscribed = subscribedAthletes.some((sub) => sub.id === athlete.id);
     if (isSubscribed) {
       // Fetch posts for this athlete
-      const postsQuery = query(collection(db, "athletePosts"), where("athleteId", "==", athlete.id));
+      const postsQuery = query(collection(db, "athletePosts"), where("userId", "==", athlete.id));
       const postsSnap = await getDocs(postsQuery);
       const posts = postsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setViewingAthleteProfile({ ...athlete, recentPosts: posts });
+      setViewingAthleteProfile({ ...athlete, recentPosts: posts as any[] });
     } else {
       setViewingAthleteProfile(athlete);
     }
@@ -525,6 +526,30 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     });
   };
 
+  useEffect(() => {
+    async function fetchTotalPrivateContent() {
+      if (!subscribedAthletes.length) {
+        setTotalPrivateContent(0);
+        return;
+      }
+      let total = 0;
+      await Promise.all(
+        subscribedAthletes.map(async (athlete) => {
+          const postsSnap = await getDocs(
+            query(
+              collection(db, "athletePosts"),
+              where("userId", "==", athlete.id),
+              where("visibility", "==", "subscribers")
+            )
+          );
+          total += postsSnap.size;
+        })
+      );
+      setTotalPrivateContent(total);
+    }
+    fetchTotalPrivateContent();
+  }, [subscribedAthletes, db]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -585,471 +610,496 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Logo />
-
-          {/* Mobile back button - only visible on small screens */}
-          <div className="md:hidden">
-            <Button variant="ghost" onClick={() => setActiveTab("dashboard")}>
-              ← Back
-            </Button>
-          </div>
-
-          {/* Desktop navigation - hidden on mobile */}
-          <nav className="hidden md:flex items-center space-x-8">
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`transition-colors ${activeTab === "dashboard" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
-            >
-              Dashboard
-            </button>
-            <button
-              onClick={() => setActiveTab("athletes")}
-              className={`transition-colors ${activeTab === "athletes" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
-            >
-              My Athletes
-            </button>
-            <button
-              onClick={() => setActiveTab("discover")}
-              className={`transition-colors ${activeTab === "discover" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
-            >
-              Discover
-            </button>
-            <button
-              onClick={() => setActiveTab("messages")}
-              className={`transition-colors ${activeTab === "messages" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
-            >
-              Messages
-            </button>
-          </nav>
-
-          <Button onClick={handleLogout} variant="outline">
-            Logout
+    <div className="min-h-screen bg-gray-50 py-10">
+      <div className="max-w-4xl mx-auto">
+        {/* Manage Payment Button */}
+        <div className="flex justify-end mb-4">
+          <Button
+            variant="outline"
+            onClick={async () => {
+              const res = await fetch('/api/stripe/create-customer-portal-session', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: auth.currentUser?.uid }),
+              });
+              const data = await res.json();
+              if (data.url) {
+                window.location.href = data.url;
+              } else {
+                alert(data.error || 'Could not open payment portal');
+              }
+            }}
+          >
+            Manage Payment
           </Button>
         </div>
-      </header>
+        <div className="min-h-screen bg-gray-50">
+          {/* Header */}
+          <header className="bg-white border-b border-gray-200">
+            <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+              <Logo />
 
-      <div className="container mx-auto px-4 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsContent value="dashboard">
-            <div className="max-w-3xl mx-auto">
-              {/* Quick Actions */}
-              <Card className="mb-8">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Target className="h-5 w-5 text-orange-500" />
-                    <span>Quick Actions</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid md:grid-cols-3 gap-4">
-                    <Button
-                      onClick={() => setActiveTab("discover")}
-                      className="h-20 bg-orange-500 hover:bg-orange-600 text-white flex flex-col items-center justify-center space-y-2"
-                    >
-                      <Plus className="h-6 w-6" />
-                      <span>Find Athletes</span>
-                    </Button>
-                    <Button
-                      onClick={() => setActiveTab("athletes")}
-                      variant="outline"
-                      className="h-20 flex flex-col items-center justify-center space-y-2"
-                    >
-                      <Users className="h-6 w-6" />
-                      <span>My Athletes</span>
-                    </Button>
-                    <Button
-                      onClick={() => setActiveTab("messages")}
-                      variant="outline"
-                      className="h-20 flex flex-col items-center justify-center space-y-2"
-                    >
-                      <MessageSquare className="h-6 w-6" />
-                      <span>Messages</span>
-                    </Button>
-                    <Button
-                      onClick={() => router.push('/member/settings')}
-                      variant="outline"
-                      className="h-20 flex flex-col items-center justify-center space-y-2"
-                    >
-                      <CreditCard className="h-6 w-6" />
-                      <span>Settings</span>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Mobile back button - only visible on small screens */}
+              <div className="md:hidden">
+                <Button variant="ghost" onClick={() => setActiveTab("dashboard")}>
+                  ← Back
+                </Button>
+              </div>
 
-              {/* Row: Messages | My Feedback Requests */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-                {/* Messages Section */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <MessageSquare className="h-5 w-5 text-blue-600" />
-                      <span>Messages</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {subscribedAthletes.length === 0 ? (
-                        <div className="text-gray-500 text-sm">No athletes to message yet.</div>
-                      ) : (
-                        subscribedAthletes.map((athlete) => (
-                          <div
-                            key={athlete.id}
-                            className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
-                            onClick={() => setMessagingCoach(athlete)}
-                          >
-                            <Image src={athlete.profilePic || "/placeholder.svg"} alt={athlete.name} width={32} height={32} className="rounded-full mx-auto sm:mx-0" />
-                            <div className="flex-1 min-w-0 text-center sm:text-left">
-                              <p className="font-medium text-sm">{athlete.name}</p>
-                              <div className="flex flex-wrap justify-center sm:justify-start gap-1 mt-1">
-                                <Badge variant="outline" className="text-xs">{athlete.sport}</Badge>
-                                <Badge variant="default" className="text-xs bg-green-600">Subscribed</Badge>
+              {/* Desktop navigation - hidden on mobile */}
+              <nav className="hidden md:flex items-center space-x-8">
+                <button
+                  onClick={() => setActiveTab("dashboard")}
+                  className={`transition-colors ${activeTab === "dashboard" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
+                >
+                  Dashboard
+                </button>
+                <button
+                  onClick={() => setActiveTab("athletes")}
+                  className={`transition-colors ${activeTab === "athletes" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
+                >
+                  My Athletes
+                </button>
+                <button
+                  onClick={() => setActiveTab("discover")}
+                  className={`transition-colors ${activeTab === "discover" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
+                >
+                  Discover
+                </button>
+                <button
+                  onClick={() => setActiveTab("messages")}
+                  className={`transition-colors ${activeTab === "messages" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
+                >
+                  Messages
+                </button>
+              </nav>
+
+              <Button onClick={handleLogout} variant="outline">
+                Logout
+              </Button>
+            </div>
+          </header>
+
+          <div className="container mx-auto px-4 py-8">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsContent value="dashboard">
+                <div className="max-w-3xl mx-auto">
+                  {/* Quick Actions */}
+                  <Card className="mb-8">
+                    <CardHeader>
+                      <CardTitle className="flex items-center space-x-2">
+                        <Target className="h-5 w-5 text-orange-500" />
+                        <span>Quick Actions</span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <Button
+                          onClick={() => setActiveTab("discover")}
+                          className="h-20 bg-orange-500 hover:bg-orange-600 text-white flex flex-col items-center justify-center space-y-2"
+                        >
+                          <Plus className="h-6 w-6" />
+                          <span>Find Athletes</span>
+                        </Button>
+                        <Button
+                          onClick={() => setActiveTab("athletes")}
+                          variant="outline"
+                          className="h-20 flex flex-col items-center justify-center space-y-2"
+                        >
+                          <Users className="h-6 w-6" />
+                          <span>My Athletes</span>
+                        </Button>
+                        <Button
+                          onClick={() => setActiveTab("messages")}
+                          variant="outline"
+                          className="h-20 flex flex-col items-center justify-center space-y-2"
+                        >
+                          <MessageSquare className="h-6 w-6" />
+                          <span>Messages</span>
+                        </Button>
+                        <Button
+                          onClick={() => router.push('/member/settings')}
+                          variant="outline"
+                          className="h-20 flex flex-col items-center justify-center space-y-2"
+                        >
+                          <CreditCard className="h-6 w-6" />
+                          <span>Settings</span>
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Row: Messages | My Feedback Requests */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                    {/* Messages Section */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center space-x-2">
+                          <MessageSquare className="h-5 w-5 text-blue-600" />
+                          <span>Messages</span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-3">
+                          {subscribedAthletes.length === 0 ? (
+                            <div className="text-gray-500 text-sm">No athletes to message yet.</div>
+                          ) : (
+                            subscribedAthletes.map((athlete) => (
+                              <div
+                                key={athlete.id}
+                                className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
+                                onClick={() => setMessagingCoach(athlete)}
+                              >
+                                <Image src={athlete.profilePic || "/placeholder.svg"} alt={athlete.name} width={32} height={32} className="rounded-full mx-auto sm:mx-0" />
+                                <div className="flex-1 min-w-0 text-center sm:text-left">
+                                  <p className="font-medium text-sm">{athlete.name}</p>
+                                  <div className="flex flex-wrap justify-center sm:justify-start gap-1 mt-1">
+                                    <Badge variant="outline" className="text-xs">{athlete.sport}</Badge>
+                                    <Badge variant="default" className="text-xs bg-green-600">Subscribed</Badge>
+                                  </div>
+                                  <p className="text-sm text-gray-500 mt-1">Click to start a conversation</p>
+                                </div>
+                                <Button variant="outline" size="sm" className="w-full sm:w-auto mt-2 sm:mt-0">
+                                  <MessageSquare className="h-4 w-4 mr-2" />
+                                  Message
+                                </Button>
                               </div>
-                              <p className="text-sm text-gray-500 mt-1">Click to start a conversation</p>
-                            </div>
-                            <Button variant="outline" size="sm" className="w-full sm:w-auto mt-2 sm:mt-0">
-                              <MessageSquare className="h-4 w-4 mr-2" />
-                              Message
-                            </Button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                            ))
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                {/* My Feedback Requests Section */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Video className="h-5 w-5 text-blue-600" />
-                      <span>My Feedback Requests</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {loadingFeedback ? (
-                      <div className="text-center py-6">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                        <h3 className="text-base font-medium text-gray-900 mb-1">Loading feedback requests...</h3>
-                      </div>
-                    ) : feedbackRequests.length === 0 ? (
-                      <div className="text-center py-6">
-                        <Video className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                        <h3 className="text-base font-medium text-gray-900 mb-1">No feedback requests yet</h3>
-                        <p className="text-gray-600 text-xs">When you request video feedback, it will appear here.</p>
-                      </div>
-                    ) :
+                    {/* My Feedback Requests Section */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center space-x-2">
+                          <Video className="h-5 w-5 text-blue-600" />
+                          <span>My Feedback Requests</span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {loadingFeedback ? (
+                          <div className="text-center py-6">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                            <h3 className="text-base font-medium text-gray-900 mb-1">Loading feedback requests...</h3>
+                          </div>
+                        ) : feedbackRequests.length === 0 ? (
+                          <div className="text-center py-6">
+                            <Video className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                            <h3 className="text-base font-medium text-gray-900 mb-1">No feedback requests yet</h3>
+                            <p className="text-gray-600 text-xs">When you request video feedback, it will appear here.</p>
+                          </div>
+                        ) :
+                          <div className="space-y-4">
+                            {feedbackRequests.map((request) => (
+                              <Card key={request.id} className="bg-gray-50">
+                                <CardContent className="p-3">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <div className="flex-1">
+                                      <div className="flex items-center space-x-2 mb-1">
+                                        <span className="font-semibold text-gray-900 text-sm">Video Feedback Request</span>
+                                        <Badge variant={
+                                          request.status === "pending_payment" ? "destructive" :
+                                          request.status === "pending" ? "default" :
+                                          request.status === "completed" ? "secondary" : "outline"
+                                        }>
+                                          {request.status === "pending_payment" ? "Payment Pending" :
+                                           request.status === "pending" ? "Pending Review" :
+                                           request.status === "completed" ? "Completed" : request.status}
+                                        </Badge>
+                                      </div>
+                                      <p className="text-gray-600 text-xs mb-1 line-clamp-2">{request.feedbackText}</p>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        }
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Latest Content from Subscribed Athletes */}
+                  <Card className="mb-8 mt-8">
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <span className="flex items-center space-x-2">
+                          <Lock className="h-5 w-5 text-blue-600" />
+                          <span>Latest Exclusive Content</span>
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={() => setActiveTab("athletes")}>View All</Button>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
                       <div className="space-y-4">
-                        {feedbackRequests.map((request) => (
-                          <Card key={request.id} className="bg-gray-50">
-                            <CardContent className="p-3">
-                              <div className="flex items-start justify-between mb-2">
+                        <div className="text-center">
+                          <div className="text-3xl font-bold text-blue-600 mb-1">{subscribedAthletes.length}</div>
+                          <div className="text-sm text-gray-600">Active Subscriptions</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-3xl font-bold text-orange-500 mb-1">
+                            {totalPrivateContent}
+                          </div>
+                          <div className="text-sm text-gray-600">Total Content</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Community Feed Section below Latest Exclusive Content */}
+                  <div className="space-y-4 mt-8 mb-8">
+                    <div className="mb-4">
+                      <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
+                    </div>
+                    {renderFeedPosts()}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="athletes">
+                <div className="space-y-6">
+                  <h1 className="text-3xl font-bold text-gray-900">My Athletes ({subscribedAthletes.length})</h1>
+
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {subscribedAthletes.length === 0 ? (
+                      <div className="col-span-full text-center py-12">
+                        <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">You have not subscribed to any athletes yet</h3>
+                        <p className="text-gray-600">Browse the Discover tab to find athletes and coaches to subscribe to!</p>
+                      </div>
+                    ) : (
+                      subscribedAthletes.map((athlete) => (
+                        <Card
+                          key={athlete.id}
+                          className="hover:shadow-lg transition-shadow cursor-pointer"
+                          onClick={() => handleViewAthleteProfile(athlete)}
+                        >
+                          <CardContent className="p-6">
+                            <div className="flex items-center space-x-3 mb-4">
+                              <Image
+                                src={athlete.profilePic || "/placeholder.svg"}
+                                alt={athlete.name}
+                                width={60}
+                                height={60}
+                                className="rounded-full"
+                              />
+                              <div>
+                                <h3 className="font-semibold text-lg">{athlete.name}</h3>
+                                <Badge variant="outline">{athlete.sport}</Badge>
+                              </div>
+                            </div>
+
+                            <p className="text-sm text-gray-600 mb-4 line-clamp-3">{athlete.bio}</p>
+
+                            <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
+                              <span className="flex items-center space-x-1">
+                                <Users className="h-4 w-4" />
+                                <span>{athlete.subscribers}</span>
+                              </span>
+                              <span className="flex items-center space-x-1">
+                                <Video className="h-4 w-4" />
+                                <span>{athlete.posts} posts</span>
+                              </span>
+                              <span className="flex items-center space-x-1">
+                                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                                <span>{athlete.rating}</span>
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between mb-4">
+                              <Badge variant="default" className="bg-green-600">
+                                <CreditCard className="h-3 w-3 mr-1" />
+                                {profile?.subscriptionPlans?.[athlete.id] ? 
+                                  `${profile.subscriptionPlans[athlete.id].charAt(0).toUpperCase() + profile.subscriptionPlans[athlete.id].slice(1)} Plan` : 
+                                  'Subscribed'}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {athlete.subscriptionStatus === "active" ? "Active" : "Inactive"}
+                              </Badge>
+                            </div>
+
+                            <div className="flex space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setMessagingCoach(athlete)
+                                }}
+                              >
+                                <MessageSquare className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="discover">
+                <div className="space-y-6">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                      <h1 className="text-3xl font-bold text-gray-900 mb-2">Discover Athletes</h1>
+                      <p className="text-gray-600">
+                        Find expert athletes and coaches to subscribe to for exclusive content
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Select value={selectedSport} onValueChange={setSelectedSport}>
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Select sport" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sports.map((sport) => (
+                            <SelectItem key={sport} value={sport === "All Sports" ? "all" : sport}>
+                              {sport}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                        <Input
+                          placeholder="Search athletes, sports..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-10 w-80"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {loadingAthletes ? (
+                    <div className="text-center py-12">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">Loading athletes...</h3>
+                    </div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {filteredAthletes.map((athlete) => (
+                        <Card key={athlete.id} className="hover:shadow-lg transition-shadow">
+                          <CardContent className="p-6">
+                            <div className="flex items-center space-x-3 mb-4">
+                              <Image
+                                src={athlete.profilePicture || "/placeholder.svg"}
+                                alt={athlete.name}
+                                width={60}
+                                height={60}
+                                className="rounded-full"
+                              />
+                              <div>
+                                <h3 className="font-semibold text-lg">{athlete.name}</h3>
+                                <Badge variant="outline">{athlete.sport}</Badge>
+                              </div>
+                            </div>
+
+                            <p className="text-sm text-gray-600 mb-4 line-clamp-3">{athlete.bio}</p>
+
+                            <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
+                              <span className="flex items-center space-x-1">
+                                <Users className="h-4 w-4" />
+                                <span>{athlete.subscribers}</span>
+                              </span>
+                              <span className="flex items-center space-x-1">
+                                <Video className="h-4 w-4" />
+                                <span>{athlete.posts} posts</span>
+                              </span>
+                              <span className="flex items-center space-x-1">
+                                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                                <span>{athlete.rating}</span>
+                              </span>
+                            </div>
+
+                            <div className="flex space-x-2">
+                              <Button
+                                className="flex-1 bg-orange-500 hover:bg-orange-600"
+                                onClick={() => handleSubscribe(athlete)}
+                              >
+                                Subscribe 
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => handleViewAthleteProfile(athlete)}>
+                                Preview
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+
+                  {filteredAthletes.length === 0 && (
+                    <div className="text-center py-12">
+                      <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No athletes found</h3>
+                      <p className="text-gray-600">Try adjusting your search criteria</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="messages">
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <h1 className="text-3xl font-bold text-gray-900">Messages</h1>
+                  </div>
+
+                  <div className="grid gap-4">
+                    {subscribedAthletes.length === 0 ? (
+                      <div className="col-span-full text-center py-12">
+                        <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No athletes to message yet</h3>
+                        <p className="text-gray-600">Subscribe to some athletes to start messaging them!</p>
+                      </div>
+                    ) : (
+                      subscribedAthletes.map((athlete) => (
+                        <Card
+                          key={athlete.id}
+                          className="hover:shadow-md transition-shadow cursor-pointer"
+                          onClick={() => setMessagingCoach(athlete)}
+                        >
+                          <CardContent className="p-6">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-3">
+                                <Image
+                                  src={athlete.profilePic || "/placeholder.svg"}
+                                  alt={athlete.name}
+                                  width={48}
+                                  height={48}
+                                  className="rounded-full"
+                                />
                                 <div className="flex-1">
-                                  <div className="flex items-center space-x-2 mb-1">
-                                    <span className="font-semibold text-gray-900 text-sm">Video Feedback Request</span>
-                                    <Badge variant={
-                                      request.status === "pending_payment" ? "destructive" :
-                                      request.status === "pending" ? "default" :
-                                      request.status === "completed" ? "secondary" : "outline"
-                                    }>
-                                      {request.status === "pending_payment" ? "Payment Pending" :
-                                       request.status === "pending" ? "Pending Review" :
-                                       request.status === "completed" ? "Completed" : request.status}
+                                  <div className="flex items-center space-x-2">
+                                    <h3 className="font-semibold text-gray-900">{athlete.name}</h3>
+                                    <Badge variant="outline" className="text-xs">
+                                      {athlete.sport}
+                                    </Badge>
+                                    <Badge variant="default" className="text-xs bg-green-600">
+                                      Subscribed
                                     </Badge>
                                   </div>
-                                  <p className="text-gray-600 text-xs mb-1 line-clamp-2">{request.feedbackText}</p>
+                                  <p className="text-sm text-gray-600">Click to start a conversation</p>
                                 </div>
                               </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    }
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Latest Content from Subscribed Athletes */}
-              <Card className="mb-8 mt-8">
-                <CardHeader>
-                  <CardTitle className="flex items-center justify-between">
-                    <span className="flex items-center space-x-2">
-                      <Lock className="h-5 w-5 text-blue-600" />
-                      <span>Latest Exclusive Content</span>
-                    </span>
-                    <Button variant="ghost" size="sm" onClick={() => setActiveTab("athletes")}>View All</Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-blue-600 mb-1">{subscribedAthletes.length}</div>
-                      <div className="text-sm text-gray-600">Active Subscriptions</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-orange-500 mb-1">
-                        {subscribedAthletes.reduce((sum, athlete) => sum + athlete.posts, 0)}
-                      </div>
-                      <div className="text-sm text-gray-600">Total Content</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Community Feed Section below Latest Exclusive Content */}
-              <div className="space-y-4 mt-8 mb-8">
-                <div className="mb-4">
-                  <h2 className="text-2xl font-bold text-gray-900">Community Feed</h2>
-                </div>
-                {renderFeedPosts()}
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="athletes">
-            <div className="space-y-6">
-              <h1 className="text-3xl font-bold text-gray-900">My Athletes ({subscribedAthletes.length})</h1>
-
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {subscribedAthletes.length === 0 ? (
-                  <div className="col-span-full text-center py-12">
-                    <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">You have not subscribed to any athletes yet</h3>
-                    <p className="text-gray-600">Browse the Discover tab to find athletes and coaches to subscribe to!</p>
-                  </div>
-                ) : (
-                  subscribedAthletes.map((athlete) => (
-                    <Card
-                      key={athlete.id}
-                      className="hover:shadow-lg transition-shadow cursor-pointer"
-                      onClick={() => handleViewAthleteProfile(athlete)}
-                    >
-                      <CardContent className="p-6">
-                        <div className="flex items-center space-x-3 mb-4">
-                          <Image
-                            src={athlete.profilePic || "/placeholder.svg"}
-                            alt={athlete.name}
-                            width={60}
-                            height={60}
-                            className="rounded-full"
-                          />
-                          <div>
-                            <h3 className="font-semibold text-lg">{athlete.name}</h3>
-                            <Badge variant="outline">{athlete.sport}</Badge>
-                          </div>
-                        </div>
-
-                        <p className="text-sm text-gray-600 mb-4 line-clamp-3">{athlete.bio}</p>
-
-                        <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
-                          <span className="flex items-center space-x-1">
-                            <Users className="h-4 w-4" />
-                            <span>{athlete.subscribers}</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <Video className="h-4 w-4" />
-                            <span>{athlete.posts} posts</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                            <span>{athlete.rating}</span>
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between mb-4">
-                          <Badge variant="default" className="bg-green-600">
-                            <CreditCard className="h-3 w-3 mr-1" />
-                            {profile?.subscriptionPlans?.[athlete.id] ? 
-                              `${profile.subscriptionPlans[athlete.id].charAt(0).toUpperCase() + profile.subscriptionPlans[athlete.id].slice(1)} Plan` : 
-                              'Subscribed'}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {athlete.subscriptionStatus === "active" ? "Active" : "Inactive"}
-                          </Badge>
-                        </div>
-
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setMessagingCoach(athlete)
-                            }}
-                          >
-                            <MessageSquare className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
-                )}
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="discover">
-            <div className="space-y-6">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">Discover Athletes</h1>
-                  <p className="text-gray-600">
-                    Find expert athletes and coaches to subscribe to for exclusive content
-                  </p>
-                </div>
-                <div className="flex items-center gap-4">
-                  <Select value={selectedSport} onValueChange={setSelectedSport}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Select sport" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sports.map((sport) => (
-                        <SelectItem key={sport} value={sport === "All Sports" ? "all" : sport}>
-                          {sport}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      placeholder="Search athletes, sports..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 w-80"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {loadingAthletes ? (
-                <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Loading athletes...</h3>
-                </div>
-              ) : (
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredAthletes.map((athlete) => (
-                    <Card key={athlete.id} className="hover:shadow-lg transition-shadow">
-                      <CardContent className="p-6">
-                        <div className="flex items-center space-x-3 mb-4">
-                          <Image
-                            src={athlete.profilePicture || "/placeholder.svg"}
-                            alt={athlete.name}
-                            width={60}
-                            height={60}
-                            className="rounded-full"
-                          />
-                          <div>
-                            <h3 className="font-semibold text-lg">{athlete.name}</h3>
-                            <Badge variant="outline">{athlete.sport}</Badge>
-                          </div>
-                        </div>
-
-                        <p className="text-sm text-gray-600 mb-4 line-clamp-3">{athlete.bio}</p>
-
-                        <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
-                          <span className="flex items-center space-x-1">
-                            <Users className="h-4 w-4" />
-                            <span>{athlete.subscribers}</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <Video className="h-4 w-4" />
-                            <span>{athlete.posts} posts</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                            <span>{athlete.rating}</span>
-                          </span>
-                        </div>
-
-                        <div className="flex space-x-2">
-                          <Button
-                            className="flex-1 bg-orange-500 hover:bg-orange-600"
-                            onClick={() => handleSubscribe(athlete)}
-                          >
-                            Subscribe 
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => handleViewAthleteProfile(athlete)}>
-                            Preview
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-
-              {filteredAthletes.length === 0 && (
-                <div className="text-center py-12">
-                  <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No athletes found</h3>
-                  <p className="text-gray-600">Try adjusting your search criteria</p>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="messages">
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold text-gray-900">Messages</h1>
-              </div>
-
-              <div className="grid gap-4">
-                {subscribedAthletes.length === 0 ? (
-                  <div className="col-span-full text-center py-12">
-                    <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No athletes to message yet</h3>
-                    <p className="text-gray-600">Subscribe to some athletes to start messaging them!</p>
-                  </div>
-                ) : (
-                  subscribedAthletes.map((athlete) => (
-                    <Card
-                      key={athlete.id}
-                      className="hover:shadow-md transition-shadow cursor-pointer"
-                      onClick={() => setMessagingCoach(athlete)}
-                    >
-                      <CardContent className="p-6">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            <Image
-                              src={athlete.profilePic || "/placeholder.svg"}
-                              alt={athlete.name}
-                              width={48}
-                              height={48}
-                              className="rounded-full"
-                            />
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2">
-                                <h3 className="font-semibold text-gray-900">{athlete.name}</h3>
-                                <Badge variant="outline" className="text-xs">
-                                  {athlete.sport}
-                                </Badge>
-                                <Badge variant="default" className="text-xs bg-green-600">
-                                  Subscribed
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-gray-600">Click to start a conversation</p>
+                              <Button variant="outline" size="sm">
+                                <MessageSquare className="h-4 w-4 mr-2" />
+                                Message
+                              </Button>
                             </div>
-                          </div>
-                          <Button variant="outline" size="sm">
-                            <MessageSquare className="h-4 w-4 mr-2" />
-                            Message
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
-                )}
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+                          </CardContent>
+                        </Card>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -1072,6 +1122,17 @@ function AthleteProfileView({
   const [userRating, setUserRating] = useState<number | null>(null);
   const [avgRating, setAvgRating] = useState<number>(athlete.rating || 0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [livePostCount, setLivePostCount] = useState<number>(0);
+  const db = getFirestore();
+
+  useEffect(() => {
+    // Live count of posts for this athlete
+    async function fetchPostCount() {
+      const postsSnap = await getDocs(query(collection(db, "athletePosts"), where("userId", "==", athlete.id)));
+      setLivePostCount(postsSnap.size);
+    }
+    fetchPostCount();
+  }, [athlete.id]);
 
   useEffect(() => {
     if (auth.currentUser && athlete.ratings && athlete.ratings[auth.currentUser.uid]) {
@@ -1140,26 +1201,11 @@ function AthleteProfileView({
                 </span>
                 <span className="flex items-center space-x-1">
                   <Video className="h-4 w-4" />
-                  <span>{athlete.posts} posts</span>
+                  <span>{livePostCount} posts</span>
                 </span>
                 <span className="flex items-center space-x-1">
                   <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                  <span>{avgRating} rating</span>
-                  {isSubscribed && (
-                    <span className="ml-2 flex items-center">
-                      {[1,2,3,4,5].map((star) => (
-                        <button
-                          key={star}
-                          onClick={() => handleRate(star)}
-                          disabled={isSubmitting}
-                          style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                          aria-label={`Rate ${star}`}
-                        >
-                          <Star className={`h-4 w-4 ${userRating && userRating >= star ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
-                        </button>
-                      ))}
-                    </span>
-                  )}
+                  <span>{avgRating}</span>
                 </span>
               </div>
             </div>
