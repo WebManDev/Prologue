@@ -226,6 +226,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [canEdit, setCanEdit] = useState(true)
   const [editCount, setEditCount] = useState(0)
   const [editWindowStart, setEditWindowStart] = useState<string | null>(null)
+  const [publicPostCount, setPublicPostCount] = useState(0)
+  const [publicPostWindowStart, setPublicPostWindowStart] = useState<string | null>(null)
+  const [canPostPublic, setCanPostPublic] = useState(true)
 
   const db = getFirestore();
 
@@ -697,25 +700,42 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         setLastProfileEdit(data.lastProfileEdit || null);
         setEditCount(data.editCount || 0);
         setEditWindowStart(data.editWindowStart || null);
+        setPublicPostCount(data.publicPostCount || 0);
+        setPublicPostWindowStart(data.publicPostWindowStart || null);
         
         const now = new Date();
         const twoWeeks = 14 * 24 * 60 * 60 * 1000;
         
+        // Check profile edit window
         if (data.editWindowStart) {
           const windowStart = new Date(data.editWindowStart);
           const diff = now.getTime() - windowStart.getTime();
           
-          // If two weeks have passed, reset the edit count and window
           if (diff > twoWeeks) {
             setEditCount(0);
             setEditWindowStart(null);
             setCanEdit(true);
           } else {
-            // Check if we've hit the limit of 3 edits
             setCanEdit(data.editCount < 3);
           }
         } else {
           setCanEdit(true);
+        }
+
+        // Check public post window
+        if (data.publicPostWindowStart) {
+          const windowStart = new Date(data.publicPostWindowStart);
+          const diff = now.getTime() - windowStart.getTime();
+          
+          if (diff > twoWeeks) {
+            setPublicPostCount(0);
+            setPublicPostWindowStart(null);
+            setCanPostPublic(true);
+          } else {
+            setCanPostPublic(data.publicPostCount < 5);
+          }
+        } else {
+          setCanPostPublic(true);
         }
       }
     }
@@ -760,57 +780,57 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   };
 
   const handleCreatePost = async () => {
-    if (!auth.currentUser) {
-      alert('You must be logged in to create a post');
-      return;
+    if (!auth.currentUser) return;
+    
+    const now = new Date();
+    const twoWeeks = 14 * 24 * 60 * 60 * 1000;
+    
+    // Check if this is a public post
+    const isPublicPost = newPost.visibility === "public";
+    
+    if (isPublicPost) {
+      // If this is the first public post in a new window, set the window start
+      if (!publicPostWindowStart) {
+        setPublicPostWindowStart(now.toISOString());
+      }
+      
+      // Check if we've hit the limit
+      if (publicPostCount >= 5) {
+        alert("You've reached the limit of 5 public posts for this two-week period. Please wait until " + 
+          new Date(new Date(publicPostWindowStart).getTime() + twoWeeks).toLocaleDateString() + 
+          " to post publicly again.");
+        return;
+      }
+      
+      // Increment public post count
+      const newPostCount = publicPostCount + 1;
+      setPublicPostCount(newPostCount);
+      
+      // Update Firestore with new post count and window start
+      await updateDoc(doc(db, "athletes", auth.currentUser.uid), {
+        publicPostCount: newPostCount,
+        publicPostWindowStart: publicPostWindowStart || now.toISOString()
+      });
+      
+      // Update local state
+      setCanPostPublic(newPostCount < 5);
     }
 
-    setIsUploadingVideo(true);
-    setIsUploadingImages(true);
+    // Continue with post creation
+    const postData = {
+      ...newPost,
+      userId: auth.currentUser.uid,
+      createdAt: serverTimestamp(),
+    };
+
     try {
-      let videoUrl = '';
-      let imageUrls: string[] = [];
-      
-      // Upload video if one was selected
-      if (workoutVideo && auth.currentUser) {
-        const storage = getStorage();
-        const fileRef = storageRef(storage, `workout-videos/${auth.currentUser.uid}/${Date.now()}_${workoutVideo.name}`);
-        await uploadBytes(fileRef, workoutVideo);
-        videoUrl = await getDownloadURL(fileRef);
-      }
-
-      // Upload images if any were selected
-      if (postImages.length > 0) {
-        const storage = getStorage();
-        const uploadPromises = postImages.map(async (file) => {
-          const fileRef = storageRef(storage, `post-images/${auth.currentUser!.uid}/${Date.now()}_${file.name}`);
-          await uploadBytes(fileRef, file);
-          return getDownloadURL(fileRef);
-        });
-        imageUrls = await Promise.all(uploadPromises);
-      }
-
-      // Save post to Firebase
-      const postData: PostData = {
-        title: newPost.title,
-        description: newPost.description,
-        content: newPost.content,
-        videoLink: videoUrl,
-        images: imageUrls,
-        type: newPost.type,
-        tags: newPost.tags,
-        userId: auth.currentUser.uid,
-        createdAt: serverTimestamp(),
-        visibility: newPost.visibility || "public", // Set the actual visibility
-      };
       await saveAthletePost(auth.currentUser.uid, postData);
-
-      // Reset form
-      setNewPost({ 
-        title: "", 
-        description: "", 
-        content: "", 
-        videoLink: "", 
+      setCreatingPost(false);
+      setNewPost({
+        title: "",
+        description: "",
+        content: "",
+        videoLink: "",
         type: "community",
         images: [],
         visibility: "public",
@@ -818,15 +838,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         userId: "",
         createdAt: null,
       });
-      setWorkoutVideo(null);
-      setPostImages([]);
-      setCreatingPost(false);
     } catch (error) {
       console.error("Error creating post:", error);
       alert("Failed to create post. Please try again.");
-    } finally {
-      setIsUploadingVideo(false);
-      setIsUploadingImages(false);
     }
   };
 
@@ -1366,6 +1380,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     <Button
                       onClick={() => setCreatingPost(true)}
                       className="h-20 bg-orange-500 hover:bg-orange-600 text-white flex flex-col items-center justify-center space-y-2"
+                      disabled={!canPostPublic}
                     >
                       <FileText className="h-6 w-6" />
                       <span>New Post</span>
@@ -1373,6 +1388,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     <Button
                       onClick={() => setCreatingPost(true)}
                       className="h-20 bg-blue-500 hover:bg-blue-600 text-white flex flex-col items-center justify-center space-y-2"
+                      disabled={!canPostPublic}
                     >
                       <Video className="h-6 w-6" />
                       <span>New Workout</span>
@@ -2805,6 +2821,17 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
               </div>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {!canPostPublic && publicPostWindowStart && (
+        <div className="text-red-600 text-center w-full mt-2 mb-4">
+          You've reached the limit of 5 public posts for this two-week period. You can post publicly again on {publicPostWindowStart ? new Date(publicPostWindowStart).toLocaleDateString() : ''}.
+        </div>
+      )}
+      {canPostPublic && publicPostCount > 0 && (
+        <div className="text-blue-600 text-center w-full mt-2 mb-4">
+          You have {5 - publicPostCount} public posts remaining in this two-week period.
         </div>
       )}
     </div>
