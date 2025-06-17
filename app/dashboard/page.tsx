@@ -1,11 +1,19 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { MemberDashboard } from "@/components/member-dashboard"
 import { auth } from "@/lib/firebase"
 
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DashboardContent />
+    </Suspense>
+  )
+}
+
+function DashboardContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const checkoutStatus = searchParams?.get("checkout")
