@@ -69,6 +69,7 @@ const saveAthleteProfile = async (userId: string, profileData: Record<string, an
   try {
     await setDoc(doc(db, "athletes", userId), {
       ...profileData,
+      lastProfileEdit: new Date().toISOString(),
     }, { merge: true });
   } catch (error) {
     console.error("Error saving athlete profile:", error);
@@ -207,10 +208,17 @@ const addSubscriptionForMember = async (userId: string, athleteId: string, plan:
   const userRef = doc(db, "members", userId);
   const userSnap = await getDoc(userRef);
   const member = userSnap.data() || {};
+  const now = new Date().toISOString();
+  const newSub = {
+    status: "active",
+    lastPaymentDate: now,
+    cancelAt: null,
+    plan,
+  };
   await updateDoc(userRef, {
-    subscriptions: arrayUnion(athleteId),
-    subscriptionDates: { ...(member.subscriptionDates || {}), [athleteId]: new Date().toISOString() },
-    subscriptionPlans: { ...(member.subscriptionPlans || {}), [athleteId]: plan }
+    [`subscriptions.${athleteId}`]: newSub,
+    [`subscriptionDates.${athleteId}`]: now,
+    [`subscriptionPlans.${athleteId}`]: plan
   });
   // Increment the athlete's subscribers count
   const athleteRef = doc(db, "athletes", athleteId);

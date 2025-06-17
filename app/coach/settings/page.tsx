@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
-import { collection, query, where, getDocs, deleteDoc, doc } from "firebase/firestore";
+import { collection, query, where, getDocs, deleteDoc, doc, getDoc } from "firebase/firestore";
 import { CreditCard, MessageSquare, Shield } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { CoachStripeOnboarding } from "@/components/coach-stripe-onboarding";
@@ -26,6 +26,30 @@ export default function CoachSettingsPage() {
   const [saved, setSaved] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
+  const [lastProfileEdit, setLastProfileEdit] = useState<string | null>(null);
+  const [canEdit, setCanEdit] = useState(true);
+
+  useEffect(() => {
+    async function fetchLastEdit() {
+      if (!auth.currentUser) return;
+      const userId = auth.currentUser.uid;
+      const docSnap = await getDoc(doc(db, "athletes", userId));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setLastProfileEdit(data.lastProfileEdit || null);
+        if (data.lastProfileEdit) {
+          const lastEditDate = new Date(data.lastProfileEdit);
+          const now = new Date();
+          const diff = now.getTime() - lastEditDate.getTime();
+          const twoWeeks = 14 * 24 * 60 * 60 * 1000;
+          setCanEdit(diff > twoWeeks);
+        } else {
+          setCanEdit(true);
+        }
+      }
+    }
+    fetchLastEdit();
+  }, []);
 
   async function deleteCoachAccount() {
     if (!auth.currentUser) return alert("Not logged in!");
@@ -53,6 +77,9 @@ export default function CoachSettingsPage() {
 
   function handleSave() {
     setSaved(true);
+    const now = new Date();
+    setCanEdit(false);
+    setLastProfileEdit(now.toISOString());
     setTimeout(() => setSaved(false), 2000);
   }
 
@@ -70,11 +97,11 @@ export default function CoachSettingsPage() {
           <CardContent className="space-y-4">
             <div>
               <Label htmlFor="name">Name</Label>
-              <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" />
+              <Input id="name" value={name} onChange={e => setName(e.target.value)} placeholder="Your name" disabled={!canEdit} />
             </div>
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input id="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Your email" />
+              <Input id="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Your email" disabled={!canEdit} />
             </div>
           </CardContent>
         </Card>
@@ -106,7 +133,12 @@ export default function CoachSettingsPage() {
               }}>
               {deleting ? "Deleting..." : "Delete Account"}
             </Button>
-            <Button className="w-full mt-2" onClick={handleSave}>Save Changes</Button>
+            <Button className="w-full mt-2" onClick={handleSave} disabled={!canEdit}>Save Changes</Button>
+            {!canEdit && lastProfileEdit && (
+              <div className="text-red-600 text-center w-full mt-2">
+                You can't edit your profile until {new Date(new Date(lastProfileEdit).getTime() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString()}.
+              </div>
+            )}
             {saved && <div className="text-green-600 text-center w-full mt-2">Changes saved.</div>}
             <div className="space-y-3 mt-6">
               <Button

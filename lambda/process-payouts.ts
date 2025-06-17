@@ -15,8 +15,8 @@ if (!getApps().length) {
 }
 
 const db = getFirestore();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2023-10-16',
+const stripe = new Stripe('sk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu', {
+  apiVersion: '2025-05-28.basil',
 });
 
 interface AthleteData {
@@ -101,4 +101,69 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
       body: JSON.stringify({ error: error.message }),
     };
   }
-}; 
+};
+
+export async function processPayouts() {
+  try {
+    // Get all athletes with active Stripe accounts
+    const athletesSnapshot = await db.collection('athletes')
+      .where('stripeAccountId', '!=', null)
+      .get();
+
+    const athletes = athletesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as AthleteData[];
+
+    const results = [];
+
+    for (const athlete of athletes) {
+      if (!athlete.stripeAccountId) continue;
+
+      try {
+        // Get the athlete's balance
+        const balance = await stripe.balance.retrieve({
+          stripeAccount: athlete.stripeAccountId,
+        });
+
+        // Calculate available amount (excluding pending amounts)
+        const availableAmount = balance.available.reduce((sum, bal) => {
+          if (bal.currency === 'usd') {
+            return sum + bal.amount;
+          }
+          return sum;
+        }, 0);
+
+        if (availableAmount > 0) {
+          // Create payout
+          const payout = await stripe.payouts.create(
+            {
+              amount: availableAmount,
+              currency: 'usd',
+            },
+            {
+              stripeAccount: athlete.stripeAccountId,
+            }
+          );
+
+          results.push({
+            athleteId: athlete.id,
+            amount: availableAmount / 100, // Convert from cents to dollars
+            status: 'success',
+            payoutId: payout.id
+          });
+        }
+      } catch (error: any) {
+        results.push({
+          athleteId: athlete.id,
+          error: error.message,
+          status: 'error'
+        });
+      }
+    }
+
+    return { results };
+  } catch (error: any) {
+    return { error: error.message };
+  }
+} 

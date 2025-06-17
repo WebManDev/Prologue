@@ -140,13 +140,21 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
     async function fetchSubscribedAthletes() {
       if (!auth.currentUser) return;
       const profileData = await getMemberProfile(auth.currentUser.uid);
-      const subscriptions = profileData?.subscriptions || [];
-      if (subscriptions.length === 0) {
+      const subscriptionsObj = profileData?.subscriptions || {};
+      const now = new Date();
+      const activeAthleteIds = Object.entries(subscriptionsObj)
+        .filter(([athleteId, sub]: any) => {
+          if (sub.status === "active") return true;
+          if (sub.status === "canceled" && sub.cancelAt && new Date(sub.cancelAt) > now) return true;
+          return false;
+        })
+        .map(([athleteId]) => athleteId);
+      if (activeAthleteIds.length === 0) {
         setSubscribedAthletes([]);
         setLoadingSubscribed(false);
         return;
       }
-      const athletes = await getAthletesByIds(subscriptions);
+      const athletes = await getAthletesByIds(activeAthleteIds);
       setSubscribedAthletes(athletes);
       setLoadingSubscribed(false);
     }

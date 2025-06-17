@@ -45,7 +45,7 @@ import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAth
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
-import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, limit, increment, arrayUnion } from "firebase/firestore"
+import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, onSnapshot, updateDoc, doc, serverTimestamp, limit, increment, arrayUnion, getDoc } from "firebase/firestore"
 import { CoachMessagingInterface } from "./coach-messaging-interface"
 import { STRIPE_CONFIG } from "@/lib/stripe"
 import { format } from 'date-fns'
@@ -222,6 +222,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [showMessagingDialog, setShowMessagingDialog] = useState(false);
   const [messageInput, setMessageInput] = useState("");
   const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [lastProfileEdit, setLastProfileEdit] = useState<string | null>(null)
+  const [canEdit, setCanEdit] = useState(true)
 
   const db = getFirestore();
 
@@ -596,13 +598,28 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       // Fetch subscribers from profile
       if (auth.currentUser) {
         const profileData = await getAthleteProfile(auth.currentUser.uid);
+        // Fetch all members to get their subscriptions
+        const membersSnap = await getDocs(collection(db, "members"));
+        let monthlyEarnings = 0;
+        let activeSubscriptions = 0;
+        membersSnap.docs.forEach(docSnap => {
+          const member = docSnap.data();
+          const subs = member.subscriptions || {};
+          const sub = subs[auth.currentUser.uid];
+          if (sub && (sub.status === "active" || (sub.status === "canceled" && sub.cancelAt && new Date(sub.cancelAt) > new Date()))) {
+            const plan = sub.plan;
+            const price = profileData?.pricing?.[plan] || 0;
+            monthlyEarnings += price;
+            activeSubscriptions++;
+          }
+        });
         setDashboardStats({
           subscribers: profileData?.subscribers || 0,
           totalPosts: ownPosts.filter(post => post.visibility === "subscribers").length,
           totalViews,
-          monthlyEarnings: (profileData?.subscribers || 0) * 10,
-          totalEarnings: ((profileData?.subscribers || 0) * 10) * 5, // Example: 5 months
-          activeSubscriptions: profileData?.subscribers || 0,
+          monthlyEarnings,
+          totalEarnings: monthlyEarnings * 5, // Example: 5 months
+          activeSubscriptions,
           thisWeek: {
             newSubscribers: 3, // Placeholder, replace with real logic if available
             contentPublished: thisWeekContent,
@@ -667,6 +684,28 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       if (unsubscribe) unsubscribe();
     };
   }, [activeTab, feedbackPage]);
+
+  useEffect(() => {
+    async function fetchProfile() {
+      if (!auth.currentUser) return;
+      const userId = auth.currentUser.uid;
+      const docSnap = await getDoc(doc(db, "athletes", userId));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setLastProfileEdit(data.lastProfileEdit || null);
+        if (data.lastProfileEdit) {
+          const lastEditDate = new Date(data.lastProfileEdit);
+          const now = new Date();
+          const diff = now.getTime() - lastEditDate.getTime();
+          const twoWeeks = 14 * 24 * 60 * 60 * 1000;
+          setCanEdit(diff > twoWeeks);
+        } else {
+          setCanEdit(true);
+        }
+      }
+    }
+    fetchProfile();
+  }, []);
 
   const fetchEarnings = async () => {
     try {
@@ -1806,7 +1845,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                         location: profileData.location,
                         experience: profileData.experience,
                         certifications: profileData.certifications,
-                        pricing: profileData.pricing
+                        pricing: profileData.pricing,
+                        lastProfileEdit: new Date().toISOString()
                       };
                       await saveAthleteProfile(auth.currentUser.uid, payload);
 
@@ -1845,10 +1885,13 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                           pricing: updatedProfile.pricing || { pro: 9.99, premium: 19.99 }
                         }));
                       }
+                      setCanEdit(false);
+                      setLastProfileEdit(new Date().toISOString());
                     }
                     setEditingProfile(!editingProfile);
                   }}
                   className={editingProfile ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"}
+                  disabled={!canEdit && !editingProfile}
                 >
                   {editingProfile ? (
                     <>
@@ -1863,6 +1906,11 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   )}
                 </Button>
               </div>
+              {!canEdit && lastProfileEdit && !editingProfile && (
+                <div className="text-red-600 text-center w-full mt-2 mb-4">
+                  You can't edit your profile until {new Date(new Date(lastProfileEdit).getTime() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString()}.
+                </div>
+              )}
 
               <div className="grid lg:grid-cols-3 gap-8">
                 {/* Profile Information */}
