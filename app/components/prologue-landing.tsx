@@ -161,7 +161,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
           <button onClick={scrollToTop} className="flex items-center space-x-3 group cursor-pointer">
             <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
               <Image
-                src="/prologue-main-logo.png"
+                src="/Prologue LOGO-1.png"
                 alt="PROLOGUE"
                 width={32}
                 height={32}
@@ -593,7 +593,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
                 <button onClick={scrollToTop} className="flex items-center space-x-3">
                   <div className="w-10 h-10 relative group-hover:scale-110 transition-transform">
                     <Image
-                      src="/prologue-logo.png"
+                      src="/pwl.png"
                       alt="PROLOGUE"
                       width={40}
                       height={40}
@@ -641,7 +641,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
                 <button onClick={scrollToTop} className="flex items-center space-x-2">
                   <div className="w-6 h-6 relative group-hover:scale-110 transition-transform">
                     <Image
-                      src="/prologue-logo.png"
+                      src="/pwl.png"
                       alt="PROLOGUE"
                       width={24}
                       height={24}
