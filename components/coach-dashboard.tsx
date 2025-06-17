@@ -229,6 +229,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [publicPostCount, setPublicPostCount] = useState(0)
   const [publicPostWindowStart, setPublicPostWindowStart] = useState<string | null>(null)
   const [canPostPublic, setCanPostPublic] = useState(true)
+  const [showPostLimitModal, setShowPostLimitModal] = useState(false)
 
   const db = getFirestore();
 
@@ -796,9 +797,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       
       // Check if we've hit the limit
       if (publicPostCount >= 5) {
-        alert("You've reached the limit of 5 public posts for this two-week period. Please wait until " + 
-          new Date(new Date(publicPostWindowStart).getTime() + twoWeeks).toLocaleDateString() + 
-          " to post publicly again.");
+        setShowPostLimitModal(true);
         return;
       }
       
@@ -1083,8 +1082,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   };
 
   const handleLike = async (postId: string) => {
-    if (!currentUserId) return;
-    await likePost(postId, currentUserId);
+    if (!auth.currentUser) return;
+    await likePost(postId, auth.currentUser.uid);
     // Refresh the posts to update the like status
     const publicPostsQuery = query(
       collection(db, "athletePosts"),
@@ -1097,8 +1096,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   };
 
   const handleComment = async (postId: string) => {
-    if (!currentUserId || !commentInputs[postId]?.trim()) return;
-    await addCommentToPost(postId, currentUserId, commentInputs[postId]);
+    if (!auth.currentUser || !commentInputs[postId]?.trim()) return;
+    await addCommentToPost(postId, auth.currentUser.uid, commentInputs[postId]);
     setCommentInputs(prev => ({ ...prev, [postId]: "" }));
     fetchComments(postId);
   };
@@ -1215,27 +1214,22 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   // Handler for private blog post
   const handleCreatePrivateBlogPost = async () => {
     if (!auth.currentUser) return;
-    await saveAthletePost(auth.currentUser.uid, {
-      title: newPrivatePost.title,
-      description: newPrivatePost.description,
-      content: newPrivatePost.content,
-      videoLink: newPrivatePost.videoLink,
-      type: newPrivatePost.type as "blog",
-      images: newPrivatePost.images,
-      tags: newPrivatePost.tags,
-    });
-    setNewPrivatePost({
-      title: "",
+    const postData: PostData = {
+      title: newBlogPost.title,
+      content: newBlogPost.content,
       description: "",
-      content: "",
       videoLink: "",
-      type: "blog" as "blog",
-      images: [],
+      type: "blog",
+      images: newBlogPost.images,
+      visibility: "subscribers",
       tags: [],
-      userId: "",
-      createdAt: null,
-    });
-    setCreatingPost(false);
+      userId: auth.currentUser.uid,
+      createdAt: null
+    };
+    await saveAthletePost(auth.currentUser.uid, postData);
+    setBlogDialogOpen(false)
+    setNewBlogPost({ title: "", content: "", images: [], visibility: "subscribers" })
+    setBlogImageFiles([])
   };
 
   // Handler for private workout post
@@ -1386,9 +1380,18 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                       <span>New Post</span>
                     </Button>
                     <Button
-                      onClick={() => setCreatingPost(true)}
+                      onClick={() => {
+                        setPostType("workout");
+                        setNewPost({
+                          ...newPost,
+                          type: "workout",
+                          visibility: "subscribers",
+                          userId: "",
+                          createdAt: null,
+                        });
+                        setCreatingPost(true);
+                      }}
                       className="h-20 bg-blue-500 hover:bg-blue-600 text-white flex flex-col items-center justify-center space-y-2"
-                      disabled={!canPostPublic}
                     >
                       <Video className="h-6 w-6" />
                       <span>New Workout</span>
@@ -2824,6 +2827,48 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
         </div>
       )}
 
+      {showPostLimitModal && (
+        <Dialog open={showPostLimitModal} onOpenChange={setShowPostLimitModal}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Public Post Limit Reached</DialogTitle>
+              <DialogDescription>
+                You've reached the limit of 5 public posts for this two-week period.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600 mb-2">5/5 Posts Used</div>
+                <p className="text-gray-600">
+                  You can post publicly again on {publicPostWindowStart ? new Date(publicPostWindowStart).toLocaleDateString() : ''}
+                </p>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h4 className="font-semibold text-blue-800 mb-2">What you can do:</h4>
+                <ul className="list-disc list-inside text-blue-700 space-y-1">
+                  <li>Create private posts for your subscribers</li>
+                  <li>Wait until the next two-week period begins</li>
+                  <li>Edit your existing public posts</li>
+                </ul>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowPostLimitModal(false)}>
+                Close
+              </Button>
+              <Button 
+                onClick={() => {
+                  setShowPostLimitModal(false);
+                  setNewPost(prev => ({ ...prev, visibility: "subscribers" }));
+                  setCreatingPost(true);
+                }}
+              >
+                Create Private Post Instead
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       {!canPostPublic && publicPostWindowStart && (
         <div className="text-red-600 text-center w-full mt-2 mb-4">
           You've reached the limit of 5 public posts for this two-week period. You can post publicly again on {publicPostWindowStart ? new Date(publicPostWindowStart).toLocaleDateString() : ''}.
