@@ -224,6 +224,8 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [lastProfileEdit, setLastProfileEdit] = useState<string | null>(null)
   const [canEdit, setCanEdit] = useState(true)
+  const [editCount, setEditCount] = useState(0)
+  const [editWindowStart, setEditWindowStart] = useState<string | null>(null)
 
   const db = getFirestore();
 
@@ -693,12 +695,25 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setLastProfileEdit(data.lastProfileEdit || null);
-        if (data.lastProfileEdit) {
-          const lastEditDate = new Date(data.lastProfileEdit);
-          const now = new Date();
-          const diff = now.getTime() - lastEditDate.getTime();
-          const twoWeeks = 14 * 24 * 60 * 60 * 1000;
-          setCanEdit(diff > twoWeeks);
+        setEditCount(data.editCount || 0);
+        setEditWindowStart(data.editWindowStart || null);
+        
+        const now = new Date();
+        const twoWeeks = 14 * 24 * 60 * 60 * 1000;
+        
+        if (data.editWindowStart) {
+          const windowStart = new Date(data.editWindowStart);
+          const diff = now.getTime() - windowStart.getTime();
+          
+          // If two weeks have passed, reset the edit count and window
+          if (diff > twoWeeks) {
+            setEditCount(0);
+            setEditWindowStart(null);
+            setCanEdit(true);
+          } else {
+            // Check if we've hit the limit of 3 edits
+            setCanEdit(data.editCount < 3);
+          }
         } else {
           setCanEdit(true);
         }
@@ -1833,6 +1848,18 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   onClick={async () => {
                     if (editingProfile) {
                       if (!auth.currentUser) return;
+                      const now = new Date();
+                      const twoWeeks = 14 * 24 * 60 * 60 * 1000;
+                      
+                      // If this is the first edit in a new window, set the window start
+                      if (!editWindowStart) {
+                        setEditWindowStart(now.toISOString());
+                      }
+                      
+                      // Increment edit count
+                      const newEditCount = editCount + 1;
+                      setEditCount(newEditCount);
+                      
                       // 1. Save to Firestore
                       const payload = {
                         name: profileData.name,
@@ -1846,7 +1873,9 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                         experience: profileData.experience,
                         certifications: profileData.certifications,
                         pricing: profileData.pricing,
-                        lastProfileEdit: new Date().toISOString()
+                        lastProfileEdit: now.toISOString(),
+                        editCount: newEditCount,
+                        editWindowStart: editWindowStart || now.toISOString()
                       };
                       await saveAthleteProfile(auth.currentUser.uid, payload);
 
@@ -1885,8 +1914,10 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                           pricing: updatedProfile.pricing || { pro: 9.99, premium: 19.99 }
                         }));
                       }
-                      setCanEdit(false);
-                      setLastProfileEdit(new Date().toISOString());
+                      
+                      // Update edit state
+                      setCanEdit(newEditCount < 3);
+                      setLastProfileEdit(now.toISOString());
                     }
                     setEditingProfile(!editingProfile);
                   }}
@@ -1906,9 +1937,14 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   )}
                 </Button>
               </div>
-              {!canEdit && lastProfileEdit && !editingProfile && (
+              {!canEdit && editWindowStart && (
                 <div className="text-red-600 text-center w-full mt-2 mb-4">
-                  You can't edit your profile until {new Date(new Date(lastProfileEdit).getTime() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString()}.
+                  You've used all 3 profile edits for this two-week period. You can edit again on {new Date(new Date(editWindowStart).getTime() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString()}.
+                </div>
+              )}
+              {canEdit && editCount > 0 && (
+                <div className="text-blue-600 text-center w-full mt-2 mb-4">
+                  You have {3 - editCount} profile edits remaining in this two-week period.
                 </div>
               )}
 
