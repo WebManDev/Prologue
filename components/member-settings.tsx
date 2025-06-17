@@ -123,35 +123,6 @@ export function MemberSettings({ onBackToDashboard }: { onBackToDashboard: () =>
         <h1 className="text-3xl font-bold mb-8 text-gray-900">Settings</h1>
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>My Subscriptions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {subscriptions.length === 0 ? (
-              <div className="text-gray-500">You have no active subscriptions.</div>
-            ) : (
-              subscriptions.map((athlete) => (
-                <div key={athlete.id} className="flex flex-col md:flex-row md:items-center md:justify-between border-b py-3 last:border-b-0">
-                  <div>
-                    <div className="font-semibold">{athlete.name}</div>
-                    <div className="text-sm text-gray-600">{athlete.sport}</div>
-                    <div className="text-xs text-gray-500">Plan: {subscriptionPlans[athlete.id]?.charAt(0).toUpperCase() + subscriptionPlans[athlete.id]?.slice(1)}</div>
-                    <div className="text-xs text-gray-400">Started: {subscriptionDates[athlete.id] ? new Date(subscriptionDates[athlete.id]).toLocaleDateString() : "-"}</div>
-                  </div>
-                  <Button
-                    className="mt-2 md:mt-0"
-                    variant="outline"
-                    onClick={() => handleManagePayment(athlete.id)}
-                    disabled={loadingPortal === athlete.id}
-                  >
-                    {loadingPortal === athlete.id ? "Loading..." : "Manage Payment"}
-                  </Button>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-        <Card className="mb-8">
-          <CardHeader>
             <CardTitle>Profile</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
