@@ -400,6 +400,18 @@ export const likePost = async (postId: string, userId: string) => {
       likedBy: arrayUnion(userId),
       likes: (data.likes || 0) + 1
     });
+    // Send notification to coach if not liking own post
+    if (data.userId && userId !== data.userId) {
+      fetch('/api/coach-notification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          coachId: data.userId,
+          type: 'like',
+          message: `Someone liked your post: "${data.title || 'Untitled'}"`,
+        }),
+      });
+    }
   }
 };
 
@@ -416,6 +428,20 @@ export const addCommentToPost = async (postId: string, userId: string, comment: 
   await updateDoc(postRef, {
     comments: increment(1)
   });
+  // Send notification to coach if not commenting on own post
+  const postSnap = await getDoc(postRef);
+  const postData = postSnap.data();
+  if (postData?.userId && userId !== postData.userId) {
+    fetch('/api/coach-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        coachId: postData.userId,
+        type: 'comment',
+        message: `Someone commented on your post: "${postData.title || 'Untitled'}"`,
+      }),
+    });
+  }
 };
 
 // Export everything in a single statement

@@ -95,6 +95,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       default_payment_method: paymentMethodId,
     })
 
+    // Add notification for the coach (athlete)
+    await adminDb
+      .collection('coaches')
+      .doc(athleteId)
+      .collection('notifications')
+      .add({
+        type: 'subscription',
+        message: `${memberName} has subscribed to you!`,
+        createdAt: new Date(),
+        read: false,
+      });
+
     res.status(200).json({ 
       subscriptionId: subscription.id,
       clientSecret: subscription.latest_invoice as string

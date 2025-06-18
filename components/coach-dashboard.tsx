@@ -52,6 +52,7 @@ import { format } from 'date-fns'
 import StarRating from "./star-rating"
 import { useRouter } from 'next/navigation';
 import { Logo } from "@/components/logo"
+import CoachNotificationButton from './coach-notification-button';
 
 interface AthleteDashboardProps {
   onLogout: () => void
@@ -230,6 +231,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [publicPostWindowStart, setPublicPostWindowStart] = useState<string | null>(null)
   const [canPostPublic, setCanPostPublic] = useState(true)
   const [showPostLimitModal, setShowPostLimitModal] = useState(false)
+  const [coachId, setCoachId] = useState<string | null>(null);
 
   const db = getFirestore();
 
@@ -741,6 +743,13 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
       }
     }
     fetchProfile();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(user => {
+      setCoachId(user ? user.uid : null);
+    });
+    return () => unsubscribe();
   }, []);
 
   const fetchEarnings = async () => {
@@ -1293,7 +1302,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           <Logo />
 
           <div className="flex items-center space-x-4">
-          
+            {coachId && <CoachNotificationButton coachId={coachId} />}
             <Button variant="ghost" onClick={handleLogout} className="text-gray-600 hover:text-gray-700">
               <LogOut className="h-5 w-5 mr-2" />
               Logout
