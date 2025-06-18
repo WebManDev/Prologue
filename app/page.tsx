@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Star, ArrowRight, Play, Users, Trophy, Target } from "lucide-react"
+import { Star, ArrowRight, Play, Users, Trophy, Target, ArrowLeft, User } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { MemberDashboard } from "../components/member-dashboard"
@@ -17,25 +17,24 @@ import PrologueLanding from "./components/prologue-landing"
 export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
+  const [userRole, setUserRole] = useState<string | null>(null)
+  const [showRoleSelection, setShowRoleSelection] = useState(true)
 
-  const handleLoginClick = () => {
-    setShowLogin(true)
-    setIsSignUp(false)
-  }
-
-  const handleSignUpClick = () => {
-    setShowLogin(true)
-    setIsSignUp(true)
-  }
+  const handleBackToLanding = () => {
+    setShowLogin(false);
+    setIsSignUp(false);
+    setUserRole(null);
+    setShowRoleSelection(true);
+  };
 
   if (showLogin) {
-    return <LoginPage onBack={() => setShowLogin(false)} initialIsSignUp={isSignUp} />
+    return <LoginPage onBack={() => setShowLogin(false)} initialIsSignUp={isSignUp} onBackToLanding={handleBackToLanding} />
   }
 
-  return <PrologueLanding onLoginClick={handleLoginClick} onSignUpClick={handleSignUpClick} />
+  return <PrologueLanding onLoginClick={() => setShowLogin(true)} onSignUpClick={() => { setShowLogin(true); setIsSignUp(true); }} />
 }
 
-function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsSignUp: boolean }) {
+function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () => void; initialIsSignUp: boolean; onBackToLanding: () => void }) {
   const [showDashboard, setShowDashboard] = useState<string | null>(null)
   const [isSignUp, setIsSignUp] = useState(initialIsSignUp)
   const [userRole, setUserRole] = useState<string | null>(null)
@@ -83,7 +82,6 @@ function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsS
 
   const handleRoleSelect = (role: string) => {
     setUserRole(role)
-    setShowRoleSelection(false)
   }
 
   const handleBackToRoleSelection = () => {
@@ -281,61 +279,189 @@ function LoginPage({ onBack, initialIsSignUp }: { onBack: () => void; initialIsS
     )
   }
 
-  // Role Selection Screen (shown first for both login and signup)
+  // Role Selection Screen (shown first for both login and signup) - NEW DESIGN
   if (showRoleSelection) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
-        <div className="max-w-md w-full">
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <div className="text-center mb-8">
-              <div className="flex items-center justify-center space-x-2 mb-4">
-                <Logo />
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
+        {/* Athletic Background Elements */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-20 left-20 w-96 h-96 bg-gradient-to-br from-blue-400/10 to-purple-400/10 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-20 right-20 w-80 h-80 bg-gradient-to-br from-orange-400/10 to-red-400/10 rounded-full blur-3xl animate-pulse animation-delay-1000"></div>
+
+          {/* Diagonal Energy Lines */}
+          <div className="absolute top-32 -left-20 w-96 h-2 bg-gradient-to-r from-transparent via-blue-400/20 to-transparent rotate-12 animate-pulse"></div>
+          <div className="absolute bottom-40 -right-20 w-80 h-1 bg-gradient-to-r from-transparent via-orange-400/30 to-transparent -rotate-12 animate-pulse animation-delay-500"></div>
+        </div>
+
+        {/* Header */}
+        <header className="px-6 lg:px-8 h-16 flex items-center justify-between backdrop-blur-md border-b border-gray-700/50 relative z-10">
+          <Link href="/" className="flex items-center space-x-3 group cursor-pointer">
+            <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
+              <Image
+                src="/Prologue LOGO-1.png"
+                alt="PROLOGUE"
+                width={32}
+                height={32}
+                className="w-full h-full object-contain"
+              />
+            </div>
+            <span className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors tracking-wider">
+              PROLOGUE
+            </span>
+          </Link>
+
+          <button
+            type="button"
+            onClick={onBackToLanding}
+            className="flex items-center space-x-2 text-gray-300 hover:text-white transition-all duration-300 group bg-transparent border-none outline-none cursor-pointer"
+          >
+            <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
+            <span className="text-sm font-medium tracking-wide">BACK TO HOME</span>
+          </button>
+        </header>
+
+        {/* Main Content */}
+        <main className="flex-1 flex items-center justify-center px-6 lg:px-8 py-12 relative z-10">
+          <div className="max-w-2xl w-full">
+            {/* Logo and Title Section */}
+            <div className="text-center mb-12">
+              <div className="flex items-center justify-center mb-8">
+                <div className="w-12 h-12 relative mr-4">
+                  <Image
+                    src="/Prologue LOGO-1.png"
+                    alt="PROLOGUE"
+                    width={48}
+                    height={48}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <span className="text-3xl font-black text-white tracking-wider">PROLOGUE</span>
               </div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">I am a...</h1>
-              <p className="text-gray-600">
-                Choose your role to access the right features and dashboard for your needs.
+
+              <h1 className="text-4xl lg:text-5xl font-black text-white mb-6 tracking-tight">
+                I AM A<span className="text-blue-400">...</span>
+              </h1>
+
+              <p className="text-lg text-gray-300 max-w-lg mx-auto leading-relaxed">
+                Choose your role to access the right features and dashboard for your athletic journey.
               </p>
             </div>
 
-            <div className="space-y-4">
+            {/* Role Selection Cards */}
+            <div className="space-y-6 mb-12">
+              {/* Member Card */}
               <button
                 onClick={() => handleRoleSelect("member")}
-                className="w-full p-6 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all duration-300 text-left group"
+                className={`w-full p-8 rounded-none border-2 transition-all duration-300 group text-left ${
+                  userRole === "member"
+                    ? "border-blue-400 bg-white/10 backdrop-blur-sm shadow-2xl scale-105"
+                    : "border-gray-600/50 bg-white/5 backdrop-blur-sm hover:border-blue-400/50 hover:bg-white/8 hover:scale-102"
+                }`}
               >
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-                    <span className="text-2xl">🏀</span>
+                <div className="flex items-start space-x-6">
+                  <div
+                    className={`w-16 h-16 rounded-none flex items-center justify-center transition-all duration-300 ${
+                      userRole === "member"
+                        ? "bg-gradient-to-r from-blue-400 to-purple-600 shadow-xl"
+                        : "bg-gradient-to-r from-gray-600 to-gray-500 group-hover:from-blue-400 group-hover:to-purple-600"
+                    }`}
+                  >
+                    <User className="h-8 w-8 text-white" />
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-1">Member</h3>
-                    <p className="text-sm text-gray-600">I want to learn from athletes and improve my skills</p>
+
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold text-white mb-3 tracking-wide">MEMBER</h3>
+                    <p className="text-gray-300 text-lg leading-relaxed">
+                      I want to learn from elite athletes and improve my skills through personalized coaching.
+                    </p>
                   </div>
+
+                  {userRole === "member" && (
+                    <div className="w-6 h-6 bg-blue-400 rounded-full flex items-center justify-center">
+                      <div className="w-2 h-2 bg-white rounded-full"></div>
+                    </div>
+                  )}
                 </div>
               </button>
 
+              {/* Athlete Card */}
               <button
                 onClick={() => handleRoleSelect("athlete")}
-                className="w-full p-6 border-2 border-gray-200 rounded-xl hover:border-orange-500 hover:bg-orange-50 transition-all duration-300 text-left group"
+                className={`w-full p-8 rounded-none border-2 transition-all duration-300 group text-left ${
+                  userRole === "athlete"
+                    ? "border-orange-400 bg-white/10 backdrop-blur-sm shadow-2xl scale-105"
+                    : "border-gray-600/50 bg-white/5 backdrop-blur-sm hover:border-orange-400/50 hover:bg-white/8 hover:scale-102"
+                }`}
               >
-                <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center group-hover:bg-orange-200 transition-colors">
-                    <span className="text-2xl">🏆</span>
+                <div className="flex items-start space-x-6">
+                  <div
+                    className={`w-16 h-16 rounded-none flex items-center justify-center transition-all duration-300 ${
+                      userRole === "athlete"
+                        ? "bg-gradient-to-r from-orange-400 to-red-500 shadow-xl"
+                        : "bg-gradient-to-r from-gray-600 to-gray-500 group-hover:from-orange-400 group-hover:to-red-500"
+                    }`}
+                  >
+                    <Trophy className="h-8 w-8 text-white" />
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-1">Athlete</h3>
-                    <p className="text-sm text-gray-600">I want to share my expertise and coach others</p>
+
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold text-white mb-3 tracking-wide">ATHLETE</h3>
+                    <p className="text-gray-300 text-lg leading-relaxed">
+                      I want to share my expertise and coach others to reach their athletic potential.
+                    </p>
                   </div>
+
+                  {userRole === "athlete" && (
+                    <div className="w-6 h-6 bg-orange-400 rounded-full flex items-center justify-center">
+                      <div className="w-2 h-2 bg-white rounded-full"></div>
+                    </div>
+                  )}
                 </div>
               </button>
             </div>
 
-            <div className="mt-8">
-              <Button variant="ghost" onClick={onBack} className="w-full text-gray-600 hover:text-gray-700">
-                ← Back to homepage
+            {/* Continue Button */}
+            <div className="text-center">
+              <Button
+                size="lg"
+                disabled={!userRole}
+                onClick={() => userRole && setShowRoleSelection(false)}
+                className={`px-12 py-6 text-lg font-black tracking-wider rounded-none shadow-2xl transition-all duration-300 border-2 ${
+                  userRole
+                    ? userRole === "member"
+                      ? "bg-gradient-to-r from-blue-400 to-purple-600 hover:from-blue-500 hover:to-purple-700 text-white border-transparent hover:border-white/30 hover:scale-110 hover:shadow-3xl"
+                      : "bg-gradient-to-r from-orange-400 to-red-500 hover:from-orange-500 hover:to-red-600 text-white border-transparent hover:border-white/30 hover:scale-110 hover:shadow-3xl"
+                    : "bg-gray-600 text-gray-400 border-gray-600 cursor-not-allowed"
+                }`}
+              >
+                {userRole ? (
+                  <>
+                    CONTINUE AS {userRole.toUpperCase()}
+                    <ArrowRight className="ml-3 h-5 w-5" />
+                  </>
+                ) : (
+                  "SELECT YOUR ROLE"
+                )}
               </Button>
             </div>
+
+            {/* Back Link */}
+            <div className="text-center mt-8">
+              <button
+                type="button"
+                onClick={onBackToLanding}
+                className="inline-flex items-center space-x-2 text-gray-400 hover:text-white transition-all duration-300 group font-medium tracking-wide bg-transparent border-none outline-none cursor-pointer"
+              >
+                <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
+                <span>BACK TO HOMEPAGE</span>
+              </button>
+            </div>
           </div>
-        </div>
+        </main>
+
+        {/* Athletic Accent Elements */}
+        <div className="absolute bottom-0 right-0 w-32 h-32 bg-gradient-to-tl from-orange-400/20 to-transparent rounded-full blur-2xl"></div>
+        <div className="absolute top-0 left-0 w-40 h-40 bg-gradient-to-br from-blue-400/20 to-transparent rounded-full blur-2xl"></div>
       </div>
     )
   }
