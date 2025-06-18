@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, isSignInWithEmailLink, sendSignInLinkToEmail } from "firebase/auth";
-import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc, serverTimestamp, onSnapshot, orderBy, query, deleteDoc, increment, enableIndexedDbPersistence, arrayRemove } from "firebase/firestore";
+import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc, serverTimestamp, onSnapshot, orderBy, query, deleteDoc, increment, enableIndexedDbPersistence, arrayRemove, writeBatch, where } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const firebaseConfig = {
@@ -185,6 +185,17 @@ const saveAthletePost = async (
     await updateDoc(athleteRef, {
       posts: (await getDoc(athleteRef)).data()?.posts + 1 || 1
     });
+    
+    // Notify subscribers if this is a subscriber-only post
+    if (enforcedVisibility === "subscribers") {
+      await notifySubscribersOfNewPost(userId, {
+        id: postRef.id,
+        title: post.title,
+        type: post.type,
+        description: post.description
+      });
+    }
+    
     return postRef;
   } catch (error) {
     console.error("Error saving athlete post:", error);
@@ -444,6 +455,151 @@ export const addCommentToPost = async (postId: string, userId: string, comment: 
   }
 };
 
+// Function to create a notification for a member
+const createMemberNotification = async (
+  memberId: string,
+  notification: {
+    type: 'new_post' | 'new_workout' | 'new_blog' | 'new_feedback' | 'new_feed';
+    title: string;
+    message: string;
+    coachId: string;
+    coachName: string;
+    postId?: string;
+    feedbackRequestId?: string;
+    data?: any;
+  }
+) => {
+  try {
+    await addDoc(collection(db, "members", memberId, "notifications"), {
+      ...notification,
+      createdAt: Timestamp.now(),
+      read: false,
+    });
+  } catch (error) {
+    console.error("Error creating member notification:", error);
+    throw error;
+  }
+};
+
+// Function to get member notifications
+const getMemberNotifications = async (memberId: string) => {
+  try {
+    const notificationsRef = collection(db, "members", memberId, "notifications");
+    const q = query(notificationsRef, orderBy("createdAt", "desc"));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error("Error getting member notifications:", error);
+    throw error;
+  }
+};
+
+// Function to mark notification as read
+const markNotificationAsRead = async (memberId: string, notificationId: string) => {
+  try {
+    const notificationRef = doc(db, "members", memberId, "notifications", notificationId);
+    await updateDoc(notificationRef, { read: true });
+  } catch (error) {
+    console.error("Error marking notification as read:", error);
+    throw error;
+  }
+};
+
+// Function to mark all notifications as read
+const markAllNotificationsAsRead = async (memberId: string) => {
+  try {
+    const notificationsRef = collection(db, "members", memberId, "notifications");
+    const q = query(notificationsRef, where("read", "==", false));
+    const snapshot = await getDocs(q);
+    
+    const batch = writeBatch(db);
+    snapshot.docs.forEach(doc => {
+      batch.update(doc.ref, { read: true });
+    });
+    
+    await batch.commit();
+  } catch (error) {
+    console.error("Error marking all notifications as read:", error);
+    throw error;
+  }
+};
+
+// Function to notify all subscribers when a coach creates a post
+const notifySubscribersOfNewPost = async (
+  coachId: string,
+  post: {
+    id: string;
+    title: string;
+    type: "blog" | "workout" | "community";
+    description?: string;
+  }
+) => {
+  try {
+    // Get all subscribers for this coach
+    const subscribers = await getSubscribersForAthlete(coachId);
+    const coachProfile = await getAthleteProfile(coachId);
+    
+    if (!subscribers.length || !coachProfile) return;
+    
+    // Create notifications for all subscribers
+    const notificationPromises = subscribers.map(subscriber => {
+      const notificationType = post.type === "workout" ? "new_workout" : 
+                              post.type === "blog" ? "new_blog" : "new_feed";
+      
+      const title = post.type === "workout" ? "New Workout Available" :
+                   post.type === "blog" ? "New Blog Post" : "New Community Post";
+      
+      const message = post.type === "workout" ? `${coachProfile.name} posted a new workout: ${post.title}` :
+                     post.type === "blog" ? `${coachProfile.name} published a new blog: ${post.title}` :
+                     `${coachProfile.name} shared a new post: ${post.title}`;
+      
+      return createMemberNotification(subscriber.id, {
+        type: notificationType,
+        title,
+        message,
+        coachId,
+        coachName: coachProfile.name || "Coach",
+        postId: post.id,
+        data: {
+          postTitle: post.title,
+          postDescription: post.description,
+          postType: post.type
+        }
+      });
+    });
+    
+    await Promise.all(notificationPromises);
+  } catch (error) {
+    console.error("Error notifying subscribers of new post:", error);
+  }
+};
+
+// Function to notify member when coach provides video feedback
+const notifyMemberOfFeedback = async (
+  memberId: string,
+  coachId: string,
+  feedbackRequestId: string,
+  feedbackText: string
+) => {
+  try {
+    const coachProfile = await getAthleteProfile(coachId);
+    
+    await createMemberNotification(memberId, {
+      type: "new_feedback",
+      title: "Video Feedback Received",
+      message: `${coachProfile?.name || "Coach"} has provided feedback on your video submission`,
+      coachId,
+      coachName: coachProfile?.name || "Coach",
+      feedbackRequestId,
+      data: {
+        feedbackText: feedbackText.substring(0, 100) + (feedbackText.length > 100 ? "..." : "")
+      }
+    });
+  } catch (error) {
+    console.error("Error notifying member of feedback:", error);
+  }
+};
+
 // Export everything in a single statement
 export {
   auth,
@@ -466,5 +622,11 @@ export {
   smartSignIn,
   handleRedirectResult,
   initializeFirebase,
-  db
+  db,
+  createMemberNotification,
+  getMemberNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  notifySubscribersOfNewPost,
+  notifyMemberOfFeedback
 }; 

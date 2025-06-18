@@ -30,6 +30,7 @@ import { getFirestore, collection, query, where, getDocs, Timestamp, orderBy, on
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Logo } from "@/components/logo"
 import { useRouter } from "next/navigation"
+import MemberNotificationButton from './member-notification-button'
 
 interface MemberDashboardProps {
   onLogout: () => void
@@ -335,9 +336,10 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
 
     // Find userIds that are not in athleteProfiles or memberProfiles
     const missingUserIds = comments
-      .map(c => c.userId)
+      .map(c => (c as any).userId)
       .filter(
         (userId) =>
+          userId &&
           !athleteProfiles?.[userId] &&
           !memberProfiles[userId]
       );
@@ -500,7 +502,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                 {(postComments[post.id] || []).length > 0 && (
                   <div className="space-y-3">
                     {(postComments[post.id] || []).map((c) => {
-                      const commenter = athleteProfiles[c.userId] || memberProfiles[c.userId] || {};
+                      const commenter = athleteProfiles[(c as any).userId] || memberProfiles[(c as any).userId] || {};
                       return (
                         <div key={c.id} className="flex items-start space-x-3">
                           <img
@@ -682,9 +684,12 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                 </button>
               </nav>
 
-              <Button onClick={handleLogout} variant="outline">
-                Logout
-              </Button>
+              <div className="flex items-center space-x-4">
+                {auth.currentUser && <MemberNotificationButton memberId={auth.currentUser.uid} />}
+                <Button onClick={handleLogout} variant="outline">
+                  Logout
+                </Button>
+              </div>
             </div>
           </header>
 

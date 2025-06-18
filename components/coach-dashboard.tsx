@@ -951,13 +951,36 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const handleFeedbackResponse = async (requestId: string, rating: number, text: string) => {
     if (!auth.currentUser) return;
     setFeedbackInputs((prev) => ({ ...prev, [requestId]: { ...prev[requestId], submitting: true } }));
-    await updateDoc(doc(db, "videoFeedbackRequests", requestId), {
-      status: "completed",
-      response: text,
-      rating,
-      respondedAt: serverTimestamp()
-    });
-    setFeedbackInputs((prev) => ({ ...prev, [requestId]: { rating: 0, text: "", submitting: false } }));
+    
+    try {
+      // Get the feedback request to find the member ID
+      const requestRef = doc(db, "videoFeedbackRequests", requestId);
+      const requestSnap = await getDoc(requestRef);
+      const requestData = requestSnap.data();
+      
+      if (requestData) {
+        // Update the feedback request
+        await updateDoc(requestRef, {
+          status: "completed",
+          response: text,
+          rating,
+          respondedAt: serverTimestamp()
+        });
+        
+        // Notify the member about the feedback
+        const { notifyMemberOfFeedback } = await import('@/lib/firebase');
+        await notifyMemberOfFeedback(
+          requestData.userId,
+          auth.currentUser.uid,
+          requestId,
+          text
+        );
+      }
+    } catch (error) {
+      console.error("Error providing feedback:", error);
+    } finally {
+      setFeedbackInputs((prev) => ({ ...prev, [requestId]: { rating: 0, text: "", submitting: false } }));
+    }
   };
 
   const handleEditPost = async (post: any) => {
