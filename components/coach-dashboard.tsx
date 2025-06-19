@@ -39,6 +39,7 @@ import {
   X,
   Home,
   Image,
+  BookOpen,
 } from "lucide-react"
 import { CoachStripeOnboarding } from "./coach-stripe-onboarding"
 import { signOut, auth, getAthleteProfile, saveAthletePost, getSubscribersForAthlete, updateAthletePost, deleteAthletePost, saveAthleteProfile, likePost, addCommentToPost, sendMessage, getChatId } from "@/lib/firebase"
@@ -1365,7 +1366,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <Button
                       onClick={() => setCreatingPost(true)}
                       className="h-20 bg-orange-500 hover:bg-orange-600 text-white flex flex-col items-center justify-center space-y-2"
@@ -1390,6 +1391,13 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                     >
                       <Video className="h-6 w-6" />
                       <span>New Workout</span>
+                    </Button>
+                    <Button
+                      onClick={() => router.push('/coach/create-course')}
+                      className="h-20 bg-indigo-500 hover:bg-indigo-600 text-white flex flex-col items-center justify-center space-y-2"
+                    >
+                      <BookOpen className="h-6 w-6" />
+                      <span>Create Course</span>
                     </Button>
                     <Button
                       onClick={() => setShowMessagingDialog(true)}

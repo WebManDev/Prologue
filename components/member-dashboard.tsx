@@ -21,6 +21,7 @@ import {
   FileText,
   CreditCard,
   AlertCircle,
+  BookOpen,
 } from "lucide-react"
 import Image from "next/image"
 import { MemberMessagingInterface } from "./member-messaging-interface"
@@ -83,6 +84,8 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   const [commentOpen, setCommentOpen] = useState<{ [postId: string]: boolean }>({});
   const [postComments, setPostComments] = useState<{ [postId: string]: any[] }>({});
   const [totalPrivateContent, setTotalPrivateContent] = useState(0);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [loadingCourses, setLoadingCourses] = useState(true);
   const currentUserId = auth.currentUser?.uid;
   const db = getFirestore();
   const router = useRouter();
@@ -206,6 +209,28 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
   }, []);
 
   useEffect(() => {
+    // Fetch all courses from courses collection
+    async function fetchCourses() {
+      setLoadingCourses(true);
+      try {
+        const coursesQuery = query(
+          collection(db, "courses"),
+          orderBy("createdAt", "desc")
+        );
+        const coursesSnap = await getDocs(coursesQuery);
+        const coursesData = coursesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setCourses(coursesData);
+      } catch (error) {
+        console.error("Error fetching courses:", error);
+        setCourses([]);
+      } finally {
+        setLoadingCourses(false);
+      }
+    }
+    fetchCourses();
+  }, []);
+
+  useEffect(() => {
     // Fetch all athlete profiles for mapping userId to name/profilePicture
     async function fetchAthleteProfiles() {
       try {
@@ -299,6 +324,39 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
       onLogout()
     } catch (error) {
       console.error("Error signing out:", error)
+    }
+  }
+
+  const handlePurchaseCourse = async (course: any) => {
+    if (!auth.currentUser) {
+      alert("Please log in to purchase courses");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/stripe/create-course-checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          courseId: course.id,
+          courseTitle: course.title,
+          coursePrice: course.price,
+          userId: auth.currentUser.uid,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert("Failed to create checkout session");
+      }
+    } catch (error) {
+      console.error("Error creating checkout session:", error);
+      alert("Failed to process purchase");
     }
   }
 
@@ -677,6 +735,12 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                   Discover
                 </button>
                 <button
+                  onClick={() => setActiveTab("courses")}
+                  className={`transition-colors ${activeTab === "courses" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
+                >
+                  Courses
+                </button>
+                <button
                   onClick={() => setActiveTab("messages")}
                   className={`transition-colors ${activeTab === "messages" ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
                 >
@@ -706,13 +770,20 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid md:grid-cols-3 gap-4">
+                      <div className="grid md:grid-cols-4 gap-4">
                         <Button
                           onClick={() => setActiveTab("discover")}
                           className="h-20 bg-orange-500 hover:bg-orange-600 text-white flex flex-col items-center justify-center space-y-2"
                         >
                           <Plus className="h-6 w-6" />
                           <span>Find Athletes</span>
+                        </Button>
+                        <Button
+                          onClick={() => setActiveTab("courses")}
+                          className="h-20 bg-indigo-500 hover:bg-indigo-600 text-white flex flex-col items-center justify-center space-y-2"
+                        >
+                          <BookOpen className="h-6 w-6" />
+                          <span>Browse Courses</span>
                         </Button>
                         <Button
                           onClick={() => setActiveTab("athletes")}
@@ -729,14 +800,6 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                         >
                           <MessageSquare className="h-6 w-6" />
                           <span>Messages</span>
-                        </Button>
-                        <Button
-                          onClick={() => router.push('/member/settings')}
-                          variant="outline"
-                          className="h-20 flex flex-col items-center justify-center space-y-2"
-                        >
-                          <CreditCard className="h-6 w-6" />
-                          <span>Settings</span>
                         </Button>
                       </div>
                     </CardContent>
@@ -1050,6 +1113,103 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                       <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                       <h3 className="text-lg font-medium text-gray-900 mb-2">No athletes found</h3>
                       <p className="text-gray-600">Try adjusting your search criteria</p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="courses">
+                <div className="space-y-6">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                      <h1 className="text-3xl font-bold text-gray-900 mb-2">Available Courses</h1>
+                      <p className="text-gray-600">
+                        Explore courses from top coaches and athletes
+                      </p>
+                    </div>
+                  </div>
+
+                  {loadingCourses ? (
+                    <div className="text-center py-12">
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                      <p className="text-gray-600">Loading courses...</p>
+                    </div>
+                  ) : courses.length === 0 ? (
+                    <div className="text-center py-12">
+                      <BookOpen className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-700 mb-2">No courses available yet</h3>
+                      <p className="text-gray-500">Check back later for new courses from coaches.</p>
+                    </div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {courses.map((course) => (
+                        <Card key={course.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                          {course.thumbnail && (
+                            <div className="aspect-video bg-gray-100 overflow-hidden">
+                              <img
+                                src={course.thumbnail}
+                                alt={course.title}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                          )}
+                          <CardContent className="p-6">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1">
+                                <h3 className="font-semibold text-lg text-gray-900 mb-1 line-clamp-2">
+                                  {course.title}
+                                </h3>
+                                <p className="text-sm text-gray-600 line-clamp-2 mb-3">
+                                  {course.description}
+                                </p>
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-600">Price:</span>
+                                <span className="font-semibold text-lg text-green-600">
+                                  ${course.price.toFixed(2)}
+                                </span>
+                              </div>
+                              
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-600">Duration:</span>
+                                <span className="font-medium">{course.duration}</span>
+                              </div>
+                              
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-600">Level:</span>
+                                <Badge variant="outline" className="capitalize">
+                                  {course.level}
+                                </Badge>
+                              </div>
+                              
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-600">Lessons:</span>
+                                <span className="font-medium">{course.lessons?.length || 0}</span>
+                              </div>
+                              
+                              {course.category && (
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="text-gray-600">Category:</span>
+                                  <Badge variant="secondary">{course.category}</Badge>
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="mt-6 pt-4 border-t">
+                              <Button
+                                onClick={() => handlePurchaseCourse(course)}
+                                className="w-full bg-green-600 hover:bg-green-700"
+                              >
+                                <CreditCard className="h-4 w-4 mr-2" />
+                                Purchase Course
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
                   )}
                 </div>
