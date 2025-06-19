@@ -231,6 +231,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [publicPostWindowStart, setPublicPostWindowStart] = useState<string | null>(null)
   const [canPostPublic, setCanPostPublic] = useState(true)
   const [showPostLimitModal, setShowPostLimitModal] = useState(false)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [coachId, setCoachId] = useState<string | null>(null);
 
   const db = getFirestore();
@@ -834,6 +835,14 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     try {
       await saveAthletePost(auth.currentUser.uid, postData);
       setCreatingPost(false);
+      
+      // Show success message based on post type
+      if (newPost.type === "workout") {
+        setSuccessMessage("Successfully made a workout!");
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccessMessage(null), 3000);
+      }
+      
       setNewPost({
         title: "",
         description: "",
@@ -1333,6 +1342,16 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
           </div>
         </div>
       </header>
+
+      {/* Success Message */}
+      {successMessage && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center space-x-2">
+            <CheckCircle className="h-5 w-5" />
+            <span>{successMessage}</span>
+          </div>
+        </div>
+      )}
 
       <div className="container mx-auto px-4 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
