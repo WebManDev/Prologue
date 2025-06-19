@@ -53,6 +53,7 @@ import StarRating from "./star-rating"
 import { useRouter } from 'next/navigation';
 import { Logo } from "@/components/logo"
 import CoachNotificationButton from './coach-notification-button';
+import { usePostCreation } from '@/hooks/usePostCreation';
 
 interface AthleteDashboardProps {
   onLogout: () => void
@@ -233,6 +234,20 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
   const [showPostLimitModal, setShowPostLimitModal] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [coachId, setCoachId] = useState<string | null>(null);
+
+  // Use the post creation hook
+  const { handleCreatePost } = usePostCreation({
+    newPost,
+    setNewPost,
+    setCreatingPost,
+    setSuccessMessage,
+    publicPostCount,
+    setPublicPostCount,
+    publicPostWindowStart,
+    setPublicPostWindowStart,
+    setCanPostPublic,
+    setShowPostLimitModal
+  });
 
   const db = getFirestore();
 
@@ -788,77 +803,6 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
     });
 
     setPostImages(prev => [...prev, ...validFiles]);
-  };
-
-  const handleCreatePost = async () => {
-    if (!auth.currentUser) return;
-    
-    const now = new Date();
-    const twoWeeks = 14 * 24 * 60 * 60 * 1000;
-    
-    // Check if this is a public post
-    const isPublicPost = newPost.visibility === "public";
-    
-    if (isPublicPost) {
-      // If this is the first public post in a new window, set the window start
-      if (!publicPostWindowStart) {
-        setPublicPostWindowStart(now.toISOString());
-      }
-      
-      // Check if we've hit the limit
-      if (publicPostCount >= 5) {
-        setShowPostLimitModal(true);
-        return;
-      }
-      
-      // Increment public post count
-      const newPostCount = publicPostCount + 1;
-      setPublicPostCount(newPostCount);
-      
-      // Update Firestore with new post count and window start
-      await updateDoc(doc(db, "athletes", auth.currentUser.uid), {
-        publicPostCount: newPostCount,
-        publicPostWindowStart: publicPostWindowStart || now.toISOString()
-      });
-      
-      // Update local state
-      setCanPostPublic(newPostCount < 5);
-    }
-
-    // Continue with post creation
-    const postData = {
-      ...newPost,
-      userId: auth.currentUser.uid,
-      createdAt: serverTimestamp(),
-    };
-
-    try {
-      await saveAthletePost(auth.currentUser.uid, postData);
-      setCreatingPost(false);
-      
-      // Show success message based on post type
-      if (newPost.type === "workout") {
-        setSuccessMessage("Successfully made a workout!");
-        // Clear success message after 3 seconds
-        setTimeout(() => setSuccessMessage(null), 3000);
-      }
-      
-      setNewPost({
-        title: "",
-        description: "",
-        content: "",
-        videoLink: "",
-        type: "community",
-        images: [],
-        visibility: "public",
-        tags: [],
-        userId: "",
-        createdAt: null,
-      });
-    } catch (error) {
-      console.error("Error creating post:", error);
-      alert("Failed to create post. Please try again.");
-    }
   };
 
   const requestPayout = async () => {
