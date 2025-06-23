@@ -13,6 +13,7 @@ import { AthleteOnboarding } from "../components/athlete-onboarding"
 import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider } from "@/lib/firebase"
 import { Logo } from "@/components/logo"
 import PrologueLanding from "./components/prologue-landing"
+import AthleteLoginPage from "./athlete/login/page"
 
 export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false)
@@ -467,6 +468,23 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
   }
 
   // Main Login/Signup Form (shown after role selection)
+  if (userRole === "athlete" && !showRoleSelection) {
+    return (
+      <AthleteLoginPage
+        isSignUp={isSignUp}
+        loading={isLoading}
+        error={error}
+        formData={{ email, password }}
+        setFormData={({ email, password }) => {
+          setEmail(email);
+          setPassword(password);
+        }}
+        onSubmit={isSignUp ? handleSignUp : handleLoginSubmit}
+        onBack={handleBackToRoleSelection}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
       <div className="max-w-md w-full">
