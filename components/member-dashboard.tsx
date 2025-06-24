@@ -455,7 +455,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
           <CardContent className="p-6">
             <div className="flex items-center space-x-3 mb-4">
               <img
-                src={athlete.profilePicture || "/placeholder.svg"}
+                src={athlete.profilePicture || "/Prologue LOGO-1.png"}
                 alt={athlete.name || "Athlete"}
                 className="w-10 h-10 rounded-full"
               />
@@ -534,7 +534,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
               <div className="mt-4 border-t pt-4 bg-gray-50 rounded-lg p-4">
                 <div className="flex items-start space-x-3 mb-4">
                   <img
-                    src={profile?.profilePicture || "/placeholder.svg"}
+                    src={profile?.profilePicture || "/Prologue LOGO-1.png"}
                     alt="Your avatar"
                     className="w-8 h-8 rounded-full"
                   />
@@ -564,7 +564,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                       return (
                         <div key={c.id} className="flex items-start space-x-3">
                           <img
-                            src={commenter.profilePicture || "/placeholder.svg"}
+                            src={commenter.profilePicture || "/Prologue LOGO-1.png"}
                             alt="Commenter avatar"
                             className="w-8 h-8 rounded-full"
                           />
@@ -826,7 +826,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                                 className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-2 sm:space-y-0 p-2 hover:bg-gray-50 rounded-lg cursor-pointer"
                                 onClick={() => setMessagingCoach(athlete)}
                               >
-                                <Image src={athlete.profilePic || "/placeholder.svg"} alt={athlete.name} width={32} height={32} className="rounded-full mx-auto sm:mx-0" />
+                                <Image src={athlete.profilePic || "/Prologue LOGO-1.png"} alt={athlete.name} width={32} height={32} className="rounded-full mx-auto sm:mx-0" />
                                 <div className="flex-1 min-w-0 text-center sm:text-left">
                                   <p className="font-medium text-sm">{athlete.name}</p>
                                   <div className="flex flex-wrap justify-center sm:justify-start gap-1 mt-1">
@@ -955,7 +955,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                           <CardContent className="p-6">
                             <div className="flex items-center space-x-3 mb-4">
                               <Image
-                                src={athlete.profilePic || "/placeholder.svg"}
+                                src={athlete.profilePic || "/Prologue LOGO-1.png"}
                                 alt={athlete.name}
                                 width={60}
                                 height={60}
@@ -1062,7 +1062,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                           <CardContent className="p-6">
                             <div className="flex items-center space-x-3 mb-4">
                               <Image
-                                src={athlete.profilePicture || "/placeholder.svg"}
+                                src={athlete.profilePicture || "/Prologue LOGO-1.png"}
                                 alt={athlete.name}
                                 width={60}
                                 height={60}
@@ -1239,7 +1239,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center space-x-3">
                                 <Image
-                                  src={athlete.profilePic || "/placeholder.svg"}
+                                  src={athlete.profilePic || "/Prologue LOGO-1.png"}
                                   alt={athlete.name}
                                   width={48}
                                   height={48}
@@ -1355,7 +1355,7 @@ function AthleteProfileView({
         <div className="bg-white rounded-lg p-8 mb-8">
           <div className="flex items-start space-x-6">
             <Image
-              src={athlete.profilePic || "/placeholder.svg"}
+              src={athlete.profilePic || "/Prologue LOGO-1.png"}
               alt={athlete.name}
               width={120}
               height={120}
