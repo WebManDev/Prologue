@@ -355,7 +355,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
             <div className="space-y-6 mb-12">
               {/* Member Card */}
               <button
-                onClick={() => router.push("/member/login")}
+                onClick={() => setUserRole("member")}
                 className={`w-full p-8 rounded-none border-2 transition-all duration-300 group text-left ${
                   userRole === "member"
                     ? "border-blue-400 bg-white/10 backdrop-blur-sm shadow-2xl scale-105"
