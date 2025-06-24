@@ -47,6 +47,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
   const [selectedSport, setSelectedSport] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
+  const [googleLoading, setGoogleLoading] = useState(false)
 
   const sports = [
     "Basketball",
@@ -168,18 +169,11 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
 
   // Handle Google Sign In
   const handleGoogleSignIn = async () => {
-    if (!userRole) {
-      setError("Please select a role first");
-      return;
-    }
-
-    setIsLoading(true);
+    setGoogleLoading(true);
     setError("");
-
     try {
       const provider = new GoogleAuthProvider();
       const result = await smartSignIn(provider);
-      
       if (result) {
         // Handle successful popup sign-in
         if (userRole === "member") {
@@ -199,7 +193,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
     } catch (error: any) {
       setError(error.message);
     } finally {
-      setIsLoading(false);
+      setGoogleLoading(false);
     }
   };
 
@@ -481,6 +475,9 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
         }}
         onSubmit={isSignUp ? handleSignUp : handleLoginSubmit}
         onBack={handleBackToRoleSelection}
+        onGoogleSignIn={handleGoogleSignIn}
+        googleLoading={googleLoading}
+        onToggleSignUp={() => setIsSignUp((prev) => !prev)}
       />
     );
   }

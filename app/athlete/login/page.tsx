@@ -18,6 +18,7 @@ export interface AthleteLoginPageProps {
   onBack: () => void;
   onGoogleSignIn?: () => void;
   googleLoading?: boolean;
+  onToggleSignUp: () => void;
 }
 
 const AthleteLoginPage: React.FC<AthleteLoginPageProps> = ({
@@ -30,6 +31,7 @@ const AthleteLoginPage: React.FC<AthleteLoginPageProps> = ({
   onBack,
   onGoogleSignIn,
   googleLoading,
+  onToggleSignUp,
 }) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-900 via-slate-800 to-red-800 relative overflow-hidden">
@@ -38,7 +40,7 @@ const AthleteLoginPage: React.FC<AthleteLoginPageProps> = ({
         <Link href="/" className="flex items-center space-x-3 group cursor-pointer">
           <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
             <Image
-              src="/prologue-main-logo.png"
+              src="/Prologue LOGO-1.png"
               alt="PROLOGUE"
               width={32}
               height={32}
@@ -163,7 +165,7 @@ const AthleteLoginPage: React.FC<AthleteLoginPageProps> = ({
                   <button
                     type="button"
                     className="text-orange-500 hover:text-orange-600 font-medium underline"
-                    onClick={onBack}
+                    onClick={onToggleSignUp}
                   >
                     {isSignUp ? "Sign in" : "Sign up"}
                   </button>
