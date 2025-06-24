@@ -17,6 +17,7 @@ import AthleteLoginPage from "./athlete/login/page"
 import { useRouter } from "next/navigation"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import MemberLoginPage from "./member/login/page"
 
 export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false)
@@ -52,6 +53,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
   const [isInitializing, setIsInitializing] = useState(true)
   const [googleLoading, setGoogleLoading] = useState(false)
   const router = useRouter();
+  const [showMemberLogin, setShowMemberLogin] = useState(false);
 
   const sports = [
     "Basketball",
@@ -431,7 +433,8 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
                 disabled={!userRole}
                 onClick={() => {
                   if (userRole === "member") {
-                    router.push("/member/login");
+                    setShowMemberLogin(true);
+                    setShowRoleSelection(false);
                   } else if (userRole === "athlete") {
                     setShowRoleSelection(false);
                   }
@@ -474,6 +477,15 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
         <div className="absolute top-0 left-0 w-40 h-40 bg-gradient-to-br from-blue-400/20 to-transparent rounded-full blur-2xl"></div>
       </div>
     )
+  }
+
+  // Show Member Login Page as a component (not a route)
+  if (showMemberLogin) {
+    return <MemberLoginPage onBack={() => {
+      setShowMemberLogin(false);
+      setShowRoleSelection(true);
+      setUserRole(null);
+    }} />;
   }
 
   // Restore the athlete/coach modal login flow as before
