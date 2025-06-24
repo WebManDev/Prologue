@@ -63,10 +63,10 @@ export default function MemberLoginPage({ onBack }: { onBack?: () => void } = {}
     <div className="min-h-screen bg-gradient-to-br from-blue-900 via-slate-800 to-blue-800 relative overflow-hidden">
       {/* Header */}
       <header className="px-6 lg:px-8 h-16 flex items-center justify-between backdrop-blur-md border-b border-gray-700/50 relative z-10">
-        <Link href="/" className="flex items-center space-x-3 group cursor-pointer">
+        <div className="flex items-center space-x-3 group cursor-pointer">
           <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
             <Image
-              src="/prologue-main-logo.png"
+              src="/Prologue LOGO-1.png"
               alt="PROLOGUE"
               width={32}
               height={32}
@@ -76,7 +76,7 @@ export default function MemberLoginPage({ onBack }: { onBack?: () => void } = {}
           <span className="text-xl font-athletic font-bold text-white group-hover:text-prologue-electric transition-colors tracking-wider">
             PROLOGUE
           </span>
-        </Link>
+        </div>
 
         <button
           type="button"
