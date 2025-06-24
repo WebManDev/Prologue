@@ -89,12 +89,8 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
   }, []);
 
   const handleRoleSelect = (role: string) => {
-    if (role === "member") {
-      router.push("/member/login");
-    } else {
-      setUserRole(role);
-      setShowRoleSelection(false);
-    }
+    setUserRole(role);
+    setShowRoleSelection(false);
   }
 
   const handleBackToRoleSelection = () => {
