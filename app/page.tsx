@@ -13,7 +13,7 @@ import { AthleteOnboarding } from "../components/athlete-onboarding"
 import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider } from "@/lib/firebase"
 import { Logo } from "@/components/logo"
 import PrologueLanding from "./components/prologue-landing"
-import AthleteLoginPage from "./athlete/login/page"
+import AthleteLoginPage from "./athlete/login/AthleteLoginPage"
 import { useRouter } from "next/navigation"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -98,10 +98,20 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
   }
 
   const handleBackToRoleSelection = () => {
-    setShowRoleSelection(true)
-    setUserRole(null)
-    setIsSignUp(false)
-    setError("")
+    console.log("handleBackToRoleSelection called"); // Debug log
+    console.log("Current state before update:", { userRole, showRoleSelection }); // Debug log
+    
+    // Update all states in a single batch to avoid race conditions
+    setShowRoleSelection(true);
+    setUserRole(null);
+    setIsSignUp(false);
+    setError("");
+    setEmail("");
+    setPassword("");
+    setName("");
+    setSelectedSport("");
+    
+    console.log("State updates queued"); // Debug log
   }
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -496,7 +506,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
         loading={isLoading}
         error={error}
         formData={{ email, password }}
-        setFormData={({ email, password }) => {
+        setFormData={({ email, password }: { email: string; password: string }) => {
           setEmail(email);
           setPassword(password);
         }}
