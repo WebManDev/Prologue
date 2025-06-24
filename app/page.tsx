@@ -455,8 +455,13 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
                 disabled={!userRole}
                 onClick={() => {
                   if (userRole === "member") {
-                    setShowMemberLogin(true);
-                    setShowRoleSelection(false);
+                    if (isSignUp) {
+                      // Route to member signup page
+                      router.push("/signup/member");
+                    } else {
+                      setShowMemberLogin(true);
+                      setShowRoleSelection(false);
+                    }
                   } else if (userRole === "athlete") {
                     setShowRoleSelection(false);
                   }
