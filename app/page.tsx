@@ -14,6 +14,9 @@ import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveA
 import { Logo } from "@/components/logo"
 import PrologueLanding from "./components/prologue-landing"
 import AthleteLoginPage from "./athlete/login/page"
+import { useRouter } from "next/navigation"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 
 export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false)
@@ -48,6 +51,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
   const [isLoading, setIsLoading] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
   const [googleLoading, setGoogleLoading] = useState(false)
+  const router = useRouter();
 
   const sports = [
     "Basketball",
@@ -83,7 +87,12 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
   }, []);
 
   const handleRoleSelect = (role: string) => {
-    setUserRole(role)
+    if (role === "member") {
+      router.push("/member/login");
+    } else {
+      setUserRole(role);
+      setShowRoleSelection(false);
+    }
   }
 
   const handleBackToRoleSelection = () => {
@@ -346,7 +355,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
             <div className="space-y-6 mb-12">
               {/* Member Card */}
               <button
-                onClick={() => handleRoleSelect("member")}
+                onClick={() => router.push("/member/login")}
                 className={`w-full p-8 rounded-none border-2 transition-all duration-300 group text-left ${
                   userRole === "member"
                     ? "border-blue-400 bg-white/10 backdrop-blur-sm shadow-2xl scale-105"
@@ -381,7 +390,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
 
               {/* Athlete Card */}
               <button
-                onClick={() => handleRoleSelect("athlete")}
+                onClick={() => setUserRole("athlete")}
                 className={`w-full p-8 rounded-none border-2 transition-all duration-300 group text-left ${
                   userRole === "athlete"
                     ? "border-orange-400 bg-white/10 backdrop-blur-sm shadow-2xl scale-105"
@@ -420,7 +429,13 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
               <Button
                 size="lg"
                 disabled={!userRole}
-                onClick={() => userRole && setShowRoleSelection(false)}
+                onClick={() => {
+                  if (userRole === "member") {
+                    router.push("/member/login");
+                  } else if (userRole === "athlete") {
+                    setShowRoleSelection(false);
+                  }
+                }}
                 className={`px-12 py-6 text-lg font-black tracking-wider rounded-none shadow-2xl transition-all duration-300 border-2 ${
                   userRole
                     ? userRole === "member"
@@ -461,7 +476,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
     )
   }
 
-  // Main Login/Signup Form (shown after role selection)
+  // Restore the athlete/coach modal login flow as before
   if (userRole === "athlete" && !showRoleSelection) {
     return (
       <AthleteLoginPage
