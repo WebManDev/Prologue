@@ -55,6 +55,11 @@ export default function LoginPage({ onBack, initialIsSignUp }: LoginPageProps) {
     setUserRole(null)
     setIsSignUp(false)
     setError("")
+    setEmail("")
+    setPassword("")
+    setName("")
+    setSelectedSport("")
+    setLoading(false)
   }
 
   const handleLoginSubmit = async (e: React.FormEvent) => {

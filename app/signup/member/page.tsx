@@ -79,7 +79,7 @@ export default function MemberSignUpPage() {
           </span>
         </Link>
 
-        <Link href="/member/login" className="flex items-center space-x-2 text-gray-300 hover:text-white group bg-transparent border-none outline-none cursor-pointer">
+        <Link href="/?reset=true" className="flex items-center space-x-2 text-gray-300 hover:text-white group bg-transparent border-none outline-none cursor-pointer">
           <ArrowLeft className="h-4 w-4" />
           <span className="text-sm">BACK TO LOGIN</span>
         </Link>

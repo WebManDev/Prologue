@@ -25,6 +25,21 @@ export default function LandingPage() {
   const [userRole, setUserRole] = useState<string | null>(null)
   const [showRoleSelection, setShowRoleSelection] = useState(true)
 
+  // Check for reset parameter and reset state if needed
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('reset') === 'true') {
+        setShowLogin(true);
+        setIsSignUp(false);
+        setUserRole(null);
+        setShowRoleSelection(true);
+        // Clean up the URL
+        window.history.replaceState({}, '', '/');
+      }
+    }
+  }, []);
+
   const handleBackToLanding = () => {
     setShowLogin(false);
     setIsSignUp(false);
@@ -106,6 +121,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
     setPassword("");
     setName("");
     setSelectedSport("");
+    setShowMemberLogin(false);
     
     console.log("State updates queued"); // Debug log
   }
@@ -487,11 +503,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
 
   // Show Member Login Page as a component (not a route)
   if (showMemberLogin) {
-    return <MemberLoginPage onBack={() => {
-      setShowMemberLogin(false);
-      setShowRoleSelection(true);
-      setUserRole(null);
-    }} />;
+    return <MemberLoginPage onBack={handleBackToRoleSelection} />;
   }
 
   // Restore the athlete/coach modal login flow as before
