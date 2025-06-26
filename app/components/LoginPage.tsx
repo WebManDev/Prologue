@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider } from "@/lib/firebase"
+import { auth, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider } from "@/lib/firebase"
+import { signInWithPersistence } from "@/lib/auth-persistence"
 
 interface LoginPageProps {
   onBack: () => void
@@ -68,7 +69,7 @@ export default function LoginPage({ onBack, initialIsSignUp }: LoginPageProps) {
     setLoading(true)
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      const userCredential = await signInWithPersistence(auth, email, password, 'local')
       
       if (userRole === "member") {
         // Redirect to member dashboard

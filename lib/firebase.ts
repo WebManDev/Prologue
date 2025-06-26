@@ -2,6 +2,7 @@ import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, isSignInWithEmailLink, sendSignInLinkToEmail } from "firebase/auth";
 import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc, serverTimestamp, onSnapshot, orderBy, query, deleteDoc, increment, enableIndexedDbPersistence, arrayRemove, writeBatch, where } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { initializeAuthPersistence, getRecommendedPersistence, signInWithGooglePersistence } from "./auth-persistence";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBYUD1AZoCCLBGpICzMJ7dvwrsFeF0UWwQ",
@@ -29,11 +30,14 @@ enableIndexedDbPersistence(db).catch((err) => {
   }
 });
 
-// Set persistence to LOCAL (this will persist the auth state even after page reload)
-setPersistence(auth, browserLocalPersistence)
-  .catch((error) => {
-    console.error("Error setting auth persistence:", error);
+// Initialize auth persistence with user preference or recommended setting
+initializeAuthPersistence(auth).catch((error) => {
+  console.error("Error initializing auth persistence:", error);
+  // Fallback to local persistence if initialization fails
+  setPersistence(auth, browserLocalPersistence).catch((fallbackError) => {
+    console.error("Error setting fallback auth persistence:", fallbackError);
   });
+});
 
 // Initialize connection state
 let isInitialized = false;
@@ -362,14 +366,14 @@ const deleteAthletePost = async (postId: string, userId: string) => {
 // Smart authentication function that uses popup with fallback to redirect
 const smartSignIn = async (provider: GoogleAuthProvider) => {
   try {
-    // First try popup
-    const result = await signInWithPopup(auth, provider);
+    // Use the persistence-aware Google sign-in
+    const result = await signInWithGooglePersistence(auth, 'local', true);
     return result;
   } catch (error: any) {
     // If popup fails (e.g., blocked by browser), fall back to redirect
     if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
       console.log('Popup blocked or closed, falling back to redirect...');
-      await signInWithRedirect(auth, provider);
+      await signInWithGooglePersistence(auth, 'local', false);
       // Note: The redirect result will be handled when the page reloads
       return null;
     }

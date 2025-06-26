@@ -9,7 +9,8 @@ import { ArrowLeft, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { auth, signInWithEmailAndPassword, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider } from "@/lib/firebase"
+import { auth, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider } from "@/lib/firebase"
+import { signInWithPersistence } from "@/lib/auth-persistence"
 
 export default function MemberLoginPage({ onBack }: { onBack?: () => void } = {}) {
   const router = useRouter()
@@ -34,7 +35,7 @@ export default function MemberLoginPage({ onBack }: { onBack?: () => void } = {}
     setError("")
     setLoading(true)
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, formData.email, formData.password)
+      const userCredential = await signInWithPersistence(auth, formData.email, formData.password, 'local')
       router.push("/member-dashboard")
     } catch (err: any) {
       setError(err.message)

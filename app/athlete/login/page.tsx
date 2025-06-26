@@ -4,13 +4,13 @@ import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import AthleteLoginPage from "./AthleteLoginPage";
 import {
-  signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   smartSignIn,
   saveAthleteProfile,
   auth,
 } from "@/lib/firebase";
+import { signInWithPersistence } from "@/lib/auth-persistence";
 
 const AthleteLoginPageContainer: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -36,7 +36,7 @@ const AthleteLoginPageContainer: React.FC = () => {
         router.push("/athlete/dashboard");
       } else {
         // Sign in logic
-        await signInWithEmailAndPassword(auth, formData.email, formData.password);
+        await signInWithPersistence(auth, formData.email, formData.password, 'local');
         router.push("/athlete/dashboard");
       }
     } catch (err: any) {

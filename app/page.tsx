@@ -4,13 +4,13 @@ import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Star, ArrowRight, Play, Users, Trophy, Target, ArrowLeft, User } from "lucide-react"
+import { Star, ArrowRight, Play, Users, Trophy, Target, ArrowLeft, User, Eye, EyeOff, Mail, Lock } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { MemberDashboard } from "../components/member-dashboard"
 import { CoachDashboard } from "../components/coach-dashboard"
 import { AthleteOnboarding } from "../components/athlete-onboarding"
-import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider } from "@/lib/firebase"
+import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider, getMemberProfile } from "@/lib/firebase"
 import { Logo } from "@/components/logo"
 import PrologueLanding from "./components/prologue-landing"
 import AthleteLoginPage from "./athlete/login/AthleteLoginPage"
@@ -18,12 +18,15 @@ import { useRouter } from "next/navigation"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import MemberLoginPage from "./member/login/page"
+import { signInWithPersistence } from "@/lib/auth-persistence"
 
 export default function LandingPage() {
   const [showLogin, setShowLogin] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [showRoleSelection, setShowRoleSelection] = useState(true)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
+  const [showDashboard, setShowDashboard] = useState<string | null>(null)
 
   // Check for reset parameter and reset state if needed
   useEffect(() => {
@@ -34,10 +37,63 @@ export default function LandingPage() {
         setIsSignUp(false);
         setUserRole(null);
         setShowRoleSelection(true);
+        setShowDashboard(null);
         // Clean up the URL
         window.history.replaceState({}, '', '/');
       }
     }
+  }, []);
+
+  // Check authentication state on page load
+  useEffect(() => {
+    const checkAuthState = async () => {
+      try {
+        await initializeFirebase();
+        
+        const unsubscribe = auth.onAuthStateChanged(async (user) => {
+          if (user) {
+            // User is logged in, check their role and redirect accordingly
+            try {
+              // Check if user is an athlete
+              const athleteProfile = await getAthleteProfile(user.uid);
+              if (athleteProfile) {
+                if (athleteProfile.name && athleteProfile.bio && athleteProfile.specialties?.length > 0) {
+                  setShowDashboard("athlete-dashboard");
+                } else {
+                  setShowDashboard("athlete");
+                }
+                return;
+              }
+
+              // Check if user is a member
+              const memberProfile = await getMemberProfile(user.uid);
+              if (memberProfile) {
+                setShowDashboard("member");
+                return;
+              }
+
+              // If no profile found, show role selection
+              setShowRoleSelection(true);
+            } catch (error) {
+              console.error("Error checking user profile:", error);
+              setShowRoleSelection(true);
+            }
+          } else {
+            // User is not logged in
+            setShowDashboard(null);
+            setShowRoleSelection(true);
+          }
+          setIsCheckingAuth(false);
+        });
+
+        return () => unsubscribe();
+      } catch (error) {
+        console.error("Error initializing Firebase:", error);
+        setIsCheckingAuth(false);
+      }
+    };
+
+    checkAuthState();
   }, []);
 
   const handleBackToLanding = () => {
@@ -45,7 +101,57 @@ export default function LandingPage() {
     setIsSignUp(false);
     setUserRole(null);
     setShowRoleSelection(true);
+    setShowDashboard(null);
   };
+
+  // Show loading state while checking authentication
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show appropriate dashboard if user is logged in
+  if (showDashboard === "member") {
+    return (
+      <MemberDashboard
+        onLogout={() => {
+          setShowDashboard(null)
+          setShowRoleSelection(true)
+        }}
+      />
+    )
+  }
+
+  if (showDashboard === "athlete") {
+    return (
+      <AthleteOnboarding
+        onComplete={() => {
+          setShowDashboard("athlete-dashboard")
+        }}
+        onLogout={() => {
+          setShowDashboard(null)
+          setShowRoleSelection(true)
+        }}
+      />
+    )
+  }
+
+  if (showDashboard === "athlete-dashboard") {
+    return (
+      <CoachDashboard
+        onLogout={() => {
+          setShowDashboard(null)
+          setShowRoleSelection(true)
+        }}
+      />
+    )
+  }
 
   if (showLogin) {
     return <LoginPage onBack={() => setShowLogin(false)} initialIsSignUp={isSignUp} onBackToLanding={handleBackToLanding} />
@@ -55,7 +161,6 @@ export default function LandingPage() {
 }
 
 function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () => void; initialIsSignUp: boolean; onBackToLanding: () => void }) {
-  const [showDashboard, setShowDashboard] = useState<string | null>(null)
   const [isSignUp, setIsSignUp] = useState(initialIsSignUp)
   const [userRole, setUserRole] = useState<string | null>(null)
   const [showRoleSelection, setShowRoleSelection] = useState(true)
@@ -132,24 +237,10 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
     setIsLoading(true)
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password)
+      const userCredential = await signInWithPersistence(auth, email, password, 'local')
       
-      if (userRole === "member") {
-        setShowDashboard("member")
-      } else if (userRole === "athlete") {
-        // Check if athlete has completed their profile
-        const profile = await getAthleteProfile(userCredential.user.uid)
-        if (!profile) {
-          // No profile exists, show onboarding
-          setShowDashboard("athlete")
-        } else if (profile.name && profile.bio && profile.specialties?.length > 0) {
-          // Profile is complete, go straight to dashboard
-          setShowDashboard("athlete-dashboard")
-        } else {
-          // Profile exists but is incomplete, show onboarding
-          setShowDashboard("athlete")
-        }
-      }
+      // After successful login, redirect to home page which will handle auth state
+      window.location.href = "/"
     } catch (error: any) {
       setError(error.message)
     } finally {
@@ -188,11 +279,8 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
         });
       }
 
-      if (userRole === "member") {
-        setShowDashboard("member")
-      } else if (userRole === "athlete") {
-        setShowDashboard("athlete")
-      }
+      // After successful signup, redirect to home page which will handle auth state
+      window.location.href = "/"
     } catch (error: any) {
       setError(error.message)
     } finally {
@@ -208,19 +296,8 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
       const provider = new GoogleAuthProvider();
       const result = await smartSignIn(provider);
       if (result) {
-        // Handle successful popup sign-in
-        if (userRole === "member") {
-          setShowDashboard("member");
-        } else if (userRole === "athlete") {
-          const profile = await getAthleteProfile(result.user.uid);
-          if (!profile) {
-            setShowDashboard("athlete");
-          } else if (profile.name && profile.bio && profile.specialties?.length > 0) {
-            setShowDashboard("athlete-dashboard");
-          } else {
-            setShowDashboard("athlete");
-          }
-        }
+        // After successful Google sign-in, redirect to home page which will handle auth state
+        window.location.href = "/"
       }
       // If result is null, it means we're using redirect and the page will reload
     } catch (error: any) {
@@ -236,19 +313,8 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
       try {
         const result = await handleRedirectResult();
         if (result) {
-          // Handle successful redirect sign-in
-          if (userRole === "member") {
-            setShowDashboard("member");
-          } else if (userRole === "athlete") {
-            const profile = await getAthleteProfile(result.user.uid);
-            if (!profile) {
-              setShowDashboard("athlete");
-            } else if (profile.name && profile.bio && profile.specialties?.length > 0) {
-              setShowDashboard("athlete-dashboard");
-            } else {
-              setShowDashboard("athlete");
-            }
-          }
+          // After successful redirect sign-in, redirect to home page which will handle auth state
+          window.location.href = "/"
         }
       } catch (error: any) {
         setError(error.message);
@@ -256,7 +322,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
     };
 
     checkRedirectResult();
-  }, [userRole]);
+  }, []);
 
   // Show loading state while initializing
   if (isInitializing) {
@@ -268,43 +334,6 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
         </div>
       </div>
     );
-  }
-
-  // Show Dashboard after successful login
-  if (showDashboard === "member") {
-    return (
-      <MemberDashboard
-        onLogout={() => {
-          setShowDashboard(null)
-          onBack()
-        }}
-      />
-    )
-  }
-
-  if (showDashboard === "athlete") {
-    return (
-      <AthleteOnboarding
-        onComplete={() => {
-          setShowDashboard("athlete-dashboard")
-        }}
-        onLogout={() => {
-          setShowDashboard(null)
-          onBack()
-        }}
-      />
-    )
-  }
-
-  if (showDashboard === "athlete-dashboard") {
-    return (
-      <CoachDashboard
-        onLogout={() => {
-          setShowDashboard(null)
-          onBack()
-        }}
-      />
-    )
   }
 
   // Role Selection Screen (shown first for both login and signup) - NEW DESIGN
@@ -463,47 +492,25 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
                       setShowRoleSelection(false);
                     }
                   } else if (userRole === "athlete") {
-                    setShowRoleSelection(false);
+                    if (isSignUp) {
+                      // Route to athlete signup page
+                      router.push("/athlete/login");
+                    } else {
+                      // Route to athlete login page
+                      router.push("/athlete/login");
+                    }
                   }
                 }}
-                className={`px-12 py-6 text-lg font-black tracking-wider rounded-none shadow-2xl transition-all duration-300 border-2 ${
-                  userRole
-                    ? userRole === "member"
-                      ? "bg-gradient-to-r from-blue-400 to-purple-600 hover:from-blue-500 hover:to-purple-700 text-white border-transparent hover:border-white/30 hover:scale-110 hover:shadow-3xl"
-                      : "bg-gradient-to-r from-orange-400 to-red-500 hover:from-orange-500 hover:to-red-600 text-white border-transparent hover:border-white/30 hover:scale-110 hover:shadow-3xl"
-                    : "bg-gray-600 text-gray-400 border-gray-600 cursor-not-allowed"
-                }`}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-3 px-8 rounded-none border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
               >
-                {userRole ? (
-                  <>
-                    CONTINUE AS {userRole.toUpperCase()}
-                    <ArrowRight className="ml-3 h-5 w-5" />
-                  </>
-                ) : (
-                  "SELECT YOUR ROLE"
-                )}
+                CONTINUE
+                <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
-            </div>
-
-            {/* Back Link */}
-            <div className="text-center mt-8">
-              <button
-                type="button"
-                onClick={onBackToLanding}
-                className="inline-flex items-center space-x-2 text-gray-400 hover:text-white transition-all duration-300 group font-medium tracking-wide bg-transparent border-none outline-none cursor-pointer"
-              >
-                <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
-                <span>BACK TO HOMEPAGE</span>
-              </button>
             </div>
           </div>
         </main>
-
-        {/* Athletic Accent Elements */}
-        <div className="absolute bottom-0 right-0 w-32 h-32 bg-gradient-to-tl from-orange-400/20 to-transparent rounded-full blur-2xl"></div>
-        <div className="absolute top-0 left-0 w-40 h-40 bg-gradient-to-br from-blue-400/20 to-transparent rounded-full blur-2xl"></div>
       </div>
-    )
+    );
   }
 
   // Show Member Login Page as a component (not a route)
