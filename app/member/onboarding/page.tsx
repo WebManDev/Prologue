@@ -139,7 +139,7 @@ export default function MemberProfileSetupPage() {
             <Link href="/member-home" className="flex items-center space-x-3 group cursor-pointer">
               <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
                 <Image
-                  src="/prologue-main-logo.png"
+                  src="/Prologue LOGO-1.png"
                   alt="PROLOGUE"
                   width={32}
                   height={32}
@@ -151,7 +151,19 @@ export default function MemberProfileSetupPage() {
               </span>
             </Link>
 
-            <Button variant="outline" size="sm" className="text-gray-700 border-gray-300 hover:bg-gray-50">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="text-gray-700 border-gray-300 hover:bg-gray-50"
+              onClick={async () => {
+                try {
+                  await auth.signOut()
+                  router.push("/")
+                } catch (error) {
+                  console.error("Error signing out:", error)
+                }
+              }}
+            >
               Logout
             </Button>
           </div>

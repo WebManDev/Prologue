@@ -50,6 +50,7 @@ interface MemberProfile {
     emailUpdates: boolean;
   };
   subscriptionPlans?: { [athleteId: string]: 'basic' | 'pro' | 'premium' };
+  onboardingCompleted?: boolean;
 }
 
 function formatDate(ts: any) {

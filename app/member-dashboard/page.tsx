@@ -3,7 +3,7 @@
 import { useEffect, Suspense, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { MemberDashboard } from "@/components/member-dashboard"
-import { auth } from "@/lib/firebase"
+import { auth, getMemberProfile } from "@/lib/firebase"
 
 export default function MemberDashboardPage() {
   return (
@@ -20,11 +20,23 @@ function MemberDashboardContent() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (!user) {
         router.push("/")
         return
       }
+
+      // Check if user has completed onboarding
+      try {
+        const memberProfile = await getMemberProfile(user.uid)
+        if (memberProfile && !memberProfile.onboardingCompleted) {
+          router.push("/member/onboarding")
+          return
+        }
+      } catch (error) {
+        console.error("Error checking member profile:", error)
+      }
+
       setIsCheckingAuth(false)
     })
 

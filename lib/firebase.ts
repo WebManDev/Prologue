@@ -104,7 +104,8 @@ const saveMemberProfile = async (userId: string, profileData: {
   name: string;
   email: string;
   sport: string;
-  role: string; 
+  role: string;
+  [key: string]: any; // Allow additional properties
 }) => {
   try {
     await setDoc(doc(db, "members", userId), {

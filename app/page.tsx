@@ -50,11 +50,13 @@ export default function LandingPage() {
         await initializeFirebase();
         
         const unsubscribe = auth.onAuthStateChanged(async (user) => {
+          console.log("Auth state changed, user:", user?.uid)
           if (user) {
             // User is logged in, check their role and redirect accordingly
             try {
               // Check if user is an athlete
               const athleteProfile = await getAthleteProfile(user.uid);
+              console.log("Athlete profile:", athleteProfile)
               if (athleteProfile) {
                 if (athleteProfile.name && athleteProfile.bio && athleteProfile.specialties?.length > 0) {
                   setShowDashboard("athlete-dashboard");
@@ -66,12 +68,22 @@ export default function LandingPage() {
 
               // Check if user is a member
               const memberProfile = await getMemberProfile(user.uid);
+              console.log("Member profile:", memberProfile)
               if (memberProfile) {
-                setShowDashboard("member");
+                // Check if onboarding is completed
+                console.log("Onboarding completed:", memberProfile.onboardingCompleted)
+                if (memberProfile.onboardingCompleted) {
+                  setShowDashboard("member");
+                } else {
+                  // Redirect to onboarding page
+                  console.log("Redirecting to onboarding from auth check")
+                  window.location.href = "/member/onboarding";
+                }
                 return;
               }
 
               // If no profile found, show role selection
+              console.log("No profile found, showing role selection")
               setShowRoleSelection(true);
             } catch (error) {
               console.error("Error checking user profile:", error);
@@ -79,6 +91,7 @@ export default function LandingPage() {
             }
           } else {
             // User is not logged in
+            console.log("User not logged in")
             setShowDashboard(null);
             setShowRoleSelection(true);
           }
@@ -114,16 +127,16 @@ export default function LandingPage() {
   };
 
   // Show loading state while checking authentication
-  if (isCheckingAuth) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Checking authentication...</p>
-        </div>
-      </div>
-    );
-  }
+  // if (isCheckingAuth) {
+  //   return (
+  //     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
+  //       <div className="text-center">
+  //         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+  //         <p className="text-gray-600">Checking authentication...</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   // Show appropriate dashboard if user is logged in
   if (showDashboard === "member") {
@@ -166,8 +179,7 @@ export default function LandingPage() {
     return <LoginPage onBack={() => setShowLogin(false)} initialIsSignUp={isSignUp} onBackToLanding={handleBackToLanding} />
   }
 
-  const router = useRouter();
-  return <PrologueLanding onLoginClick={handleLoginClick} onSignUpClick={handleSignUpClick} />
+   return <PrologueLanding onLoginClick={handleLoginClick} onSignUpClick={handleSignUpClick} />
 }
 
 function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () => void; initialIsSignUp: boolean; onBackToLanding: () => void }) {
@@ -265,7 +277,13 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
       // Use Firebase authentication instead of simulation
       const userCredential = await signInWithPersistence(auth, formData.email, formData.password, 'local')
       
-      // After successful login, redirect to home page which will handle auth state
+      // After successful login, check role and route accordingly
+      const athleteProfile = await getAthleteProfile(userCredential.user.uid)
+      if (athleteProfile) {
+        window.location.href = "/athleteDashboard"
+        return
+      }
+      // Default: redirect to home page which will handle auth state
       window.location.href = "/"
     } catch (error: any) {
       console.error("Login error:", error)
@@ -312,15 +330,32 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
           role: "athlete"
         });
       } else if (selectedRole === "member") {
+        console.log("Saving member profile for user:", userCredential.user.uid)
         await saveMemberProfile(userCredential.user.uid, {
           name: formData.name,
           email: formData.email,
           sport: formData.sport,
-          role: "member"
+          role: "member",
+          onboardingCompleted: false // Will be set to true after onboarding
         });
+        console.log("Member profile saved successfully")
+        
+        // Add a small delay to ensure Firestore has time to save
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        // Verify the profile was saved
+        const savedProfile = await getMemberProfile(userCredential.user.uid)
+        console.log("Verified saved profile:", savedProfile)
+        
+        if (savedProfile && savedProfile.onboardingCompleted === false) {
+          console.log("Redirecting to onboarding page")
+          window.location.href = "/member/onboarding"
+          return
+        }
       }
 
       // After successful signup, redirect to home page which will handle auth state
+      console.log("Redirecting to home page")
       window.location.href = "/"
     } catch (error: any) {
       console.error("Signup error:", error)
@@ -386,7 +421,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
         <Link href="/" className="flex items-center space-x-3 group cursor-pointer">
           <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
             <Image
-              src="/prologue-main-logo.png"
+              src="/Prologue LOGO-1.png"
               alt="PROLOGUE"
               width={32}
               height={32}
