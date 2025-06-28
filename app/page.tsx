@@ -13,7 +13,6 @@ import { AthleteOnboarding } from "../components/athlete-onboarding"
 import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider, getMemberProfile } from "@/lib/firebase"
 import { Logo } from "@/components/logo"
 import PrologueLanding from "./components/prologue-landing"
-import AthleteLoginPage from "./athlete/login/AthleteLoginPage"
 import { useRouter } from "next/navigation"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -523,33 +522,21 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
 
   // Show Member Login Page as a component (not a route)
   if (showMemberLogin) {
-    return <MemberLoginPage onBack={handleBackToRoleSelection} />;
+    return <MemberLoginPage />;
   }
 
   // Show Member Login Page when member role is selected
   if (userRole === "member" && !showRoleSelection) {
-    return <MemberLoginPage onBack={handleBackToRoleSelection} />;
+    return <MemberLoginPage />;
   }
 
   // Restore the athlete/coach modal login flow as before
   if (userRole === "athlete" && !showRoleSelection) {
-    return (
-      <AthleteLoginPage
-        isSignUp={isSignUp}
-        loading={isLoading}
-        error={error}
-        formData={{ email, password }}
-        setFormData={({ email, password }: { email: string; password: string }) => {
-          setEmail(email);
-          setPassword(password);
-        }}
-        onSubmit={isSignUp ? handleSignUp : handleLoginSubmit}
-        onBack={handleBackToRoleSelection}
-        onGoogleSignIn={handleGoogleSignIn}
-        googleLoading={googleLoading}
-        onToggleSignUp={() => setIsSignUp((prev) => !prev)}
-      />
-    );
+    // Instead of rendering AthleteLoginPage, redirect to the new athlete login route
+    if (typeof window !== 'undefined') {
+      window.location.href = '/athlete/login';
+    }
+    return null;
   }
 
   return (
