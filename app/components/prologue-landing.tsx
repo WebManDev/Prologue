@@ -5,18 +5,20 @@ import { ArrowRight, Shield, Award, TrendingUp, Play, Zap, Target, Flame } from 
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState, useCallback, useRef } from "react"
+import { useRouter } from "next/navigation"
 
 interface PrologueLandingProps {
   onLoginClick: () => void
-  onSignUpClick: () => void
 }
 
-export default function PrologueLanding({ onLoginClick, onSignUpClick }: PrologueLandingProps) {
+export default function PrologueLanding({ onLoginClick }: PrologueLandingProps) {
+  const router = useRouter()
   const [scrollY, setScrollY] = useState(0)
   const [lastScrollY, setLastScrollY] = useState(0)
   const [scrollDirection, setScrollDirection] = useState<"down" | "up">("down")
   const observerRef = useRef<IntersectionObserver>()
   const heroRef = useRef<HTMLElement>(null)
+  const [isLoaded, setIsLoaded] = useState(false)
 
   // Enhanced scroll handler with direction detection
   const handleScroll = useCallback(() => {
@@ -135,6 +137,10 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
     100,
   )
 
+  const handleSignUpClick = () => {
+    router.push("/signup")
+  }
+
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-x-hidden">
       {/* Scroll Progress Bar */}
@@ -183,7 +189,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
             LOG IN
           </button>
           <Button
-            onClick={onSignUpClick}
+            onClick={handleSignUpClick}
             size="sm"
             className="bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white px-3 py-1 text-xs rounded-none font-athletic font-bold tracking-wider hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl border-2 border-transparent hover:border-white/20"
           >
@@ -212,7 +218,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
             LOG IN
           </button>
           <Button
-            onClick={onSignUpClick}
+            onClick={handleSignUpClick}
             size="sm"
             className="bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white px-6 py-2 rounded-none font-athletic font-bold tracking-wider hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl border-2 border-transparent hover:border-white/20"
           >
@@ -297,6 +303,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
                 {/* Single CTA Button */}
                 <div className="flex justify-center items-center pt-4 hero-cta">
                   <Button
+                    onClick={handleSignUpClick}
                     size="lg"
                     className="bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white px-10 py-6 text-lg font-athletic font-bold tracking-wider shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-110 group rounded-none border-2 border-transparent hover:border-white/30"
                   >
@@ -516,6 +523,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
             {/* CTA Button */}
             <div className="text-center mt-20 scroll-trigger">
               <Button
+                onClick={handleSignUpClick}
                 size="lg"
                 className="bg-gradient-to-r from-prologue-electric via-purple-600 to-prologue-fire hover:from-prologue-blue hover:via-purple-700 hover:to-prologue-orange text-white px-16 py-6 text-xl font-athletic font-black tracking-wider shadow-2xl hover:shadow-3xl transition-all duration-500 hover:scale-110 group relative overflow-hidden rounded-none border-2 border-transparent hover:border-white/30"
               >
@@ -621,6 +629,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
               {/* CTA Button */}
               <div className="pt-8">
                 <Button
+                  onClick={handleSignUpClick}
                   size="lg"
                   className="bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white px-12 py-6 text-lg font-athletic font-black tracking-wider rounded-none shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-110 group border-2 border-transparent hover:border-white/30"
                 >
@@ -675,12 +684,12 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
 
                 {/* Standard footer links */}
                 <div className="flex items-center space-x-6 md:space-x-8">
-                  <Link
-                    href="#signup"
+                  <button
+                    onClick={handleSignUpClick}
                     className="text-gray-300 hover:text-white text-sm font-athletic font-medium tracking-wide transition-all duration-300 hover:scale-105"
                   >
                     SIGN UP
-                  </Link>
+                  </button>
                   <Link
                     href="#terms"
                     className="text-gray-300 hover:text-white text-sm font-athletic font-medium tracking-wide transition-all duration-300 hover:scale-105"

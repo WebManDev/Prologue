@@ -157,7 +157,8 @@ export default function LandingPage() {
     return <LoginPage onBack={() => setShowLogin(false)} initialIsSignUp={isSignUp} onBackToLanding={handleBackToLanding} />
   }
 
-  return <PrologueLanding onLoginClick={() => setShowLogin(true)} onSignUpClick={() => { setShowLogin(true); setIsSignUp(true); }} />
+  const router = useRouter();
+  return <PrologueLanding onLoginClick={() => setShowLogin(true)} />
 }
 
 function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () => void; initialIsSignUp: boolean; onBackToLanding: () => void }) {
@@ -365,7 +366,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
                 className="w-full h-full object-contain"
               />
             </div>
-            <span className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors tracking-wider">
+            <span className="text-xl font-athletic font-black text-white group-hover:text-prologue-electric transition-colors tracking-wider">
               PROLOGUE
             </span>
           </Link>
@@ -522,6 +523,11 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
 
   // Show Member Login Page as a component (not a route)
   if (showMemberLogin) {
+    return <MemberLoginPage onBack={handleBackToRoleSelection} />;
+  }
+
+  // Show Member Login Page when member role is selected
+  if (userRole === "member" && !showRoleSelection) {
     return <MemberLoginPage onBack={handleBackToRoleSelection} />;
   }
 
