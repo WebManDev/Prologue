@@ -37,7 +37,7 @@ export default function MemberLoginPage() {
         <div className="absolute bottom-20 right-20 w-80 h-80 bg-gradient-to-br from-orange-500/10 to-red-400/10 rounded-full blur-3xl animate-pulse"></div>
       </div>
       {/* Header */}
-      <header className="px-6 lg:px-8 h-16 flex items-center justify-between border-b border-gray-700/50 relative z-10 bg-transparent">
+      <header className="px-6 lg:px-8 h-16 flex items-center justify-between backdrop-blur-md border-b border-gray-700/50 relative z-50">
         <Link href="/" className="flex items-center space-x-3 group cursor-pointer">
           <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
             <Image
@@ -52,16 +52,19 @@ export default function MemberLoginPage() {
             PROLOGUE
           </span>
         </Link>
-        <Link
-          href="/"
-          className="flex items-center space-x-2 text-gray-300 hover:text-white group bg-transparent border-none outline-none cursor-pointer"
+        <button
+          onClick={() => {
+            console.log("Back to Home clicked")
+            router.push('/')
+          }}
+          className="flex items-center space-x-2 text-gray-300 hover:text-white transition-all duration-300 group cursor-pointer bg-transparent border-none outline-none"
         >
-          <ArrowLeft className="h-4 w-4" />
-          <span className="text-sm">BACK TO HOME</span>
-        </Link>
+          <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
+          <span className="text-sm font-medium tracking-wide">BACK TO HOME</span>
+        </button>
       </header>
       {/* Main Content */}
-      <main className="flex-1 flex items-center justify-center px-6 lg:px-8 py-12 relative z-10">
+      <main className="flex-1 flex items-center justify-center px-6 lg:px-8 py-12 relative z-0">
         <div className="max-w-md w-full">
           <div className="bg-white rounded-2xl p-8 shadow-2xl border border-white/10">
             {/* Title */}
@@ -154,7 +157,7 @@ export default function MemberLoginPage() {
                 type="button"
                 variant="ghost"
                 className="w-full h-12 rounded-xl border border-gray-200 text-gray-700 font-semibold mt-2"
-                onClick={() => router.push('/signup')}
+                onClick={() => router.push('/')}
               >
                 Back
               </Button>
