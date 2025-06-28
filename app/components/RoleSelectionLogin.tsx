@@ -9,7 +9,7 @@ import { useState, useEffect } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 
-export default function LoginPage() {
+export default function RoleSelectionLogin() {
   const [currentStep, setCurrentStep] = useState(1)
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
