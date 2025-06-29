@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { MemberNotificationProvider } from '@/contexts/member-notification-context'
 
 export const metadata: Metadata = {
   title: 'v0 App',
@@ -14,7 +15,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <MemberNotificationProvider>
+          {children}
+        </MemberNotificationProvider>
+      </body>
     </html>
   )
 }
