@@ -2,10 +2,10 @@
 
 import { useEffect, Suspense, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { MemberDashboard } from "@/components/member-dashboard"
 import { auth, getMemberProfile } from "@/lib/firebase"
+import MemberDashboardPage from "@/components/member-dashboard-page"
 
-export default function MemberDashboardPage() {
+export default function MemberDashboardPageWrapper() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <MemberDashboardContent />
@@ -53,15 +53,6 @@ function MemberDashboardContent() {
     }
   }, [checkoutStatus])
 
-  const handleLogout = async () => {
-    try {
-      await auth.signOut()
-      router.push("/")
-    } catch (error) {
-      console.error("Error signing out:", error)
-    }
-  }
-
   if (isCheckingAuth) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
@@ -73,5 +64,5 @@ function MemberDashboardContent() {
     )
   }
 
-  return <MemberDashboard onLogout={handleLogout} />
+  return <MemberDashboardPage />
 } 

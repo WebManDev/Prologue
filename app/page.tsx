@@ -140,14 +140,11 @@ export default function LandingPage() {
 
   // Show appropriate dashboard if user is logged in
   if (showDashboard === "member") {
-    return (
-      <MemberDashboard
-        onLogout={() => {
-          setShowDashboard(null)
-          setShowRoleSelection(true)
-        }}
-      />
-    )
+    const router = useRouter();
+    useEffect(() => {
+      router.replace("/member-dashboard");
+    }, [router]);
+    return null;
   }
 
   if (showDashboard === "athlete") {
