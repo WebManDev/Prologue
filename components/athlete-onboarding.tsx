@@ -41,7 +41,8 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
-    fullName: "",
+    firstName: "",
+    lastName: "",
     bio: "",
     selectedSports: [] as string[],
     proTierPrice: "9.99",
@@ -85,7 +86,7 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
 
       // Save profile data to Firebase
       await saveAthleteProfile(auth.currentUser.uid, {
-        name: formData.fullName,
+        name: `${formData.firstName} ${formData.lastName}`,
         email: auth.currentUser.email || "",
         sport: formData.selectedSports[0] || "", // Using first specialty as primary sport
         role: "athlete",
@@ -204,17 +205,33 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
 
             {/* Vertical Form Layout */}
             <div className="space-y-8">
-              {/* Full Name */}
+              {/* First Name */}
               <div>
-                <Label htmlFor="fullName" className="text-base font-semibold text-gray-900 mb-3 block">
-                  Full Name <span className="text-red-500">*</span>
+                <Label htmlFor="firstName" className="text-base font-semibold text-gray-900 mb-3 block">
+                  First Name <span className="text-red-500">*</span>
                 </Label>
                 <Input
-                  id="fullName"
+                  id="firstName"
                   type="text"
-                  placeholder="Enter your full name"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, fullName: e.target.value }))}
+                  placeholder="Enter your first name"
+                  value={formData.firstName}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, firstName: e.target.value }))}
+                  className="h-12 text-base border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
+                  required
+                />
+              </div>
+
+              {/* Last Name */}
+              <div>
+                <Label htmlFor="lastName" className="text-base font-semibold text-gray-900 mb-3 block">
+                  Last Name <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="lastName"
+                  type="text"
+                  placeholder="Enter your last name"
+                  value={formData.lastName}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, lastName: e.target.value }))}
                   className="h-12 text-base border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
                   required
                 />
@@ -331,7 +348,7 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
                 type="submit"
                 size="lg"
                 className="bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white px-12 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
-                disabled={!formData.fullName || !formData.bio || formData.selectedSports.length === 0 || isSubmitting}
+                disabled={!formData.firstName || !formData.lastName || !formData.bio || formData.selectedSports.length === 0 || isSubmitting}
               >
                 {isSubmitting ? (
                   <>

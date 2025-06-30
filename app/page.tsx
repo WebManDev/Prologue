@@ -297,7 +297,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
       setErrorMessage("Please fill in all fields")
       return
     }
-    if (isSignUp && selectedRole === "member" && formData.password !== formData.confirmPassword) {
+    if (formData.password !== formData.confirmPassword) {
       setErrorMessage("Passwords do not match")
       return
     }
@@ -638,21 +638,23 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
                   </div>
 
                   {/* Confirm Password for signup members */}
-                  {isSignUp && selectedRole === "member" && (
+                  {isSignUp && (selectedRole === "member" || selectedRole === "athlete") && (
                     <div>
                       <Label htmlFor="confirmPassword" className="text-xs font-semibold text-gray-900 mb-2 block leading-tight">
                         Confirm Password
                       </Label>
-                      <Input
-                        id="confirmPassword"
-                        type="password"
-                        value={formData.confirmPassword}
-                        onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                        onFocus={() => setErrorMessage(null)}
-                        className="w-full h-12 px-4 border-0 bg-white rounded-3xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs shadow-sm"
-                        placeholder="Confirm your password"
-                        style={{ backgroundColor: "#ffffff" }}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="confirmPassword"
+                          type={showPassword ? "text" : "password"}
+                          value={formData.confirmPassword}
+                          onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
+                          onFocus={() => setErrorMessage(null)}
+                          className="w-full h-12 px-4 pr-12 border-0 bg-white rounded-3xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs shadow-sm"
+                          placeholder="Confirm your password"
+                          style={{ backgroundColor: "#ffffff" }}
+                        />
+                      </div>
                     </div>
                   )}
 

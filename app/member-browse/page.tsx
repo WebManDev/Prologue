@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -277,29 +277,125 @@ const allSports = [
 
 const creatorTypes = ["All Types", "Athletes", "Coaches", "Mentors"]
 
-export default function MemberBrowsePage() {
-  const { isMobile, isTablet } = useMobileDetection()
-  const { unreadMessagesCount, unreadNotificationsCount } = useMemberNotifications()
-  const { isFollowing, isSubscribed, followCreator, unfollowCreator, subscribeToCreator } = useMemberSubscriptions()
+/**
+ * Debounced, controlled SearchBar component with custom UI
+ */
+function useDebounce(value: string, delay: number) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debounced;
+}
 
-  const [searchQuery, setSearchQuery] = useState("")
+export function SearchBar({ value = "", onSearch, delay = 300, placeholder = "Search creators, sports, specialties..." }: {
+  value?: string;
+  onSearch: (term: string) => void;
+  delay?: number;
+  placeholder?: string;
+}) {
+  const [inputValue, setInputValue] = useState(value);
+  const debouncedInput = useDebounce(inputValue, delay);
+  const isFirstRun = useRef(true);
+
+  // Sync with external value (e.g., when clearing filters)
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  // Debounced search callback
+  useEffect(() => {
+    if (isFirstRun.current) {
+      isFirstRun.current = false;
+      return;
+    }
+    onSearch(debouncedInput);
+  }, [debouncedInput, onSearch]);
+
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+  }, []);
+
+  return (
+    <div className="relative">
+      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={inputValue}
+        onChange={handleChange}
+        className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-prologue-electric/20 focus:border-prologue-electric"
+      />
+    </div>
+  );
+}
+
+export default function MemberBrowsePageWrapper() {
+  // ← these hooks never get remounted
   const [selectedSport, setSelectedSport] = useState("All Sports")
   const [selectedType, setSelectedType] = useState("All Types")
   const [showFilters, setShowFilters] = useState(false)
   const [sortBy, setSortBy] = useState("rating")
+  const [searchTerm, setSearchTerm] = useState("")
 
-  // Filter and search creators
+  return (
+    <MemberBrowsePage
+      selectedSport={selectedSport}
+      setSelectedSport={setSelectedSport}
+      selectedType={selectedType}
+      setSelectedType={setSelectedType}
+      showFilters={showFilters}
+      setShowFilters={setShowFilters}
+      sortBy={sortBy}
+      setSortBy={setSortBy}
+      searchTerm={searchTerm}
+      setSearchTerm={setSearchTerm}
+    />
+  )
+}
+
+function MemberBrowsePage({
+  selectedSport,
+  setSelectedSport,
+  selectedType,
+  setSelectedType,
+  showFilters,
+  setShowFilters,
+  sortBy,
+  setSortBy,
+  searchTerm,
+  setSearchTerm,
+}: {
+  selectedSport: string
+  setSelectedSport: (sport: string) => void
+  selectedType: string
+  setSelectedType: (type: string) => void
+  showFilters: boolean
+  setShowFilters: (show: boolean) => void
+  sortBy: string
+  setSortBy: (sort: string) => void
+  searchTerm: string
+  setSearchTerm: (term: string) => void
+}) {
+  const { isMobile, isTablet } = useMobileDetection()
+  const { unreadMessagesCount, unreadNotificationsCount } = useMemberNotifications()
+  const { isFollowing, isSubscribed, followCreator, unfollowCreator, subscribeToCreator } = useMemberSubscriptions()
+
+  // Filter creators (now includes search filtering)
   const filteredCreators = useMemo(() => {
     let filtered = mockCreators
 
-    // Filter by search query
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (creator) =>
-          creator.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          creator.sport.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          creator.specialty.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          creator.location.toLowerCase().includes(searchQuery.toLowerCase()),
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase()
+      filtered = filtered.filter((creator) => 
+        creator.name.toLowerCase().includes(searchLower) ||
+        creator.sport.toLowerCase().includes(searchLower) ||
+        creator.specialty.toLowerCase().includes(searchLower) ||
+        creator.bio.toLowerCase().includes(searchLower) ||
+        creator.location.toLowerCase().includes(searchLower) ||
+        (creator.university && creator.university.toLowerCase().includes(searchLower))
       )
     }
 
@@ -314,8 +410,8 @@ export default function MemberBrowsePage() {
       filtered = filtered.filter((creator) => creator.type === typeMap[selectedType as keyof typeof typeMap])
     }
 
-    // Sort creators
-    filtered.sort((a, b) => {
+    // Create a copy before sorting to avoid mutating the original array
+    const sortedCreators = [...filtered].sort((a, b) => {
       switch (sortBy) {
         case "rating":
           return b.rating - a.rating
@@ -333,8 +429,8 @@ export default function MemberBrowsePage() {
       }
     })
 
-    return filtered
-  }, [searchQuery, selectedSport, selectedType, sortBy])
+    return sortedCreators
+  }, [selectedSport, selectedType, sortBy, searchTerm])
 
   const handleFollowToggle = useCallback(
     (creator: any) => {
@@ -355,13 +451,18 @@ export default function MemberBrowsePage() {
   )
 
   const clearFilters = useCallback(() => {
-    setSearchQuery("")
     setSelectedSport("All Sports")
     setSelectedType("All Types")
     setSortBy("rating")
-  }, [])
+    setSearchTerm("")
+  }, [setSelectedSport, setSelectedType, setSortBy, setSearchTerm])
 
-  const MainContent = () => (
+  const handleSearch = useCallback((term: string) => {
+    setSearchTerm(term)
+  }, [setSearchTerm])
+
+  // Memoize MainContent to prevent recreation on every render
+  const MainContent = useMemo(() => () => (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-4 lg:px-6 py-4">
@@ -380,20 +481,18 @@ export default function MemberBrowsePage() {
       </div>
 
       <main className="max-w-7xl mx-auto px-4 lg:px-6 py-8 pb-20 lg:pb-8">
-        {/* Search and Filters */}
-        <div className="mb-8 space-y-4">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search creators, sports, specialties..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-prologue-electric/20 focus:border-prologue-electric"
-            />
-          </div>
+        {/* Search Bar */}
+        <div className="mb-8">
+          <SearchBar 
+            onSearch={handleSearch}
+            placeholder="Search creators by name, sport, specialty, or location..."
+            delay={300}
+            value={searchTerm}
+          />
+        </div>
 
+        {/* Filters */}
+        <div className="mb-8 space-y-4">
           {/* Filter Row */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Sport Filter */}
@@ -456,7 +555,7 @@ export default function MemberBrowsePage() {
             </DropdownMenu>
 
             {/* Clear Filters */}
-            {(searchQuery || selectedSport !== "All Sports" || selectedType !== "All Types" || sortBy !== "rating") && (
+            {(selectedSport !== "All Sports" || selectedType !== "All Types" || sortBy !== "rating" || searchTerm) && (
               <Button variant="ghost" onClick={clearFilters} className="text-gray-600 hover:text-gray-900">
                 <X className="h-4 w-4 mr-2" />
                 Clear Filters
@@ -467,6 +566,11 @@ export default function MemberBrowsePage() {
           {/* Results Count */}
           <div className="text-sm text-gray-600">
             {filteredCreators.length} creator{filteredCreators.length !== 1 ? "s" : ""} found
+            {searchTerm && (
+              <span className="ml-2">
+                for "<span className="font-medium">{searchTerm}</span>"
+              </span>
+            )}
           </div>
         </div>
 
@@ -585,7 +689,10 @@ export default function MemberBrowsePage() {
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-3">No creators found</h3>
             <p className="text-gray-600 mb-6 max-w-md mx-auto">
-              Try adjusting your search criteria or filters to find more creators.
+              {searchTerm 
+                ? `No creators match your search for "${searchTerm}". Try adjusting your search terms or filters.`
+                : "Try adjusting your filters to find more creators."
+              }
             </p>
             <Button onClick={clearFilters} className="bg-prologue-electric hover:bg-prologue-blue text-white">
               Clear All Filters
@@ -594,7 +701,7 @@ export default function MemberBrowsePage() {
         )}
       </main>
     </div>
-  )
+  ), [selectedSport, selectedType, sortBy, searchTerm, filteredCreators, handleFollowToggle, handleSubscribe, clearFilters, isFollowing, isSubscribed])
 
   if (isMobile || isTablet) {
     return (

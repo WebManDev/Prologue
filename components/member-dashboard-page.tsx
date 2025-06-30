@@ -57,6 +57,8 @@ import { LogoutNotification } from "@/components/ui/logout-notification"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { auth, saveMemberProfile, getMemberProfile, uploadProfilePicture, uploadCoverPhoto } from "@/lib/firebase"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import SearchBar from "./SearchBar"
 
 export default function MemberDashboardPage() {
   const { isMobile, isTablet } = useMobileDetection()
@@ -76,6 +78,9 @@ export default function MemberDashboardPage() {
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
   const [selectedCoverImage, setSelectedCoverImage] = useState<File | null>(null)
   const coverFileInputRef = useRef<HTMLInputElement>(null)
+  const [activeTab, setActiveTab] = useState<string>("overview")
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [currentSearchTerm, setCurrentSearchTerm] = useState("")
 
   // Quick search suggestions
   const quickSearches = useMemo(
@@ -93,7 +98,7 @@ export default function MemberDashboardPage() {
   )
 
   // Mock search results based on query
-  const searchResults = useMemo(() => {
+  const searchResultsMock = useMemo(() => {
     if (!searchQuery.trim()) return []
 
     const mockResults = [
@@ -174,7 +179,7 @@ export default function MemberDashboardPage() {
   })
 
   // Profile completion checklist
-  const profileChecklist = [
+  const profileChecklist = useMemo(() => [
     {
       id: "basic-info",
       title: "Complete Basic Information",
@@ -210,11 +215,11 @@ export default function MemberDashboardPage() {
       completed: false, // This would be based on actual photo upload
       action: () => toast({ title: "Photo Upload", description: "Click the camera icon to upload your photo" }),
     },
-  ]
+  ], [profileData])
 
-  const completedItems = profileChecklist.filter((item) => item.completed).length
+  const completedItems = useMemo(() => profileChecklist.filter((item) => item.completed).length, [profileChecklist])
   const totalItems = profileChecklist.length
-  const completionPercentage = Math.round((completedItems / totalItems) * 100)
+  const completionPercentage = useMemo(() => Math.round((completedItems / totalItems) * 100), [completedItems, totalItems])
 
   // Member stats
   const memberStats = {
@@ -240,23 +245,60 @@ export default function MemberDashboardPage() {
 
   // Search handlers
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setSearchQuery(value)
+    setSearchQuery(e.target.value)
   }, [])
 
-  const handleSearchFocus = useCallback(() => {
-    setShowSearchDropdown(true)
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && searchQuery.trim()) {
+      // For now, just log or toast
+      toast({ title: `Searching for: ${searchQuery}` })
+      // You could navigate or trigger a real search here
+    }
+  }, [searchQuery])
+
+  // Profile input handlers
+  const handleFirstNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfileData(prev => ({ ...prev, firstName: e.target.value }))
   }, [])
 
-  const handleSearchSelect = useCallback((search: string) => {
-    setSearchQuery(search)
-    setShowSearchDropdown(false)
-    console.log("Member dashboard searching for:", search)
+  const handleLastNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfileData(prev => ({ ...prev, lastName: e.target.value }))
   }, [])
 
-  const clearSearch = useCallback(() => {
-    setSearchQuery("")
-    setShowSearchDropdown(false)
+  const handleEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfileData(prev => ({ ...prev, email: e.target.value }))
+  }, [])
+
+  const handlePhoneChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfileData(prev => ({ ...prev, phone: e.target.value }))
+  }, [])
+
+  const handleLocationChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfileData(prev => ({ ...prev, location: e.target.value }))
+  }, [])
+
+  const handleSchoolChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfileData(prev => ({ ...prev, school: e.target.value }))
+  }, [])
+
+  const handlePositionChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfileData(prev => ({ ...prev, position: e.target.value }))
+  }, [])
+
+  const handleGraduationYearChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfileData(prev => ({ ...prev, graduationYear: e.target.value }))
+  }, [])
+
+  const handleGpaChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfileData(prev => ({ ...prev, gpa: e.target.value }))
+  }, [])
+
+  const handleBioChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setProfileData(prev => ({ ...prev, bio: e.target.value }))
+  }, [])
+
+  const handleSportChange = useCallback((value: string) => {
+    setProfileData(prev => ({ ...prev, sport: value }))
   }, [])
 
   // Handle clicks outside search dropdown
@@ -354,76 +396,73 @@ export default function MemberDashboardPage() {
     }
   }
 
-  const addGoal = () => {
-    setProfileData({
-      ...profileData,
-      goals: [...profileData.goals, "New goal"],
-    })
-  }
+  const addGoal = useCallback(() => {
+    setProfileData(prev => ({
+      ...prev,
+      goals: [...prev.goals, "New goal"],
+    }))
+  }, [])
 
-  const removeGoal = (index: number) => {
-    setProfileData({
-      ...profileData,
-      goals: profileData.goals.filter((_, i) => i !== index),
-    })
-  }
+  const removeGoal = useCallback((index: number) => {
+    setProfileData(prev => ({
+      ...prev,
+      goals: prev.goals.filter((_, i) => i !== index),
+    }))
+  }, [])
 
-  const updateGoal = (index: number, value: string) => {
-    const newGoals = [...profileData.goals]
-    newGoals[index] = value
-    setProfileData({
-      ...profileData,
-      goals: newGoals,
+  const updateGoal = useCallback((index: number, value: string) => {
+    setProfileData(prev => {
+      const newGoals = [...prev.goals]
+      newGoals[index] = value
+      return { ...prev, goals: newGoals }
     })
-  }
+  }, [])
 
-  const addAchievement = () => {
-    setProfileData({
-      ...profileData,
-      achievements: [...profileData.achievements, "New achievement"],
+  const addAchievement = useCallback(() => {
+    setProfileData(prev => ({
+      ...prev,
+      achievements: [...prev.achievements, "New achievement"],
+    }))
+  }, [])
+
+  const removeAchievement = useCallback((index: number) => {
+    setProfileData(prev => ({
+      ...prev,
+      achievements: prev.achievements.filter((_, i) => i !== index),
+    }))
+  }, [])
+
+  const updateAchievement = useCallback((index: number, value: string) => {
+    setProfileData(prev => {
+      const newAchievements = [...prev.achievements]
+      newAchievements[index] = value
+      return { ...prev, achievements: newAchievements }
     })
-  }
+  }, [])
 
-  const removeAchievement = (index: number) => {
-    setProfileData({
-      ...profileData,
-      achievements: profileData.achievements.filter((_, i) => i !== index),
+  const addInterest = useCallback(() => {
+    setProfileData(prev => ({
+      ...prev,
+      interests: [...prev.interests, "New interest"],
+    }))
+  }, [])
+
+  const removeInterest = useCallback((index: number) => {
+    setProfileData(prev => ({
+      ...prev,
+      interests: prev.interests.filter((_, i) => i !== index),
+    }))
+  }, [])
+
+  const updateInterest = useCallback((index: number, value: string) => {
+    setProfileData(prev => {
+      const newInterests = [...prev.interests]
+      newInterests[index] = value
+      return { ...prev, interests: newInterests }
     })
-  }
+  }, [])
 
-  const updateAchievement = (index: number, value: string) => {
-    const newAchievements = [...profileData.achievements]
-    newAchievements[index] = value
-    setProfileData({
-      ...profileData,
-      achievements: newAchievements,
-    })
-  }
-
-  const addInterest = () => {
-    setProfileData({
-      ...profileData,
-      interests: [...profileData.interests, "New interest"],
-    })
-  }
-
-  const removeInterest = (index: number) => {
-    setProfileData({
-      ...profileData,
-      interests: profileData.interests.filter((_, i) => i !== index),
-    })
-  }
-
-  const updateInterest = (index: number, value: string) => {
-    const newInterests = [...profileData.interests]
-    newInterests[index] = value
-    setProfileData({
-      ...profileData,
-      interests: newInterests,
-    })
-  }
-
-  const getActivityIcon = (type: string) => {
+  const getActivityIcon = useCallback((type: string) => {
     switch (type) {
       case "session":
         return <Clock className="h-4 w-4 text-blue-500" />
@@ -438,65 +477,7 @@ export default function MemberDashboardPage() {
       default:
         return <Activity className="h-4 w-4 text-gray-500" />
     }
-  }
-
-  // Memoized search dropdown content
-  const searchDropdownContent = useMemo(() => {
-    const displayItems = searchQuery ? searchResults : quickSearches.slice(0, 8)
-    const isShowingResults = searchQuery && searchResults.length > 0
-    const isShowingQuickSearches = !searchQuery
-
-    return (
-      <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-        <div className="p-3 border-b border-gray-100">
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">
-            {isShowingResults ? `Results for "${searchQuery}"` : "Quick Searches"}
-          </h4>
-          <div className="space-y-1">
-            {isShowingQuickSearches &&
-              displayItems.map((search, index) =>
-                typeof search === "string" ? (
-                  <button
-                    key={index}
-                    className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-prologue-electric rounded transition-colors"
-                    onClick={() => handleSearchSelect(search)}
-                  >
-                    {search}
-                  </button>
-                ) : null
-              )}
-
-            {isShowingResults &&
-              displayItems.map((result, index) =>
-                typeof result === "object" && result !== null ? (
-                  <div
-                    key={index}
-                    className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                    onClick={() => handleSearchSelect(result.name ?? result.title ?? "")}
-                  >
-                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                      <User className="h-4 w-4 text-gray-500" />
-                    </div>
-                    <div className="flex-1">
-                      <h5 className="text-sm font-medium text-gray-900">{result.name ?? result.title}</h5>
-                      <p className="text-xs text-gray-600">
-                        {result.type === "coach"
-                          ? `${result.sport} • ${result.experience} • ${result.rating}/5.0`
-                          : `${result.creator} • ${result.views} views`}
-                      </p>
-                    </div>
-                  </div>
-                ) : null
-              )}
-
-            {searchQuery && searchResults.length === 0 && (
-              <div className="px-3 py-2 text-sm text-gray-500">No results found for "{searchQuery}"</div>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  }, [searchQuery, searchResults, quickSearches, handleSearchSelect])
+  }, [])
 
   const DesktopHeader = () => (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -517,33 +498,12 @@ export default function MemberDashboardPage() {
                 PROLOGUE
               </span>
             </Link>
-
-            <div className="flex items-center space-x-1 relative" ref={searchRef}>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search coaches, content..."
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-prologue-electric/20 transition-all"
-                  onFocus={handleSearchFocus}
-                />
-                {searchQuery && (
-                  <button
-                    onClick={clearSearch}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-
-              {/* Search Dropdown */}
-              {showSearchDropdown && searchDropdownContent}
+            
+            {/* Search Bar */}
+            <div className="w-80">
+              <SearchBar onSearch={handleSearch} placeholder="Search coaches, content..." delay={1000} initialValue={currentSearchTerm} />
             </div>
           </div>
-
           <div className="flex items-center space-x-6">
             {/* Navigation Items */}
             <nav className="flex items-center space-x-6">
@@ -610,9 +570,14 @@ export default function MemberDashboardPage() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center space-x-2 p-2" disabled={loadingState.isLoading}>
-                  <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                    <User className="w-full h-full text-gray-500 p-1" />
-                  </div>
+                  <Avatar className="w-8 h-8">
+                    <AvatarImage src={profileImageUrl || undefined} alt={profileData.firstName + ' ' + profileData.lastName} />
+                    <AvatarFallback>
+                      {profileData.firstName && profileData.lastName
+                        ? `${profileData.firstName[0]}${profileData.lastName[0]}`.toUpperCase()
+                        : <User className="w-full h-full text-gray-500 p-1" />}
+                    </AvatarFallback>
+                  </Avatar>
                   <ChevronDown className="h-4 w-4 text-gray-500" />
                 </Button>
               </DropdownMenuTrigger>
@@ -883,7 +848,7 @@ export default function MemberDashboardPage() {
       {/* Main Content Tabs */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
         <div className="lg:col-span-2">
-          <Tabs defaultValue="overview" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4 mb-4 lg:mb-6">
               <TabsTrigger value="overview" id="overview-tab" className="text-xs lg:text-sm">
                 Overview
@@ -911,7 +876,7 @@ export default function MemberDashboardPage() {
                   {isEditing ? (
                     <Textarea
                       value={profileData.bio}
-                      onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                      onChange={handleBioChange}
                       placeholder="Tell coaches about your athletic journey and goals..."
                       className="min-h-[120px] resize-none"
                     />
@@ -980,7 +945,7 @@ export default function MemberDashboardPage() {
                       <Input
                         id="firstName"
                         value={profileData.firstName}
-                        onChange={(e) => setProfileData({ ...profileData, firstName: e.target.value })}
+                        onChange={handleFirstNameChange}
                         disabled={!isEditing}
                       />
                     </div>
@@ -989,7 +954,7 @@ export default function MemberDashboardPage() {
                       <Input
                         id="lastName"
                         value={profileData.lastName}
-                        onChange={(e) => setProfileData({ ...profileData, lastName: e.target.value })}
+                        onChange={handleLastNameChange}
                         disabled={!isEditing}
                       />
                     </div>
@@ -1001,7 +966,7 @@ export default function MemberDashboardPage() {
                       id="email"
                       type="email"
                       value={profileData.email}
-                      onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                      onChange={handleEmailChange}
                       disabled={!isEditing}
                     />
                   </div>
@@ -1011,7 +976,7 @@ export default function MemberDashboardPage() {
                     <Input
                       id="phone"
                       value={profileData.phone}
-                      onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                      onChange={handlePhoneChange}
                       disabled={!isEditing}
                     />
                   </div>
@@ -1022,7 +987,7 @@ export default function MemberDashboardPage() {
                       <Input
                         id="location"
                         value={profileData.location}
-                        onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
+                        onChange={handleLocationChange}
                         disabled={!isEditing}
                         placeholder="Enter your location"
                       />
@@ -1032,7 +997,7 @@ export default function MemberDashboardPage() {
                       <Input
                         id="school"
                         value={profileData.school}
-                        onChange={(e) => setProfileData({ ...profileData, school: e.target.value })}
+                        onChange={handleSchoolChange}
                         disabled={!isEditing}
                         placeholder="Enter your school"
                       />
@@ -1044,7 +1009,7 @@ export default function MemberDashboardPage() {
                       <Label htmlFor="sport">Primary Sport</Label>
                       <Select
                         value={profileData.sport}
-                        onValueChange={(value) => setProfileData({ ...profileData, sport: value })}
+                        onValueChange={handleSportChange}
                         disabled={!isEditing}
                       >
                         <SelectTrigger>
@@ -1067,7 +1032,7 @@ export default function MemberDashboardPage() {
                       <Input
                         id="position"
                         value={profileData.position}
-                        onChange={(e) => setProfileData({ ...profileData, position: e.target.value })}
+                        onChange={handlePositionChange}
                         disabled={!isEditing}
                       />
                     </div>
@@ -1076,7 +1041,7 @@ export default function MemberDashboardPage() {
                       <Input
                         id="graduationYear"
                         value={profileData.graduationYear}
-                        onChange={(e) => setProfileData({ ...profileData, graduationYear: e.target.value })}
+                        onChange={handleGraduationYearChange}
                         disabled={!isEditing}
                       />
                     </div>
@@ -1087,7 +1052,7 @@ export default function MemberDashboardPage() {
                     <Input
                       id="gpa"
                       value={profileData.gpa}
-                      onChange={(e) => setProfileData({ ...profileData, gpa: e.target.value })}
+                      onChange={handleGpaChange}
                       disabled={!isEditing}
                       placeholder="Enter your GPA"
                     />
@@ -1098,7 +1063,7 @@ export default function MemberDashboardPage() {
                     <Textarea
                       id="bio"
                       value={profileData.bio}
-                      onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                      onChange={handleBioChange}
                       disabled={!isEditing}
                       placeholder="Tell coaches about your athletic journey and goals..."
                       rows={4}
@@ -1277,23 +1242,24 @@ export default function MemberDashboardPage() {
       try {
         const memberProfile = await getMemberProfile(auth.currentUser.uid)
         if (memberProfile) {
-          setProfileData({
-            firstName: memberProfile.firstName || "Alex",
-            lastName: memberProfile.lastName || "Johnson",
-            email: memberProfile.email || "alex.johnson@example.com",
-            phone: memberProfile.phone || "+1 (555) 987-6543",
+          setProfileData(prev => ({
+            ...prev,
+            firstName: memberProfile.firstName || "",
+            lastName: memberProfile.lastName || "",
+            email: memberProfile.email || "",
+            phone: memberProfile.phone || "",
             bio: memberProfile.bio || "",
             location: memberProfile.location || "",
-            school: memberProfile.school || "Miami Prep Academy",
-            graduationYear: memberProfile.graduationYear || "2025",
-            sport: memberProfile.sport || "Tennis",
-            position: memberProfile.position || "Singles Player",
+            school: memberProfile.school || "",
+            graduationYear: memberProfile.graduationYear || "",
+            sport: memberProfile.sport || "",
+            position: memberProfile.position || "",
             gpa: memberProfile.gpa || "",
             goals: memberProfile.goals || [],
             achievements: memberProfile.achievements || [],
             interests: memberProfile.interests || [],
             coverImageUrl: memberProfile.coverImageUrl || null,
-          })
+          }))
           if (memberProfile.profileImageUrl) {
             setProfileImageUrl(memberProfile.profileImageUrl)
           }
@@ -1390,6 +1356,27 @@ export default function MemberDashboardPage() {
     }
   }
 
+  const handleSearch = async (term: string) => {
+    // Only perform search if there's a new term or if we're clearing a previous search
+    if (term === currentSearchTerm) return
+    
+    setCurrentSearchTerm(term)
+    
+    if (!term) {
+      // Don't clear results when input is empty, just don't perform new search
+      return
+    }
+    
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(term)}`)
+      if (!res.ok) throw new Error('Search failed')
+      const items = await res.json()
+      setSearchResults(items)
+    } catch (e) {
+      setSearchResults([])
+    }
+  }
+
   if (isMobile || isTablet) {
     return (
       <MobileLayout
@@ -1419,6 +1406,13 @@ export default function MemberDashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <DesktopHeader />
+      <div className="p-4">
+        <ul className="mt-4">
+          {searchResults.map((item) => (
+            <li key={item.id}>{item.name}</li>
+          ))}
+        </ul>
+      </div>
       <MainContent />
 
       {/* Logout Notification */}
