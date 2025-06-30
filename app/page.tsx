@@ -26,6 +26,7 @@ export default function LandingPage() {
   const [showRoleSelection, setShowRoleSelection] = useState(true)
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
   const [showDashboard, setShowDashboard] = useState<string | null>(null)
+  const router = useRouter()
 
   // Check for reset parameter and reset state if needed
   useEffect(() => {
@@ -108,6 +109,13 @@ export default function LandingPage() {
     checkAuthState();
   }, []);
 
+  // Handle member dashboard redirect
+  useEffect(() => {
+    if (showDashboard === "member") {
+      router.replace("/member-dashboard");
+    }
+  }, [showDashboard, router]);
+
   const handleBackToLanding = () => {
     setShowLogin(false);
     setIsSignUp(false);
@@ -140,10 +148,6 @@ export default function LandingPage() {
 
   // Show appropriate dashboard if user is logged in
   if (showDashboard === "member") {
-    const router = useRouter();
-    useEffect(() => {
-      router.replace("/member-dashboard");
-    }, [router]);
     return null;
   }
 

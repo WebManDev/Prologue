@@ -282,32 +282,35 @@ export default function MemberMessagingPage() {
                 <button
                   key={index}
                   className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-prologue-electric rounded transition-colors"
-                  onClick={() => handleSearchSelect(search)}
+                  onClick={() => handleSearchSelect(typeof search === 'string' ? search : search.name || search.title || '')}
                 >
-                  {search}
+                  {typeof search === 'string' ? search : search.name || search.title || ''}
                 </button>
               ))}
 
             {isShowingResults &&
-              displayItems.map((result, index) => (
-                <div
-                  key={index}
-                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                  onClick={() => handleSearchSelect(result.name || result.title)}
-                >
-                  <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                    <User className="h-4 w-4 text-gray-500" />
+              displayItems.map((result, index) => {
+                if (typeof result === 'string') return null
+                return (
+                  <div
+                    key={index}
+                    className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                    onClick={() => handleSearchSelect(result.name || result.title || '')}
+                  >
+                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                      <User className="h-4 w-4 text-gray-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h5 className="text-sm font-medium text-gray-900">{result.name || result.title}</h5>
+                      <p className="text-xs text-gray-600">
+                        {result.type === "coach"
+                          ? `${result.sport} • ${result.followers} followers`
+                          : `${result.creator} • ${result.views} views`}
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <h5 className="text-sm font-medium text-gray-900">{result.name || result.title}</h5>
-                    <p className="text-xs text-gray-600">
-                      {result.type === "coach"
-                        ? `${result.sport} • ${result.followers} followers`
-                        : `${result.creator} • ${result.views} views`}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
           </div>
           {searchQuery && searchResults.length === 0 && (
             <div className="px-3 py-2 text-sm text-gray-500">No results found for "{searchQuery}"</div>
@@ -318,9 +321,9 @@ export default function MemberMessagingPage() {
   }, [searchQuery, searchResults, quickSearches, handleSearchSelect, isMobile, isTablet])
 
   return (
-    <div className="min-h-screen bg-slate-900" style={{ backgroundColor: "#0f172a" }}>
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-slate-900 border-b border-gray-800 sticky top-0 z-50">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-8">
@@ -335,7 +338,7 @@ export default function MemberMessagingPage() {
                   />
                 </div>
                 {!isMobile && (
-                  <span className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors tracking-wider">
+                  <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-prologue-electric transition-colors tracking-wider">
                     PROLOGUE
                   </span>
                 )}
@@ -349,13 +352,13 @@ export default function MemberMessagingPage() {
                     placeholder="Search conversations..."
                     value={searchQuery}
                     onChange={handleSearchChange}
-                    className="w-80 pl-10 pr-10 py-2 bg-slate-800 text-white rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-400/20 transition-all"
+                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-prologue-electric/20 transition-all"
                     onFocus={handleSearchFocus}
                   />
                   {searchQuery && (
                     <button
                       onClick={clearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -370,43 +373,43 @@ export default function MemberMessagingPage() {
               <nav className="hidden lg:flex items-center space-x-6">
                 <Link
                   href="/member-home"
-                  className="flex flex-col items-center space-y-1 text-white hover:text-blue-400 transition-colors group"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
                 >
                   <Home className="h-5 w-5" />
                   <span className="text-xs font-medium">Home</span>
-                  <div className="w-full h-0.5 bg-blue-400 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </Link>
                 <Link
                   href="/member-training"
-                  className="flex flex-col items-center space-y-1 text-white hover:text-blue-400 transition-colors group relative"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group relative"
                 >
                   <BookOpen className="h-5 w-5" />
                   <span className="text-xs font-medium">Training</span>
-                  <div className="w-full h-0.5 bg-blue-400 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
                   {hasNewTrainingContent && (
                     <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
                   )}
                 </Link>
                 <Link
                   href="/member-feedback"
-                  className="flex flex-col items-center space-y-1 text-white hover:text-blue-400 transition-colors group"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
                 >
                   <MessageSquare className="h-5 w-5" />
                   <span className="text-xs font-medium">Feedback</span>
-                  <div className="w-full h-0.5 bg-blue-400 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </Link>
-                <Link href="/member-messaging" className="flex flex-col items-center space-y-1 text-blue-400">
+                <Link href="/member-messaging" className="flex flex-col items-center space-y-1 text-prologue-electric">
                   <MessageCircle className="h-5 w-5" />
                   <span className="text-xs font-medium">Messages</span>
-                  <div className="w-full h-0.5 bg-blue-400"></div>
+                  <div className="w-full h-0.5 bg-prologue-electric"></div>
                 </Link>
                 <Link
                   href="/member-notifications"
-                  className="flex flex-col items-center space-y-1 text-white hover:text-blue-400 transition-colors relative group"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors relative group"
                 >
                   <Bell className="h-5 w-5" />
                   <span className="text-xs font-medium">Notifications</span>
-                  <div className="w-full h-0.5 bg-blue-400 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
                   {unreadNotificationsCount > 0 && (
                     <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
                   )}
@@ -423,13 +426,13 @@ export default function MemberMessagingPage() {
                     onClick={() => setShowSearchDropdown(!showSearchDropdown)}
                     className="p-2 touch-target"
                   >
-                    <Search className="h-5 w-5 text-white" />
+                    <Search className="h-5 w-5 text-gray-600" />
                   </Button>
 
                   {/* Notification Bell */}
                   <Link href="/member-notifications" className="relative">
                     <Button variant="ghost" size="sm" className="p-2 touch-target relative">
-                      <Bell className="h-5 w-5 text-white" />
+                      <Bell className="h-5 w-5 text-gray-600" />
                       {unreadNotificationsCount > 0 && (
                         <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
                           <span className="text-xs text-white font-bold leading-none">
@@ -446,10 +449,10 @@ export default function MemberMessagingPage() {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="flex items-center space-x-2 p-2">
-                      <div className="w-8 h-8 bg-gray-700 rounded-full overflow-hidden">
-                        <User className="w-full h-full text-gray-300 p-1" />
+                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
+                        <User className="w-full h-full text-gray-500 p-1" />
                       </div>
-                      {!isMobile && <ChevronDown className="h-4 w-4 text-gray-300" />}
+                      {!isMobile && <ChevronDown className="h-4 w-4 text-gray-500" />}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
@@ -477,7 +480,7 @@ export default function MemberMessagingPage() {
 
           {/* Mobile Search Dropdown */}
           {(isMobile || isTablet) && showSearchDropdown && (
-            <div className="border-t border-gray-800 bg-slate-900">
+            <div className="border-t border-gray-200 bg-white">
               <div className="px-4 py-4" ref={searchRef}>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -486,13 +489,13 @@ export default function MemberMessagingPage() {
                     placeholder="Search conversations..."
                     value={searchQuery}
                     onChange={handleSearchChange}
-                    className="w-full pl-10 pr-10 py-2 bg-slate-800 text-white rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+                    className="w-full pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
                     onFocus={handleSearchFocus}
                   />
                   {searchQuery && (
                     <button
                       onClick={clearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -510,12 +513,12 @@ export default function MemberMessagingPage() {
         <div className="grid grid-cols-12 gap-6 h-[calc(100vh-200px)]">
           {/* Conversations List */}
           <div className="col-span-4">
-            <Card className="h-full bg-slate-800 border-none">
+            <Card className="h-full">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-white">Messages</CardTitle>
+                  <CardTitle>Messages</CardTitle>
                   <Button variant="ghost" size="sm">
-                    <MoreVertical className="h-4 w-4 text-gray-300" />
+                    <MoreVertical className="h-4 w-4" />
                   </Button>
                 </div>
               </CardHeader>
@@ -525,9 +528,9 @@ export default function MemberMessagingPage() {
                     <button
                       key={conversation.id}
                       onClick={() => setSelectedConversation(conversation.id)}
-                      className={`w-full p-4 text-left hover:bg-slate-700 transition-colors border-l-4 ${
+                      className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-l-4 ${
                         selectedConversation === conversation.id
-                          ? "bg-blue-400/10 border-blue-400"
+                          ? "bg-prologue-electric/10 border-prologue-electric"
                           : "border-transparent"
                       }`}
                     >
@@ -541,24 +544,24 @@ export default function MemberMessagingPage() {
                             className="w-10 h-10 rounded-full object-cover"
                           />
                           {conversation.online && (
-                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-slate-800 rounded-full"></div>
+                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-1">
-                            <h4 className="font-medium text-white truncate">{conversation.name}</h4>
-                            <span className="text-xs text-gray-400">{conversation.timestamp}</span>
+                            <h4 className="font-medium text-gray-900 truncate">{conversation.name}</h4>
+                            <span className="text-xs text-gray-500">{conversation.timestamp}</span>
                           </div>
                           <div className="flex items-center justify-between">
-                            <p className="text-sm text-gray-300 truncate">{conversation.lastMessage}</p>
+                            <p className="text-sm text-gray-600 truncate">{conversation.lastMessage}</p>
                             {conversation.unread > 0 && (
-                              <Badge className="bg-blue-400 text-white text-xs ml-2">
+                              <Badge className="bg-prologue-electric text-white text-xs ml-2">
                                 {conversation.unread}
                               </Badge>
                             )}
                           </div>
                           <div className="flex items-center mt-1">
-                            <Badge variant="secondary" className="text-xs bg-slate-700 text-gray-200">
+                            <Badge variant="secondary" className="text-xs">
                               {conversation.role}
                             </Badge>
                             {conversation.isCoach && (
@@ -576,9 +579,9 @@ export default function MemberMessagingPage() {
 
           {/* Chat Area */}
           <div className="col-span-8">
-            <Card className="h-full flex flex-col bg-slate-800 border-none">
+            <Card className="h-full flex flex-col">
               {/* Chat Header */}
-              <CardHeader className="pb-3 border-b border-slate-700">
+              <CardHeader className="pb-3 border-b">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div className="relative">
@@ -590,25 +593,25 @@ export default function MemberMessagingPage() {
                         className="w-10 h-10 rounded-full object-cover"
                       />
                       {selectedConv?.online && (
-                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-slate-800 rounded-full"></div>
+                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
                       )}
                     </div>
                     <div>
-                      <h3 className="font-medium text-white">{selectedConv?.name}</h3>
-                      <p className="text-sm text-gray-300">{selectedConv?.role}</p>
+                      <h3 className="font-medium text-gray-900">{selectedConv?.name}</h3>
+                      <p className="text-sm text-gray-600">{selectedConv?.role}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Button variant="ghost" size="sm">
-                      <Phone className="h-4 w-4 text-gray-300" />
+                      <Phone className="h-4 w-4" />
                     </Button>
                     <Button variant="ghost" size="sm">
-                      <Video className="h-4 w-4 text-gray-300" />
+                      <Video className="h-4 w-4" />
                     </Button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm">
-                          <MoreVertical className="h-4 w-4 text-gray-300" />
+                          <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -633,11 +636,11 @@ export default function MemberMessagingPage() {
                     <div key={message.id} className={`flex ${message.isMe ? "justify-end" : "justify-start"}`}>
                       <div
                         className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                          message.isMe ? "bg-blue-400 text-white" : "bg-slate-700 text-gray-100"
+                          message.isMe ? "bg-prologue-electric text-white" : "bg-gray-100 text-gray-900"
                         }`}
                       >
                         <p className="text-sm">{message.content}</p>
-                        <p className={`text-xs mt-1 ${message.isMe ? "text-blue-100" : "text-gray-400"}`}>
+                        <p className={`text-xs mt-1 ${message.isMe ? "text-blue-100" : "text-gray-500"}`}>
                           {message.timestamp}
                         </p>
                       </div>
@@ -647,17 +650,17 @@ export default function MemberMessagingPage() {
               </CardContent>
 
               {/* Message Input */}
-              <div className="p-4 border-t border-slate-700 bg-slate-800">
+              <div className="p-4 border-t">
                 <div className="flex items-center space-x-2">
                   <Button variant="ghost" size="sm">
-                    <Paperclip className="h-4 w-4 text-gray-300" />
+                    <Paperclip className="h-4 w-4" />
                   </Button>
                   <div className="flex-1 relative">
                     <Input
                       value={messageInput}
                       onChange={(e) => setMessageInput(e.target.value)}
                       placeholder="Type your message..."
-                      className="pr-10 bg-slate-700 text-white border-none"
+                      className="pr-10"
                       onKeyPress={(e) => {
                         if (e.key === "Enter") {
                           handleSendMessage()
@@ -665,12 +668,12 @@ export default function MemberMessagingPage() {
                       }}
                     />
                     <Button variant="ghost" size="sm" className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                      <Smile className="h-4 w-4 text-gray-300" />
+                      <Smile className="h-4 w-4" />
                     </Button>
                   </div>
                   <Button
                     onClick={handleSendMessage}
-                    className="bg-blue-400 hover:bg-blue-500 text-white"
+                    className="bg-prologue-electric hover:bg-prologue-blue text-white"
                   >
                     <Send className="h-4 w-4" />
                   </Button>
@@ -683,12 +686,7 @@ export default function MemberMessagingPage() {
 
       {/* Mobile Bottom Navigation */}
       {(isMobile || isTablet) && (
-        <MemberMobileNavigation
-          currentPath="/member-messaging"
-          unreadNotifications={unreadNotificationsCount}
-          unreadMessages={unreadMessagesCount}
-          hasNewContent={false}
-        />
+        <MemberMobileNavigation />
       )}
     </div>
   )
