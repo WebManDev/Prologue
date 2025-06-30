@@ -721,15 +721,15 @@ export default function MemberDashboardPage() {
                 <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-4 text-xs lg:text-sm text-gray-600 mb-4 space-y-1 lg:space-y-0">
                   <div className="flex items-center justify-center lg:justify-start space-x-1">
                     <MapPin className="h-3 w-3 lg:h-4 lg:w-4" />
-                    <span>{profileData.location}</span>
+                    <span>{profileData.location ? profileData.location : <span className="italic text-gray-400">Add your location</span>}</span>
                   </div>
                   <div className="flex items-center justify-center lg:justify-start space-x-1">
                     <School className="h-3 w-3 lg:h-4 lg:w-4" />
-                    <span>{profileData.school}</span>
+                    <span>{profileData.school ? profileData.school : <span className="italic text-gray-400">Add your school</span>}</span>
                   </div>
                   <div className="flex items-center justify-center lg:justify-start space-x-1">
                     <Star className="h-3 w-3 lg:h-4 lg:w-4 text-yellow-500" />
-                    <span>{profileData.gpa} GPA</span>
+                    <span>{profileData.gpa ? `${profileData.gpa} GPA` : <span className="italic text-gray-400">Add your GPA</span>}</span>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-center lg:justify-start">
@@ -1024,6 +1024,7 @@ export default function MemberDashboardPage() {
                         value={profileData.location}
                         onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
                         disabled={!isEditing}
+                        placeholder="Enter your location"
                       />
                     </div>
                     <div>
@@ -1033,6 +1034,7 @@ export default function MemberDashboardPage() {
                         value={profileData.school}
                         onChange={(e) => setProfileData({ ...profileData, school: e.target.value })}
                         disabled={!isEditing}
+                        placeholder="Enter your school"
                       />
                     </div>
                   </div>
@@ -1087,6 +1089,7 @@ export default function MemberDashboardPage() {
                       value={profileData.gpa}
                       onChange={(e) => setProfileData({ ...profileData, gpa: e.target.value })}
                       disabled={!isEditing}
+                      placeholder="Enter your GPA"
                     />
                   </div>
 
@@ -1279,23 +1282,16 @@ export default function MemberDashboardPage() {
             lastName: memberProfile.lastName || "Johnson",
             email: memberProfile.email || "alex.johnson@example.com",
             phone: memberProfile.phone || "+1 (555) 987-6543",
-            bio: memberProfile.bio || "Dedicated high school tennis player with aspirations to compete at the collegiate level. Currently ranked #15 in state and actively seeking coaching to improve my mental game and technical skills. Passionate about continuous improvement and committed to excellence both on and off the court.",
-            location: memberProfile.location || "Miami, FL",
+            bio: memberProfile.bio || "",
+            location: memberProfile.location || "",
             school: memberProfile.school || "Miami Prep Academy",
             graduationYear: memberProfile.graduationYear || "2025",
             sport: memberProfile.sport || "Tennis",
             position: memberProfile.position || "Singles Player",
-            gpa: memberProfile.gpa || "3.8",
+            gpa: memberProfile.gpa || "",
             goals: memberProfile.goals || [],
             achievements: memberProfile.achievements || [],
-            interests: memberProfile.interests || [
-              "Tennis Strategy & Tactics",
-              "Sports Psychology",
-              "Nutrition & Fitness",
-              "College Recruitment",
-              "Mental Performance",
-              "Injury Prevention",
-            ],
+            interests: memberProfile.interests || [],
             coverImageUrl: memberProfile.coverImageUrl || null,
           })
           if (memberProfile.profileImageUrl) {

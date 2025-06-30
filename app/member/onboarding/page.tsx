@@ -110,13 +110,13 @@ export default function MemberProfileSetupPage() {
       await saveMemberProfile(user.uid, {
         firstName: formData.firstName,
         lastName: formData.lastName,
-        name: formData.firstName + ' ' + formData.lastName,
+        name: `${formData.firstName} ${formData.lastName}`,
         email: user.email || "",
-        sport: formData.selectedSports.join(", "),
+        sport: (formData.selectedSports && formData.selectedSports.length > 0) ? formData.selectedSports.join(", ") : "",
         role: "member",
         gender: formData.gender,
-        bio: formData.bio,
-        selectedSports: formData.selectedSports,
+        bio: formData.bio || "",
+        selectedSports: formData.selectedSports || [],
         selectedGoals: formData.selectedGoals,
         profileImageUrl,
         onboardingCompleted: true,
@@ -138,7 +138,7 @@ export default function MemberProfileSetupPage() {
             <Link href="/member-home" className="flex items-center space-x-3 group cursor-pointer">
               <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
                 <Image
-                  src="/Prologue LOGO-1.png"
+                  src="/prologue-main-logo.png"
                   alt="PROLOGUE"
                   width={32}
                   height={32}
@@ -216,7 +216,7 @@ export default function MemberProfileSetupPage() {
               <div className="w-12 h-12 bg-gradient-to-r from-prologue-electric to-prologue-fire rounded-lg flex items-center justify-center">
                 <User className="h-6 w-6 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900">Account Information</h2>
+              <h2 className="text-2xl font-bold text-gray-900">Personal Information</h2>
             </div>
 
             {/* Profile Picture Upload */}
@@ -245,7 +245,7 @@ export default function MemberProfileSetupPage() {
 
             {/* Form Fields */}
             <div className="space-y-8">
-              {/* Full Name (now split) */}
+              {/* First Name */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="firstName" className="text-base font-semibold text-gray-900 mb-3 block">
@@ -261,6 +261,7 @@ export default function MemberProfileSetupPage() {
                     required
                   />
                 </div>
+                {/* Last Name */}
                 <div>
                   <Label htmlFor="lastName" className="text-base font-semibold text-gray-900 mb-3 block">
                     Last Name <span className="text-red-500">*</span>
@@ -276,7 +277,60 @@ export default function MemberProfileSetupPage() {
                   />
                 </div>
               </div>
-              {/* Gender, Bio, Sports Interests, etc. restored as before */}
+
+              {/* Gender */}
+              <div>
+                <Label className="text-base font-semibold text-gray-900 mb-3 block">
+                  Gender <span className="text-red-500">*</span>
+                </Label>
+                <RadioGroup
+                  value={formData.gender}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, gender: value }))}
+                  className="flex space-x-6"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="male" id="male" />
+                    <Label htmlFor="male" className="text-base">
+                      Male
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="female" id="female" />
+                    <Label htmlFor="female" className="text-base">
+                      Female
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="other" id="other" />
+                    <Label htmlFor="other" className="text-base">
+                      Other
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="prefer-not-to-say" id="prefer-not-to-say" />
+                    <Label htmlFor="prefer-not-to-say" className="text-base">
+                      Prefer not to say
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Bio */}
+              <div>
+                <Label htmlFor="bio" className="text-base font-semibold text-gray-900 mb-3 block">
+                  About You
+                </Label>
+                <Textarea
+                  id="bio"
+                  placeholder="Tell coaches about your athletic background, current level, and aspirations..."
+                  value={formData.bio}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, bio: e.target.value }))}
+                  className="min-h-[120px] text-base resize-none border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
+                  maxLength={500}
+                />
+                <p className="text-sm text-gray-500 mt-2">{formData.bio.length}/500 characters</p>
+              </div>
+
               {/* Sports Interests */}
               <div>
                 <Label className="text-base font-semibold text-gray-900 mb-3 block">
@@ -349,6 +403,13 @@ export default function MemberProfileSetupPage() {
                 type="submit"
                 size="lg"
                 className="bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white px-12 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+                disabled={
+                  !formData.firstName ||
+                  !formData.lastName ||
+                  !formData.gender ||
+                  formData.selectedSports.length === 0 ||
+                  formData.selectedGoals.length === 0
+                }
               >
                 {loading ? (
                   <>
