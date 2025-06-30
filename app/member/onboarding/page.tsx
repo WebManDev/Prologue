@@ -349,15 +349,6 @@ export default function MemberProfileSetupPage() {
                 type="submit"
                 size="lg"
                 className="bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white px-12 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
-                disabled={
-                  loading ||
-                  !formData.firstName ||
-                  !formData.lastName ||
-                  !formData.gender ||
-                  !formData.bio ||
-                  formData.selectedSports.length === 0 ||
-                  formData.selectedGoals.length === 0
-                }
               >
                 {loading ? (
                   <>

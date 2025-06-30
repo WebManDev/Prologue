@@ -160,7 +160,7 @@ export default function MemberDashboardPage() {
     lastName: "Johnson",
     email: "alex.johnson@example.com",
     phone: "+1 (555) 987-6543",
-    bio: "Dedicated high school tennis player with aspirations to compete at the collegiate level. Currently ranked #15 in state and actively seeking coaching to improve my mental game and technical skills. Passionate about continuous improvement and committed to excellence both on and off the court.",
+    bio: "",
     location: "Miami, FL",
     school: "Miami Prep Academy",
     graduationYear: "2025",
@@ -169,14 +169,7 @@ export default function MemberDashboardPage() {
     gpa: "3.8",
     goals: [],
     achievements: [],
-    interests: [
-      "Tennis Strategy & Tactics",
-      "Sports Psychology",
-      "Nutrition & Fitness",
-      "College Recruitment",
-      "Mental Performance",
-      "Injury Prevention",
-    ],
+    interests: [],
     coverImageUrl: null,
   })
 
@@ -922,6 +915,8 @@ export default function MemberDashboardPage() {
                       placeholder="Tell coaches about your athletic journey and goals..."
                       className="min-h-[120px] resize-none"
                     />
+                  ) : profileData.bio.trim() === "" ? (
+                    <div className="text-gray-500 text-sm italic">Fill up the About Me section to let coaches know more about you!</div>
                   ) : (
                     <p className="text-gray-700 leading-relaxed text-sm lg:text-base">{profileData.bio}</p>
                   )}
@@ -937,27 +932,31 @@ export default function MemberDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {profileData.interests.map((interest, index) => (
-                      <div key={index} className="flex items-start space-x-3">
-                        {isEditing ? (
-                          <div className="flex-1 flex items-center space-x-2">
-                            <Input
-                              value={interest}
-                              onChange={(e) => updateInterest(index, e.target.value)}
-                              className="flex-1"
-                            />
-                            <Button variant="outline" size="sm" onClick={() => removeInterest(index)} className="p-2">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <>
-                            <Star className="h-4 w-4 text-prologue-electric mt-0.5 flex-shrink-0" />
-                            <p className="text-gray-700 text-sm lg:text-base">{interest}</p>
-                          </>
-                        )}
-                      </div>
-                    ))}
+                    {profileData.interests.length === 0 ? (
+                      <div className="text-gray-500 text-sm italic">Add your training interests to get personalized recommendations.</div>
+                    ) : (
+                      profileData.interests.map((interest, index) => (
+                        <div key={index} className="flex items-start space-x-3">
+                          {isEditing ? (
+                            <div className="flex-1 flex items-center space-x-2">
+                              <Input
+                                value={interest}
+                                onChange={(e) => updateInterest(index, e.target.value)}
+                                className="flex-1"
+                              />
+                              <Button variant="outline" size="sm" onClick={() => removeInterest(index)} className="p-2">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <Star className="h-4 w-4 text-prologue-electric mt-0.5 flex-shrink-0" />
+                              <p className="text-gray-700 text-sm lg:text-base">{interest}</p>
+                            </>
+                          )}
+                        </div>
+                      ))
+                    )}
                     {isEditing && (
                       <Button variant="outline" size="sm" onClick={addInterest} className="w-full bg-transparent">
                         <Plus className="h-4 w-4 mr-2" />
