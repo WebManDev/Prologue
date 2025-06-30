@@ -873,14 +873,7 @@ export default function MemberDashboardPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {isEditing ? (
-                    <Textarea
-                      value={profileData.bio}
-                      onChange={handleBioChange}
-                      placeholder="Tell coaches about your athletic journey and goals..."
-                      className="min-h-[120px] resize-none"
-                    />
-                  ) : profileData.bio.trim() === "" ? (
+                  {profileData.bio.trim() === "" ? (
                     <div className="text-gray-500 text-sm italic">Fill up the About Me section to let coaches know more about you!</div>
                   ) : (
                     <p className="text-gray-700 leading-relaxed text-sm lg:text-base">{profileData.bio}</p>
@@ -942,132 +935,48 @@ export default function MemberDashboardPage() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="firstName">First Name</Label>
-                      <Input
-                        id="firstName"
-                        value={profileData.firstName}
-                        onChange={handleFirstNameChange}
-                        disabled={!isEditing}
-                      />
+                      <div className="py-2 px-3 bg-gray-100 rounded text-gray-800 min-h-[40px] flex items-center">{profileData.firstName}</div>
                     </div>
                     <div>
                       <Label htmlFor="lastName">Last Name</Label>
-                      <Input
-                        id="lastName"
-                        value={profileData.lastName}
-                        onChange={handleLastNameChange}
-                        disabled={!isEditing}
-                      />
+                      <div className="py-2 px-3 bg-gray-100 rounded text-gray-800 min-h-[40px] flex items-center">{profileData.lastName}</div>
                     </div>
                   </div>
-
                   <div>
                     <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={profileData.email}
-                      onChange={handleEmailChange}
-                      disabled={!isEditing}
-                    />
+                    <div className="py-2 px-3 bg-gray-100 rounded text-gray-800 min-h-[40px] flex items-center">{profileData.email}</div>
                   </div>
-
                   <div>
                     <Label htmlFor="phone">Phone</Label>
-                    <Input
-                      id="phone"
-                      value={profileData.phone}
-                      onChange={handlePhoneChange}
-                      disabled={!isEditing}
-                    />
+                    <div className="py-2 px-3 bg-gray-100 rounded text-gray-800 min-h-[40px] flex items-center">{profileData.phone}</div>
                   </div>
-
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="location">Location</Label>
-                      <Input
-                        id="location"
-                        value={profileData.location}
-                        onChange={handleLocationChange}
-                        disabled={!isEditing}
-                        placeholder="Enter your location"
-                      />
+                      <div className="py-2 px-3 bg-gray-100 rounded text-gray-800 min-h-[40px] flex items-center">{profileData.location}</div>
                     </div>
                     <div>
                       <Label htmlFor="school">School</Label>
-                      <Input
-                        id="school"
-                        value={profileData.school}
-                        onChange={handleSchoolChange}
-                        disabled={!isEditing}
-                        placeholder="Enter your school"
-                      />
+                      <div className="py-2 px-3 bg-gray-100 rounded text-gray-800 min-h-[40px] flex items-center">{profileData.school}</div>
                     </div>
                   </div>
-
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div>
                       <Label htmlFor="sport">Primary Sport</Label>
-                      <Select
-                        value={profileData.sport}
-                        onValueChange={handleSportChange}
-                        disabled={!isEditing}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Tennis">Tennis</SelectItem>
-                          <SelectItem value="Basketball">Basketball</SelectItem>
-                          <SelectItem value="Soccer">Soccer</SelectItem>
-                          <SelectItem value="Swimming">Swimming</SelectItem>
-                          <SelectItem value="Track & Field">Track & Field</SelectItem>
-                          <SelectItem value="Golf">Golf</SelectItem>
-                          <SelectItem value="Baseball">Baseball</SelectItem>
-                          <SelectItem value="Volleyball">Volleyball</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="py-2 px-3 bg-gray-100 rounded text-gray-800 min-h-[40px] flex items-center">{profileData.sport}</div>
                     </div>
                     <div>
                       <Label htmlFor="position">Position</Label>
-                      <Input
-                        id="position"
-                        value={profileData.position}
-                        onChange={handlePositionChange}
-                        disabled={!isEditing}
-                      />
+                      <div className="py-2 px-3 bg-gray-100 rounded text-gray-800 min-h-[40px] flex items-center">{profileData.position}</div>
                     </div>
                     <div>
                       <Label htmlFor="graduationYear">Graduation Year</Label>
-                      <Input
-                        id="graduationYear"
-                        value={profileData.graduationYear}
-                        onChange={handleGraduationYearChange}
-                        disabled={!isEditing}
-                      />
+                      <div className="py-2 px-3 bg-gray-100 rounded text-gray-800 min-h-[40px] flex items-center">{profileData.graduationYear}</div>
                     </div>
                   </div>
-
                   <div>
                     <Label htmlFor="gpa">GPA</Label>
-                    <Input
-                      id="gpa"
-                      value={profileData.gpa}
-                      onChange={handleGpaChange}
-                      disabled={!isEditing}
-                      placeholder="Enter your GPA"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="bio">Bio</Label>
-                    <Textarea
-                      id="bio"
-                      value={profileData.bio}
-                      onChange={handleBioChange}
-                      disabled={!isEditing}
-                      placeholder="Tell coaches about your athletic journey and goals..."
-                      rows={4}
-                    />
+                    <div className="py-2 px-3 bg-gray-100 rounded text-gray-800 min-h-[40px] flex items-center">{profileData.gpa}</div>
                   </div>
                 </CardContent>
               </Card>
