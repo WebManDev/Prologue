@@ -46,7 +46,8 @@ const goals = [
 export default function MemberProfileSetupPage() {
   const router = useRouter()
   const [formData, setFormData] = useState({
-    fullName: "",
+    firstName: "",
+    lastName: "",
     gender: "",
     bio: "",
     selectedSports: [] as string[],
@@ -110,7 +111,9 @@ export default function MemberProfileSetupPage() {
 
       // Save member profile to Firestore
       await saveMemberProfile(user.uid, {
-        name: formData.fullName,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        name: formData.firstName + ' ' + formData.lastName,
         email: user.email || "",
         sport: formData.selectedSports.join(", "),
         role: "member",
@@ -246,20 +249,36 @@ export default function MemberProfileSetupPage() {
 
             {/* Form Fields */}
             <div className="space-y-8">
-              {/* Full Name */}
-              <div>
-                <Label htmlFor="fullName" className="text-base font-semibold text-gray-900 mb-3 block">
-                  Full Name <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="fullName"
-                  type="text"
-                  placeholder="Enter your full name"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, fullName: e.target.value }))}
-                  className="h-12 text-base border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
-                  required
-                />
+              {/* Full Name (now split) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="firstName" className="text-base font-semibold text-gray-900 mb-3 block">
+                    First Name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="firstName"
+                    type="text"
+                    placeholder="Enter your first name"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, firstName: e.target.value }))}
+                    className="h-12 text-base border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="lastName" className="text-base font-semibold text-gray-900 mb-3 block">
+                    Last Name <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="lastName"
+                    type="text"
+                    placeholder="Enter your last name"
+                    value={formData.lastName}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, lastName: e.target.value }))}
+                    className="h-12 text-base border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
+                    required
+                  />
+                </div>
               </div>
 
               {/* Gender */}
@@ -389,7 +408,8 @@ export default function MemberProfileSetupPage() {
                 className="bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white px-12 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
                 disabled={
                   loading ||
-                  !formData.fullName ||
+                  !formData.firstName ||
+                  !formData.lastName ||
                   !formData.gender ||
                   formData.selectedSports.length === 0 ||
                   formData.selectedGoals.length === 0

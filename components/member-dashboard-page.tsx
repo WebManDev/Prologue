@@ -56,7 +56,7 @@ import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutNotification } from "@/components/ui/logout-notification"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
-import { auth, saveMemberProfile, getMemberProfile } from "@/lib/firebase"
+import { auth, saveMemberProfile, getMemberProfile, uploadProfilePicture, uploadCoverPhoto } from "@/lib/firebase"
 
 export default function MemberDashboardPage() {
   const { isMobile, isTablet } = useMobileDetection()
@@ -70,6 +70,12 @@ export default function MemberDashboardPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [showProfileChecklist, setShowProfileChecklist] = useState(false)
   const [isLoadingProfile, setIsLoadingProfile] = useState(true)
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
+  const [selectedProfileImage, setSelectedProfileImage] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
+  const [selectedCoverImage, setSelectedCoverImage] = useState<File | null>(null)
+  const coverFileInputRef = useRef<HTMLInputElement>(null)
 
   // Quick search suggestions
   const quickSearches = useMemo(
@@ -169,6 +175,7 @@ export default function MemberDashboardPage() {
       "Mental Performance",
       "Injury Prevention",
     ],
+    coverImageUrl: null as string | null,
   })
 
   // Profile completion checklist
@@ -318,19 +325,14 @@ export default function MemberDashboardPage() {
   }, [logout])
 
   const handleSaveProfile = async () => {
+    if (!auth.currentUser) return
     setIsLoading(true)
-
     try {
-      if (!auth.currentUser) {
-        throw new Error("User not authenticated")
-      }
-
-      // Prepare the profile data for Firebase
       const profileDataForFirebase = {
-        name: `${profileData.firstName} ${profileData.lastName}`,
+        name: profileData.firstName + ' ' + profileData.lastName,
         email: profileData.email,
         sport: profileData.sport,
-        role: "member",
+        role: (profileData as any).role || 'member',
         // Additional profile fields
         firstName: profileData.firstName,
         lastName: profileData.lastName,
@@ -344,27 +346,14 @@ export default function MemberDashboardPage() {
         goals: profileData.goals,
         achievements: profileData.achievements,
         interests: profileData.interests,
-        lastProfileEdit: new Date().toISOString(),
+        profileImageUrl: profileImageUrl,
+        onboardingCompleted: true,
       }
-
-      // Save to Firebase
       await saveMemberProfile(auth.currentUser.uid, profileDataForFirebase)
-
-      toast({
-        title: "Profile Updated",
-        description: "Your profile has been saved successfully.",
-        duration: 3000,
-      })
-
       setIsEditing(false)
+      toast({ title: "Profile updated!" })
     } catch (error) {
-      console.error("Error saving profile:", error)
-      toast({
-        title: "Error",
-        description: "Failed to save profile. Please try again.",
-        variant: "destructive",
-        duration: 3000,
-      })
+      toast({ title: "Save failed", description: String(error), variant: "destructive" })
     } finally {
       setIsLoading(false)
     }
@@ -662,16 +651,30 @@ export default function MemberDashboardPage() {
       {/* Profile Header */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-4 lg:mb-8 overflow-hidden">
         <div className="h-24 lg:h-32 bg-gradient-to-r from-prologue-electric to-prologue-blue relative">
-          <div className="absolute inset-0 bg-black/10"></div>
+          {coverImageUrl ? (
+            <Image src={coverImageUrl} alt="Cover" fill className="object-cover w-full h-full" />
+          ) : (
+            <div className="absolute inset-0 bg-black/10"></div>
+          )}
           {isEditing && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="absolute top-2 right-2 lg:top-4 lg:right-4 bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 text-xs lg:text-sm"
-            >
-              <Camera className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
-              <span className="hidden sm:inline">Change Cover</span>
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="absolute top-2 right-2 lg:top-4 lg:right-4 bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 text-xs lg:text-sm"
+                onClick={() => coverFileInputRef.current?.click()}
+              >
+                <Camera className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
+                <span className="hidden sm:inline">Change Cover</span>
+              </Button>
+              <input
+                type="file"
+                accept="image/*"
+                ref={coverFileInputRef}
+                className="hidden"
+                onChange={handleCoverImageChange}
+              />
+            </>
           )}
         </div>
 
@@ -680,15 +683,31 @@ export default function MemberDashboardPage() {
             <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-6">
               <div className="relative self-center lg:self-auto">
                 <div className="w-20 h-20 lg:w-24 lg:h-24 bg-gradient-to-r from-prologue-electric to-prologue-blue rounded-full border-4 border-white overflow-hidden">
-                  <User className="w-full h-full text-white p-4 lg:p-6" />
+                  {selectedProfileImage ? (
+                    <Image src={URL.createObjectURL(selectedProfileImage)} alt="Profile Preview" width={96} height={96} className="w-full h-full object-cover" />
+                  ) : profileImageUrl ? (
+                    <Image src={profileImageUrl} alt="Profile" width={96} height={96} className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-full h-full text-white p-4 lg:p-6" />
+                  )}
                 </div>
                 {isEditing && (
-                  <Button
-                    size="sm"
-                    className="absolute -bottom-1 -right-1 lg:-bottom-2 lg:-right-2 w-6 h-6 lg:w-8 lg:h-8 rounded-full p-0 bg-prologue-electric hover:bg-prologue-blue"
-                  >
-                    <Upload className="h-3 w-3 lg:h-4 lg:w-4" />
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      className="absolute -bottom-1 -right-1 lg:-bottom-2 lg:-right-2 w-6 h-6 lg:w-8 lg:h-8 rounded-full p-0 bg-prologue-electric hover:bg-prologue-blue"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="h-3 w-3 lg:h-4 lg:w-4" />
+                    </Button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      ref={fileInputRef}
+                      className="hidden"
+                      onChange={handleProfileImageChange}
+                    />
+                  </>
                 )}
               </div>
 
@@ -1278,7 +1297,14 @@ export default function MemberDashboardPage() {
               "Mental Performance",
               "Injury Prevention",
             ],
+            coverImageUrl: memberProfile.coverImageUrl || null,
           })
+          if (memberProfile.profileImageUrl) {
+            setProfileImageUrl(memberProfile.profileImageUrl)
+          }
+          if (memberProfile.coverImageUrl) {
+            setCoverImageUrl(memberProfile.coverImageUrl)
+          }
         }
       } catch (error) {
         console.error("Error loading profile:", error)
@@ -1295,6 +1321,79 @@ export default function MemberDashboardPage() {
 
     loadProfileData()
   }, [])
+
+  // Handler for file input change (show preview, upload, update Firestore)
+  const handleProfileImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !auth.currentUser) return
+    setSelectedProfileImage(file)
+    setIsLoading(true)
+    try {
+      console.log("Previewing image...");
+      const previewUrl = URL.createObjectURL(file)
+      setProfileImageUrl(previewUrl)
+
+      console.log("Uploading to Firebase Storage...");
+      const url = await uploadProfilePicture(auth.currentUser.uid, file)
+      console.log("Upload complete, URL:", url);
+
+      setProfileImageUrl(url)
+      setProfileData(prev => ({
+        ...prev,
+        profileImageUrl: url,
+      }))
+
+      // Use the latest profileData with the new image URL
+      const updatedProfileData = {
+        ...profileData,
+        profileImageUrl: url,
+        name: profileData.firstName + ' ' + profileData.lastName,
+        role: (profileData as any).role || 'member',
+        onboardingCompleted: true,
+      }
+      console.log("Saving to Firestore...", updatedProfileData);
+      await saveMemberProfile(auth.currentUser.uid, updatedProfileData)
+      console.log("Save to Firestore complete.");
+
+      toast({ title: "Profile picture updated!" })
+    } catch (error) {
+      console.error("Profile image upload error:", error)
+      toast({ title: "Upload failed", description: String(error), variant: "destructive" })
+    } finally {
+      setIsLoading(false)
+      console.log("setIsLoading(false) called");
+    }
+  }
+
+  const handleCoverImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !auth.currentUser) return;
+    setSelectedCoverImage(file);
+    setIsLoading(true);
+    try {
+      const previewUrl = URL.createObjectURL(file);
+      setCoverImageUrl(previewUrl);
+      // Upload to Firebase Storage
+      const url = await uploadCoverPhoto(auth.currentUser.uid, file);
+      setCoverImageUrl(url);
+      setProfileData(prev => ({
+        ...prev,
+        coverImageUrl: url,
+      }));
+      await saveMemberProfile(auth.currentUser.uid, {
+        ...profileData,
+        coverImageUrl: url,
+        name: profileData.firstName + ' ' + profileData.lastName,
+        role: (profileData as any).role || 'member',
+        onboardingCompleted: true,
+      });
+      toast({ title: "Cover photo updated!" });
+    } catch (error) {
+      toast({ title: "Upload failed", description: String(error), variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   if (isMobile || isTablet) {
     return (

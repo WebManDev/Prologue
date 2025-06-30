@@ -110,14 +110,8 @@ const saveMemberProfile = async (userId: string, profileData: {
   try {
     await setDoc(doc(db, "members", userId), {
       ...profileData,
-      createdAt: new Date().toISOString(),
-      subscriptions: [],
-      savedContent: [],
-      preferences: {
-        notifications: true,
-        emailUpdates: true
-      }
-    });
+      lastProfileEdit: new Date().toISOString(),
+    }, { merge: true });
   } catch (error) {
     console.error("Error saving member profile:", error);
     throw error;
@@ -152,6 +146,20 @@ const uploadProfilePicture = async (userId: string, file: File) => {
     return downloadURL;
   } catch (error) {
     console.error("Error uploading profile picture:", error);
+    throw error;
+  }
+};
+
+// Function to upload cover photo
+export const uploadCoverPhoto = async (userId: string, file: File) => {
+  try {
+    const storage = getStorage();
+    const storageRef = ref(storage, `cover-photos/${userId}`);
+    await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(storageRef);
+    return downloadURL;
+  } catch (error) {
+    console.error("Error uploading cover photo:", error);
     throw error;
   }
 };

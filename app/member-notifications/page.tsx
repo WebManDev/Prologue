@@ -29,6 +29,7 @@ import {
   Archive,
   Trash2,
   X,
+  Compass,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -397,6 +398,14 @@ export default function MemberNotificationsPage() {
                   {hasNewTrainingContent && (
                     <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
                   )}
+                </Link>
+                <Link
+                  href="/member-browse"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
+                >
+                  <Compass className="h-5 w-5" />
+                  <span className="text-xs font-medium">Browse</span>
+                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </Link>
                 <Link
                   href="/member-feedback"
