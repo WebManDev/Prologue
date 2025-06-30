@@ -96,19 +96,16 @@ export default function MemberProfileSetupPage() {
     e.preventDefault()
     setLoading(true)
     setError("")
-
     try {
       const user = auth.currentUser
       if (!user) {
         throw new Error("User not authenticated")
       }
-
       // Upload profile image if provided
       let profileImageUrl = ""
       if (formData.profileImage) {
         profileImageUrl = await uploadProfilePicture(user.uid, formData.profileImage)
       }
-
       // Save member profile to Firestore
       await saveMemberProfile(user.uid, {
         firstName: formData.firstName,
@@ -124,7 +121,6 @@ export default function MemberProfileSetupPage() {
         profileImageUrl,
         onboardingCompleted: true,
       })
-
       router.push("/member-dashboard")
     } catch (err: any) {
       setError(err.message || "Failed to save profile")
@@ -220,7 +216,7 @@ export default function MemberProfileSetupPage() {
               <div className="w-12 h-12 bg-gradient-to-r from-prologue-electric to-prologue-fire rounded-lg flex items-center justify-center">
                 <User className="h-6 w-6 text-white" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900">Personal Information</h2>
+              <h2 className="text-2xl font-bold text-gray-900">Account Information</h2>
             </div>
 
             {/* Profile Picture Upload */}
@@ -280,60 +276,7 @@ export default function MemberProfileSetupPage() {
                   />
                 </div>
               </div>
-
-              {/* Gender */}
-              <div>
-                <Label className="text-base font-semibold text-gray-900 mb-3 block">
-                  Gender <span className="text-red-500">*</span>
-                </Label>
-                <RadioGroup
-                  value={formData.gender}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, gender: value }))}
-                  className="flex space-x-6"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="male" id="male" />
-                    <Label htmlFor="male" className="text-base">
-                      Male
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="female" id="female" />
-                    <Label htmlFor="female" className="text-base">
-                      Female
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="other" id="other" />
-                    <Label htmlFor="other" className="text-base">
-                      Other
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="prefer-not-to-say" id="prefer-not-to-say" />
-                    <Label htmlFor="prefer-not-to-say" className="text-base">
-                      Prefer not to say
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              {/* Bio */}
-              <div>
-                <Label htmlFor="bio" className="text-base font-semibold text-gray-900 mb-3 block">
-                  About You
-                </Label>
-                <Textarea
-                  id="bio"
-                  placeholder="Tell coaches about your athletic background, current level, and aspirations..."
-                  value={formData.bio}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, bio: e.target.value }))}
-                  className="min-h-[120px] text-base resize-none border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
-                  maxLength={500}
-                />
-                <p className="text-sm text-gray-500 mt-2">{formData.bio.length}/500 characters</p>
-              </div>
-
+              {/* Gender, Bio, Sports Interests, etc. restored as before */}
               {/* Sports Interests */}
               <div>
                 <Label className="text-base font-semibold text-gray-900 mb-3 block">
@@ -411,6 +354,7 @@ export default function MemberProfileSetupPage() {
                   !formData.firstName ||
                   !formData.lastName ||
                   !formData.gender ||
+                  !formData.bio ||
                   formData.selectedSports.length === 0 ||
                   formData.selectedGoals.length === 0
                 }

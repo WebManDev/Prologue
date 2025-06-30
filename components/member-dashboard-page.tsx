@@ -139,7 +139,23 @@ export default function MemberDashboardPage() {
   }, [searchQuery])
 
   // Profile data state
-  const [profileData, setProfileData] = useState({
+  const [profileData, setProfileData] = useState<{
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    bio: string;
+    location: string;
+    school: string;
+    graduationYear: string;
+    sport: string;
+    position: string;
+    gpa: string;
+    goals: string[];
+    achievements: string[];
+    interests: string[];
+    coverImageUrl: string | null;
+  }>({
     firstName: "Alex",
     lastName: "Johnson",
     email: "alex.johnson@example.com",
@@ -151,22 +167,8 @@ export default function MemberDashboardPage() {
     sport: "Tennis",
     position: "Singles Player",
     gpa: "3.8",
-    goals: [
-      "Improve state ranking to top 10",
-      "Secure Division I tennis scholarship",
-      "Develop stronger mental game",
-      "Enhance serve consistency",
-      "Improve fitness and conditioning",
-      "Build college recruitment profile",
-    ],
-    achievements: [
-      "State Championship Semifinalist 2023",
-      "Regional Tournament Winner 2023",
-      "Team Captain - Varsity Tennis",
-      "Academic Honor Roll",
-      "Community Service Award",
-      "Junior Tournament Circuit Top 20",
-    ],
+    goals: [],
+    achievements: [],
     interests: [
       "Tennis Strategy & Tactics",
       "Sports Psychology",
@@ -175,7 +177,7 @@ export default function MemberDashboardPage() {
       "Mental Performance",
       "Injury Prevention",
     ],
-    coverImageUrl: null as string | null,
+    coverImageUrl: null,
   })
 
   // Profile completion checklist
@@ -1114,27 +1116,33 @@ export default function MemberDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {profileData.goals.map((goal, index) => (
-                      <div key={index} className="flex items-center space-x-3">
-                        {isEditing ? (
-                          <>
-                            <Input
-                              value={goal}
-                              onChange={(e) => updateGoal(index, e.target.value)}
-                              className="flex-1"
-                            />
-                            <Button variant="outline" size="sm" onClick={() => removeGoal(index)} className="p-2">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <Target className="h-4 w-4 text-prologue-electric flex-shrink-0" />
-                            <span className="text-gray-700 text-sm lg:text-base">{goal}</span>
-                          </>
-                        )}
+                    {profileData.goals.length === 0 ? (
+                      <div className="text-gray-500 text-sm italic">
+                        Set your first goal to get started!
                       </div>
-                    ))}
+                    ) : (
+                      profileData.goals.map((goal, index) => (
+                        <div key={index} className="flex items-center space-x-3">
+                          {isEditing ? (
+                            <>
+                              <Input
+                                value={goal}
+                                onChange={(e) => updateGoal(index, e.target.value)}
+                                className="flex-1"
+                              />
+                              <Button variant="outline" size="sm" onClick={() => removeGoal(index)} className="p-2">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Target className="h-4 w-4 text-prologue-electric flex-shrink-0" />
+                              <span className="text-gray-700 text-sm lg:text-base">{goal}</span>
+                            </>
+                          )}
+                        </div>
+                      ))
+                    )}
                     {isEditing && (
                       <Button variant="outline" size="sm" onClick={addGoal} className="w-full bg-transparent">
                         <Plus className="h-4 w-4 mr-2" />
@@ -1156,32 +1164,38 @@ export default function MemberDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {profileData.achievements.map((achievement, index) => (
-                      <div key={index} className="flex items-center space-x-3">
-                        {isEditing ? (
-                          <>
-                            <Input
-                              value={achievement}
-                              onChange={(e) => updateAchievement(index, e.target.value)}
-                              className="flex-1"
-                            />
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => removeAchievement(index)}
-                              className="p-2"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <Award className="h-4 w-4 text-yellow-500 flex-shrink-0" />
-                            <span className="text-gray-700 text-sm lg:text-base">{achievement}</span>
-                          </>
-                        )}
+                    {profileData.achievements.length === 0 ? (
+                      <div className="text-gray-500 text-sm italic">
+                        Add your first achievement to showcase your journey!
                       </div>
-                    ))}
+                    ) : (
+                      profileData.achievements.map((achievement, index) => (
+                        <div key={index} className="flex items-center space-x-3">
+                          {isEditing ? (
+                            <>
+                              <Input
+                                value={achievement}
+                                onChange={(e) => updateAchievement(index, e.target.value)}
+                                className="flex-1"
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removeAchievement(index)}
+                                className="p-2"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Award className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+                              <span className="text-gray-700 text-sm lg:text-base">{achievement}</span>
+                            </>
+                          )}
+                        </div>
+                      ))
+                    )}
                     {isEditing && (
                       <Button variant="outline" size="sm" onClick={addAchievement} className="w-full bg-transparent">
                         <Plus className="h-4 w-4 mr-2" />
@@ -1273,22 +1287,8 @@ export default function MemberDashboardPage() {
             sport: memberProfile.sport || "Tennis",
             position: memberProfile.position || "Singles Player",
             gpa: memberProfile.gpa || "3.8",
-            goals: memberProfile.goals || [
-              "Improve state ranking to top 10",
-              "Secure Division I tennis scholarship",
-              "Develop stronger mental game",
-              "Enhance serve consistency",
-              "Improve fitness and conditioning",
-              "Build college recruitment profile",
-            ],
-            achievements: memberProfile.achievements || [
-              "State Championship Semifinalist 2023",
-              "Regional Tournament Winner 2023",
-              "Team Captain - Varsity Tennis",
-              "Academic Honor Roll",
-              "Community Service Award",
-              "Junior Tournament Circuit Top 20",
-            ],
+            goals: memberProfile.goals || [],
+            achievements: memberProfile.achievements || [],
             interests: memberProfile.interests || [
               "Tennis Strategy & Tactics",
               "Sports Psychology",

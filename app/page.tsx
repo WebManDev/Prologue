@@ -193,8 +193,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    name: "",
-    sport: ""
+    confirmPassword: ""
   })
 
   const router = useRouter()
@@ -294,18 +293,12 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
   }
 
   const handleSignUp = async () => {
-    if (!formData.email || !formData.password) {
+    if (!formData.email || !formData.password || !formData.confirmPassword) {
       setErrorMessage("Please fill in all fields")
       return
     }
-
-    if (isSignUp && selectedRole === "member" && !formData.name) {
-      setErrorMessage("Please enter your full name")
-      return
-    }
-
-    if (isSignUp && selectedRole === "member" && !formData.sport) {
-      setErrorMessage("Please select your primary sport")
+    if (isSignUp && selectedRole === "member" && formData.password !== formData.confirmPassword) {
+      setErrorMessage("Passwords do not match")
       return
     }
 
@@ -333,9 +326,9 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
       } else if (selectedRole === "member") {
         console.log("Saving member profile for user:", userCredential.user.uid)
         await saveMemberProfile(userCredential.user.uid, {
-          name: formData.name,
+          name: "",
           email: formData.email,
-          sport: formData.sport,
+          sport: "",
           role: "member",
           onboardingCompleted: false // Will be set to true after onboarding
         });
@@ -397,8 +390,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
     setFormData({
       email: "",
       password: "",
-      name: "",
-      sport: ""
+      confirmPassword: ""
     })
   }
 
@@ -604,25 +596,6 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
 
                 {/* Login/Signup Form - Exact match to reference */}
                 <div className="space-y-5 mb-6">
-                  {/* Name field for signup members */}
-                  {isSignUp && selectedRole === "member" && (
-                    <div>
-                      <Label htmlFor="name" className="text-xs font-semibold text-gray-900 mb-2 block leading-tight">
-                        Full Name
-                      </Label>
-                      <Input
-                        id="name"
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => handleInputChange("name", e.target.value)}
-                        onFocus={() => setErrorMessage(null)}
-                        className="w-full h-12 px-4 border-0 bg-white rounded-3xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs shadow-sm"
-                        placeholder="Enter your full name"
-                        style={{ backgroundColor: "#ffffff" }}
-                      />
-                    </div>
-                  )}
-
                   <div>
                     <Label htmlFor="email" className="text-xs font-semibold text-gray-900 mb-2 block leading-tight">
                       Email
@@ -664,26 +637,22 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
                     </div>
                   </div>
 
-                  {/* Sport selection for signup members */}
+                  {/* Confirm Password for signup members */}
                   {isSignUp && selectedRole === "member" && (
                     <div>
-                      <Label htmlFor="sport" className="text-xs font-semibold text-gray-900 mb-2 block leading-tight">
-                        Primary Sport
+                      <Label htmlFor="confirmPassword" className="text-xs font-semibold text-gray-900 mb-2 block leading-tight">
+                        Confirm Password
                       </Label>
-                      <select
-                        id="sport"
-                        value={formData.sport}
-                        onChange={(e) => handleInputChange("sport", e.target.value)}
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        value={formData.confirmPassword}
+                        onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
+                        onFocus={() => setErrorMessage(null)}
                         className="w-full h-12 px-4 border-0 bg-white rounded-3xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs shadow-sm"
+                        placeholder="Confirm your password"
                         style={{ backgroundColor: "#ffffff" }}
-                      >
-                        <option value="">Select your primary sport</option>
-                        {sports.map((sport) => (
-                          <option key={sport} value={sport}>
-                            {sport}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </div>
                   )}
 
@@ -719,7 +688,7 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
                 {/* Login/Signup Button - Exact match to reference */}
                 <Button
                   onClick={isSignUp ? handleSignUp : handleLogin}
-                  disabled={!formData.email || !formData.password || isSubmitting || (isSignUp && selectedRole === "member" && (!formData.name || !formData.sport))}
+                  disabled={!formData.email || !formData.password || (isSignUp && selectedRole === "member" && !formData.confirmPassword) || isSubmitting}
                   className="w-full h-12 text-xs sm:text-sm font-bold rounded-3xl transition-all duration-300 transform hover:scale-[1.02] flex items-center justify-center space-x-3 bg-blue-500 hover:bg-blue-600 text-white shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mb-6"
                 >
                   {isSubmitting ? (
