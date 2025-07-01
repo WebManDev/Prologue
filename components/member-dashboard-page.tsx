@@ -61,6 +61,25 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import SearchBar from "./SearchBar"
 import { MemberHeader } from "@/components/navigation/member-header"
 
+// Define MemberProfile type
+interface MemberProfile {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  bio: string;
+  location: string;
+  school: string;
+  graduationYear: string;
+  sport: string;
+  position: string;
+  gpa: string;
+  goals: string[];
+  achievements: string[];
+  interests: string[];
+  coverImageUrl: string | null;
+}
+
 export default function MemberDashboardPage() {
   const { isMobile, isTablet } = useMobileDetection()
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
@@ -97,48 +116,8 @@ export default function MemberDashboardPage() {
     [],
   )
 
-
-
   // Profile data state
-  const [profileData, setProfileData] = useState({
-    firstName: "Alex",
-    lastName: "Johnson",
-    email: "alex.johnson@example.com",
-    phone: "+1 (555) 987-6543",
-    bio: "Dedicated high school tennis player with aspirations to compete at the collegiate level. Currently ranked #15 in state and actively seeking coaching to improve my mental game and technical skills. Passionate about continuous improvement and committed to excellence both on and off the court.",
-    location: "Miami, FL",
-    school: "Miami Prep Academy",
-    graduationYear: "2025",
-    sport: "Tennis",
-    position: "Singles Player",
-    gpa: "3.8",
-    goals: [
-      "Improve state ranking to top 10",
-      "Secure Division I tennis scholarship",
-      "Develop stronger mental game",
-      "Enhance serve consistency",
-      "Improve fitness and conditioning",
-      "Build college recruitment profile",
-    ],
-    achievements: [
-      "State Championship Semifinalist 2023",
-      "Regional Tournament Winner 2023",
-      "Team Captain - Varsity Tennis",
-      "Academic Honor Roll",
-      "Community Service Award",
-      "Junior Tournament Circuit Top 20",
-    ],
-    interests: [
-      "Tennis Strategy & Tactics",
-      "Sports Psychology",
-      "Nutrition & Fitness",
-      "College Recruitment",
-      "Mental Performance",
-      "Injury Prevention",
-    ],
-  })
-
-
+  const [profileData, setProfileData] = useState<MemberProfile | null>(null)
 
   // Profile completion checklist
   const profileChecklist = useMemo(() => [
@@ -146,28 +125,28 @@ export default function MemberDashboardPage() {
       id: "basic-info",
       title: "Complete Basic Information",
       description: "Add your contact details and personal information",
-      completed: !!(profileData.firstName && profileData.lastName && profileData.email && profileData.phone),
+      completed: !!(profileData?.firstName && profileData?.lastName && profileData?.email && profileData?.phone),
       action: () => document.getElementById("profile-tab")?.click(),
     },
     {
       id: "bio",
       title: "Write Your Bio",
       description: "Tell coaches about your athletic journey and goals",
-      completed: profileData.bio.length > 50,
+      completed: (profileData?.bio?.length ?? 0) > 50,
       action: () => document.getElementById("overview-tab")?.click(),
     },
     {
       id: "goals",
       title: "Set Your Goals",
       description: "Define what you want to achieve in your sport",
-      completed: profileData.goals.length >= 3,
+      completed: (profileData?.goals?.length ?? 0) >= 3,
       action: () => document.getElementById("goals-tab")?.click(),
     },
     {
       id: "achievements",
       title: "Add Achievements",
       description: "Showcase your athletic accomplishments",
-      completed: profileData.achievements.length >= 3,
+      completed: (profileData?.achievements?.length ?? 0) >= 3,
       action: () => document.getElementById("achievements-tab")?.click(),
     },
     {
@@ -177,7 +156,7 @@ export default function MemberDashboardPage() {
       completed: false, // This would be based on actual photo upload
       action: () => toast({ title: "Photo Upload", description: "Click the camera icon to upload your photo" }),
     },
-  ], [profileData.firstName, profileData.lastName, profileData.email, profileData.phone, profileData.bio, profileData.goals, profileData.achievements])
+  ], [profileData?.firstName, profileData?.lastName, profileData?.email, profileData?.phone, profileData?.bio, profileData?.goals, profileData?.achievements])
 
   const completedItems = useMemo(() => profileChecklist.filter((item) => item.completed).length, [profileChecklist])
   const totalItems = profileChecklist.length
@@ -205,12 +184,6 @@ export default function MemberDashboardPage() {
     { type: "goal", title: "Set new fitness improvement goal", time: "5 days ago" },
   ], [])
 
-
-
-
-
-
-
   // Handle clicks outside search dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -219,11 +192,14 @@ export default function MemberDashboardPage() {
       }
     }
 
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
+    // Only add the event listener when the search dropdown is open
+    if (showSearchDropdown) {
+      document.addEventListener("mousedown", handleClickOutside)
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside)
+      }
     }
-  }, [])
+  }, [showSearchDropdown])
 
   // Scroll to top on component mount (for post-login/signup)
   useEffect(() => {
@@ -272,7 +248,7 @@ export default function MemberDashboardPage() {
   }, [logout])
 
   const handleSaveProfile = async () => {
-    if (!auth.currentUser) return
+    if (!auth.currentUser || !profileData) return
     setIsLoading(true)
     try {
       const profileDataForFirebase = {
@@ -306,74 +282,78 @@ export default function MemberDashboardPage() {
     }
   }
 
-  const addGoal = () => {
-    setProfileData({
-      ...profileData,
-      goals: [...profileData.goals, "New goal"],
-    })
-  }
+  const handleInputChange = useCallback((field: keyof typeof profileData, value: string) => {
+    setProfileData(prev => ({ ...prev, [field]: value }));
+  }, []);
 
-  const removeGoal = (index: number) => {
-    setProfileData({
-      ...profileData,
-      goals: profileData.goals.filter((_, i) => i !== index),
-    })
-  }
+  const updateGoal = useCallback((index: number, value: string) => {
+    setProfileData(prev => {
+      if (!prev) return prev;
+      const newGoals = [...prev.goals];
+      newGoals[index] = value;
+      return { ...prev, goals: newGoals };
+    });
+  }, []);
 
-  const updateGoal = (index: number, value: string) => {
-    const newGoals = [...profileData.goals]
-    newGoals[index] = value
-    setProfileData({
-      ...profileData,
-      goals: newGoals,
-    })
-  }
+  const addGoal = useCallback(() => {
+    setProfileData(prev => {
+      if (!prev) return prev as MemberProfile;
+      return { ...prev, goals: [...prev.goals, "New goal"] };
+    });
+  }, []);
 
-  const addAchievement = () => {
-    setProfileData({
-      ...profileData,
-      achievements: [...profileData.achievements, "New achievement"],
-    })
-  }
+  const removeGoal = useCallback((index: number) => {
+    setProfileData(prev => {
+      if (!prev) return prev as MemberProfile;
+      return { ...prev, goals: prev.goals.filter((_, i) => i !== index) };
+    });
+  }, []);
 
-  const removeAchievement = (index: number) => {
-    setProfileData({
-      ...profileData,
-      achievements: profileData.achievements.filter((_, i) => i !== index),
-    })
-  }
+  const addAchievement = useCallback(() => {
+    setProfileData(prev => {
+      if (!prev) return prev as MemberProfile;
+      return { ...prev, achievements: [...prev.achievements, "New achievement"] };
+    });
+  }, []);
 
-  const updateAchievement = (index: number, value: string) => {
-    const newAchievements = [...profileData.achievements]
-    newAchievements[index] = value
-    setProfileData({
-      ...profileData,
-      achievements: newAchievements,
-    })
-  }
+  const removeAchievement = useCallback((index: number) => {
+    setProfileData(prev => {
+      if (!prev) return prev as MemberProfile;
+      return { ...prev, achievements: prev.achievements.filter((_, i) => i !== index) };
+    });
+  }, []);
 
-  const addInterest = () => {
-    setProfileData({
-      ...profileData,
-      interests: [...profileData.interests, "New interest"],
-    })
-  }
+  const updateAchievement = useCallback((index: number, value: string) => {
+    setProfileData(prev => {
+      if (!prev) return prev as MemberProfile;
+      const newAchievements = [...prev.achievements];
+      newAchievements[index] = value;
+      return { ...prev, achievements: newAchievements };
+    });
+  }, []);
 
-  const removeInterest = (index: number) => {
-    setProfileData({
-      ...profileData,
-      interests: profileData.interests.filter((_, i) => i !== index),
-    })
-  }
+  const addInterest = useCallback(() => {
+    setProfileData(prev => {
+      if (!prev) return prev as MemberProfile;
+      return { ...prev, interests: [...prev.interests, "New interest"] };
+    });
+  }, []);
 
-  const updateInterest = (index: number, value: string) => {
-    const newInterests = [...profileData.interests]
-    newInterests[index] = value
-    setProfileData({
-      ...profileData,
-      interests: newInterests,
-    })
-  }
+  const removeInterest = useCallback((index: number) => {
+    setProfileData(prev => {
+      if (!prev) return prev as MemberProfile;
+      return { ...prev, interests: prev.interests.filter((_, i) => i !== index) };
+    });
+  }, []);
+
+  const updateInterest = useCallback((index: number, value: string) => {
+    setProfileData(prev => {
+      if (!prev) return prev as MemberProfile;
+      const newInterests = [...prev.interests];
+      newInterests[index] = value;
+      return { ...prev, interests: newInterests };
+    });
+  }, []);
 
   const getActivityIcon = useCallback((type: string) => {
     switch (type) {
@@ -473,27 +453,27 @@ export default function MemberDashboardPage() {
               <div className="pt-4 lg:pt-16 text-center lg:text-left">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-3 mb-2">
                   <h1 className="text-xl lg:text-3xl font-bold text-gray-900">
-                    {profileData.firstName} {profileData.lastName}
+                    {profileData?.firstName} {profileData?.lastName}
                   </h1>
                   <Badge className="bg-prologue-electric/10 text-prologue-electric text-xs lg:text-sm w-fit mx-auto lg:mx-0">
                     Student Athlete
                   </Badge>
                 </div>
                 <p className="text-gray-600 mb-2 text-sm lg:text-base">
-                  {profileData.sport} Player • Class of {profileData.graduationYear}
+                  {profileData?.sport} Player • Class of {profileData?.graduationYear}
                 </p>
                 <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-4 text-xs lg:text-sm text-gray-600 mb-4 space-y-1 lg:space-y-0">
                   <div className="flex items-center justify-center lg:justify-start space-x-1">
                     <MapPin className="h-3 w-3 lg:h-4 lg:w-4" />
-                    <span>{profileData.location}</span>
+                    <span>{profileData?.location}</span>
                   </div>
                   <div className="flex items-center justify-center lg:justify-start space-x-1">
                     <School className="h-3 w-3 lg:h-4 lg:w-4" />
-                    <span>{profileData.school}</span>
+                    <span>{profileData?.school}</span>
                   </div>
                   <div className="flex items-center justify-center lg:justify-start space-x-1">
                     <Star className="h-3 w-3 lg:h-4 lg:w-4 text-yellow-500" />
-                    <span>{profileData.gpa} GPA</span>
+                    <span>{profileData?.gpa} GPA</span>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-center lg:justify-start">
@@ -674,13 +654,13 @@ export default function MemberDashboardPage() {
                 <CardContent>
                   {isEditing ? (
                     <Textarea
-                      value={profileData.bio}
-                      onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                      value={profileData?.bio}
+                      onChange={(e) => handleInputChange('bio', e.target.value)}
                       placeholder="Tell coaches about your athletic journey and goals..."
-                      className="min-h-[120px] resize-none"
+                      rows={10}
                     />
                   ) : (
-                    <div className="text-gray-700 leading-relaxed text-sm lg:text-base whitespace-pre-line">{profileData.bio}</div>
+                    <div className="text-gray-700 leading-relaxed text-sm lg:text-base whitespace-pre-line">{profileData?.bio}</div>
                   )}
                 </CardContent>
               </Card>
@@ -694,7 +674,7 @@ export default function MemberDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {profileData.interests.map((interest, index) => (
+                    {profileData?.interests.map((interest, index) => (
                       <div key={index} className="flex items-start space-x-3">
                         {isEditing ? (
                           <div className="flex-1 flex items-center space-x-2">
@@ -737,8 +717,8 @@ export default function MemberDashboardPage() {
                       <Label htmlFor="firstName">First Name</Label>
                       <Input
                         id="firstName"
-                        value={profileData.firstName}
-                        onChange={(e) => setProfileData({ ...profileData, firstName: e.target.value })}
+                        value={profileData?.firstName}
+                        onChange={(e) => handleInputChange('firstName', e.target.value)}
                         disabled={!isEditing}
                       />
                     </div>
@@ -746,8 +726,8 @@ export default function MemberDashboardPage() {
                       <Label htmlFor="lastName">Last Name</Label>
                       <Input
                         id="lastName"
-                        value={profileData.lastName}
-                        onChange={(e) => setProfileData({ ...profileData, lastName: e.target.value })}
+                        value={profileData?.lastName}
+                        onChange={(e) => handleInputChange('lastName', e.target.value)}
                         disabled={!isEditing}
                       />
                     </div>
@@ -758,8 +738,8 @@ export default function MemberDashboardPage() {
                     <Input
                       id="email"
                       type="email"
-                      value={profileData.email}
-                      onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                      value={profileData?.email}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
                       disabled={!isEditing}
                     />
                   </div>
@@ -768,8 +748,8 @@ export default function MemberDashboardPage() {
                     <Label htmlFor="phone">Phone</Label>
                     <Input
                       id="phone"
-                      value={profileData.phone}
-                      onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                      value={profileData?.phone}
+                      onChange={(e) => handleInputChange('phone', e.target.value)}
                       disabled={!isEditing}
                     />
                   </div>
@@ -779,8 +759,8 @@ export default function MemberDashboardPage() {
                       <Label htmlFor="location">Location</Label>
                       <Input
                         id="location"
-                        value={profileData.location}
-                        onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
+                        value={profileData?.location}
+                        onChange={(e) => handleInputChange('location', e.target.value)}
                         disabled={!isEditing}
                       />
                     </div>
@@ -788,8 +768,8 @@ export default function MemberDashboardPage() {
                       <Label htmlFor="school">School</Label>
                       <Input
                         id="school"
-                        value={profileData.school}
-                        onChange={(e) => setProfileData({ ...profileData, school: e.target.value })}
+                        value={profileData?.school}
+                        onChange={(e) => handleInputChange('school', e.target.value)}
                         disabled={!isEditing}
                       />
                     </div>
@@ -799,8 +779,8 @@ export default function MemberDashboardPage() {
                     <div>
                       <Label htmlFor="sport">Primary Sport</Label>
                       <Select
-                        value={profileData.sport}
-                        onValueChange={(value) => setProfileData({ ...profileData, sport: value })}
+                        value={profileData?.sport}
+                        onValueChange={(value) => handleInputChange('sport', value)}
                         disabled={!isEditing}
                       >
                         <SelectTrigger>
@@ -822,8 +802,8 @@ export default function MemberDashboardPage() {
                       <Label htmlFor="position">Position</Label>
                       <Input
                         id="position"
-                        value={profileData.position}
-                        onChange={(e) => setProfileData({ ...profileData, position: e.target.value })}
+                        value={profileData?.position}
+                        onChange={(e) => handleInputChange('position', e.target.value)}
                         disabled={!isEditing}
                       />
                     </div>
@@ -831,8 +811,8 @@ export default function MemberDashboardPage() {
                       <Label htmlFor="graduationYear">Graduation Year</Label>
                       <Input
                         id="graduationYear"
-                        value={profileData.graduationYear}
-                        onChange={(e) => setProfileData({ ...profileData, graduationYear: e.target.value })}
+                        value={profileData?.graduationYear}
+                        onChange={(e) => handleInputChange('graduationYear', e.target.value)}
                         disabled={!isEditing}
                       />
                     </div>
@@ -842,8 +822,8 @@ export default function MemberDashboardPage() {
                     <Label htmlFor="gpa">GPA</Label>
                     <Input
                       id="gpa"
-                      value={profileData.gpa}
-                      onChange={(e) => setProfileData({ ...profileData, gpa: e.target.value })}
+                      value={profileData?.gpa}
+                      onChange={(e) => handleInputChange('gpa', e.target.value)}
                       disabled={!isEditing}
                     />
                   </div>
@@ -861,7 +841,7 @@ export default function MemberDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {profileData.goals.map((goal, index) => (
+                    {profileData?.goals.map((goal, index) => (
                       <div key={index} className="flex items-center space-x-3">
                         {isEditing ? (
                           <>
@@ -903,7 +883,7 @@ export default function MemberDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {profileData.achievements.map((achievement, index) => (
+                    {profileData?.achievements.map((achievement, index) => (
                       <div key={index} className="flex items-center space-x-3">
                         {isEditing ? (
                           <>
@@ -1008,8 +988,7 @@ export default function MemberDashboardPage() {
       try {
         const memberProfile = await getMemberProfile(auth.currentUser.uid)
         if (memberProfile) {
-          setProfileData(prev => ({
-            ...prev,
+          setProfileData({
             firstName: memberProfile.firstName || "",
             lastName: memberProfile.lastName || "",
             email: memberProfile.email || "",
@@ -1025,9 +1004,8 @@ export default function MemberDashboardPage() {
             achievements: memberProfile.achievements || [],
             interests: memberProfile.interests || [],
             coverImageUrl: memberProfile.coverImageUrl || null,
-          }))
+          })
           
-
           if (memberProfile.profileImageUrl) {
             setProfileImageUrl(memberProfile.profileImageUrl)
           }
@@ -1161,6 +1139,17 @@ export default function MemberDashboardPage() {
   }
 
   if (isLoadingProfile) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-prologue-electric mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your profile...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!profileData) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
