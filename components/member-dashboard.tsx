@@ -468,7 +468,7 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
             <div className="mb-2">
               <h3 className="text-xl font-semibold text-gray-900 mb-1">{post.title}</h3>
               <p className="text-gray-600 mb-2">{post.description}</p>
-              <p className="text-gray-700">{post.content}</p>
+              <div className="text-gray-700 whitespace-pre-line">{post.content}</div>
             </div>
             {post.type === "workout" && post.videoLink && (
               <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden mb-2">
@@ -1367,7 +1367,7 @@ function AthleteProfileView({
                 <h1 className="text-3xl font-bold text-gray-900">{athlete.name}</h1>
                 <Badge className="bg-orange-500">{athlete.sport}</Badge>
               </div>
-              <p className="text-gray-600 mb-4">{athlete.bio}</p>
+              <div className="text-gray-600 mb-4 whitespace-pre-line">{athlete.bio}</div>
               <div className="flex items-center space-x-6 text-sm text-gray-600">
                 <span className="flex items-center space-x-1">
                   <Users className="h-4 w-4" />

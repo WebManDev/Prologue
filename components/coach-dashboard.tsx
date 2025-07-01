@@ -2022,7 +2022,7 @@ export function CoachDashboard({ onLogout }: AthleteDashboardProps) {
                             placeholder="Tell your subscribers about your background and expertise..."
                           />
                         ) : (
-                          <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">{profileData.bio}</p>
+                          <div className="text-gray-700 bg-gray-50 p-4 rounded-lg whitespace-pre-line">{profileData.bio}</div>
                         )}
                       </div>
 

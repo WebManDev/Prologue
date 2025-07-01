@@ -59,6 +59,7 @@ import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { auth, saveMemberProfile, getMemberProfile, uploadProfilePicture, uploadCoverPhoto } from "@/lib/firebase"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import SearchBar from "./SearchBar"
+import { MemberHeader } from "@/components/navigation/member-header"
 
 export default function MemberDashboardPage() {
   const { isMobile, isTablet } = useMobileDetection()
@@ -99,55 +100,45 @@ export default function MemberDashboardPage() {
 
 
   // Profile data state
-  const [profileData, setProfileData] = useState<{
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-    bio: string;
-    location: string;
-    school: string;
-    graduationYear: string;
-    sport: string;
-    position: string;
-    gpa: string;
-    goals: string[];
-    achievements: string[];
-    interests: string[];
-    coverImageUrl: string | null;
-  }>({
+  const [profileData, setProfileData] = useState({
     firstName: "Alex",
     lastName: "Johnson",
     email: "alex.johnson@example.com",
     phone: "+1 (555) 987-6543",
-    bio: "",
+    bio: "Dedicated high school tennis player with aspirations to compete at the collegiate level. Currently ranked #15 in state and actively seeking coaching to improve my mental game and technical skills. Passionate about continuous improvement and committed to excellence both on and off the court.",
     location: "Miami, FL",
     school: "Miami Prep Academy",
     graduationYear: "2025",
     sport: "Tennis",
     position: "Singles Player",
     gpa: "3.8",
-    goals: [],
-    achievements: [],
-    interests: [],
-    coverImageUrl: null,
+    goals: [
+      "Improve state ranking to top 10",
+      "Secure Division I tennis scholarship",
+      "Develop stronger mental game",
+      "Enhance serve consistency",
+      "Improve fitness and conditioning",
+      "Build college recruitment profile",
+    ],
+    achievements: [
+      "State Championship Semifinalist 2023",
+      "Regional Tournament Winner 2023",
+      "Team Captain - Varsity Tennis",
+      "Academic Honor Roll",
+      "Community Service Award",
+      "Junior Tournament Circuit Top 20",
+    ],
+    interests: [
+      "Tennis Strategy & Tactics",
+      "Sports Psychology",
+      "Nutrition & Fitness",
+      "College Recruitment",
+      "Mental Performance",
+      "Injury Prevention",
+    ],
   })
 
-  // Individual state hooks for form fields
-  const [firstName, setFirstName] = useState(profileData.firstName)
-  const [lastName, setLastName] = useState(profileData.lastName)
-  const [email, setEmail] = useState(profileData.email)
-  const [phone, setPhone] = useState(profileData.phone)
-  const [bio, setBio] = useState(profileData.bio)
-  const [location, setLocation] = useState(profileData.location)
-  const [school, setSchool] = useState(profileData.school)
-  const [graduationYear, setGraduationYear] = useState(profileData.graduationYear)
-  const [position, setPosition] = useState(profileData.position)
-  const [gpa, setGpa] = useState(profileData.gpa)
-  const [sport, setSport] = useState(profileData.sport)
-  const [goals, setGoals] = useState(profileData.goals)
-  const [achievements, setAchievements] = useState(profileData.achievements)
-  const [interests, setInterests] = useState(profileData.interests)
+
 
   // Profile completion checklist
   const profileChecklist = useMemo(() => [
@@ -155,28 +146,28 @@ export default function MemberDashboardPage() {
       id: "basic-info",
       title: "Complete Basic Information",
       description: "Add your contact details and personal information",
-      completed: !!(firstName && lastName && email && phone),
+      completed: !!(profileData.firstName && profileData.lastName && profileData.email && profileData.phone),
       action: () => document.getElementById("profile-tab")?.click(),
     },
     {
       id: "bio",
       title: "Write Your Bio",
       description: "Tell coaches about your athletic journey and goals",
-      completed: bio.length > 50,
+      completed: profileData.bio.length > 50,
       action: () => document.getElementById("overview-tab")?.click(),
     },
     {
       id: "goals",
       title: "Set Your Goals",
       description: "Define what you want to achieve in your sport",
-      completed: goals.length >= 3,
+      completed: profileData.goals.length >= 3,
       action: () => document.getElementById("goals-tab")?.click(),
     },
     {
       id: "achievements",
       title: "Add Achievements",
       description: "Showcase your athletic accomplishments",
-      completed: achievements.length >= 3,
+      completed: profileData.achievements.length >= 3,
       action: () => document.getElementById("achievements-tab")?.click(),
     },
     {
@@ -186,22 +177,14 @@ export default function MemberDashboardPage() {
       completed: false, // This would be based on actual photo upload
       action: () => toast({ title: "Photo Upload", description: "Click the camera icon to upload your photo" }),
     },
-  ], [
-    profileData.firstName,
-    profileData.lastName,
-    profileData.email,
-    profileData.phone,
-    profileData.bio,
-    profileData.goals.length,
-    profileData.achievements.length
-  ])
+  ], [profileData.firstName, profileData.lastName, profileData.email, profileData.phone, profileData.bio, profileData.goals, profileData.achievements])
 
   const completedItems = useMemo(() => profileChecklist.filter((item) => item.completed).length, [profileChecklist])
   const totalItems = profileChecklist.length
   const completionPercentage = useMemo(() => Math.round((completedItems / totalItems) * 100), [completedItems, totalItems])
 
   // Member stats
-  const memberStats = {
+  const memberStats = useMemo(() => ({
     activeCoaches: 2,
     totalSessions: 18,
     thisWeek: 3,
@@ -210,17 +193,17 @@ export default function MemberDashboardPage() {
     hoursTraining: 45,
     goalsCompleted: 8,
     improvement: 15,
-  }
+  }), [])
 
   // Recent activity
-  const recentActivity = [
+  const recentActivity = useMemo(() => [
     { type: "session", title: "Training session with Jordan Smith", time: "2 hours ago", coach: "Jordan S." },
     { type: "achievement", title: "Completed serve consistency goal", time: "1 day ago" },
     { type: "feedback", title: "Received feedback from Alex Rodriguez", time: "2 days ago", coach: "Alex R." },
     { type: "session", title: "Mental performance session", time: "3 days ago", coach: "Jordan S." },
     { type: "milestone", title: "Reached 40 hours of training", time: "4 days ago" },
     { type: "goal", title: "Set new fitness improvement goal", time: "5 days ago" },
-  ]
+  ], [])
 
 
 
@@ -293,23 +276,23 @@ export default function MemberDashboardPage() {
     setIsLoading(true)
     try {
       const profileDataForFirebase = {
-        name: firstName + ' ' + lastName,
-        email: email,
-        sport: sport,
+        name: profileData.firstName + ' ' + profileData.lastName,
+        email: profileData.email,
+        sport: profileData.sport,
         role: (profileData as any).role || 'member',
         // Additional profile fields
-        firstName: firstName,
-        lastName: lastName,
-        phone: phone,
-        bio: bio,
-        location: location,
-        school: school,
-        graduationYear: graduationYear,
-        position: position,
-        gpa: gpa,
-        goals: goals,
-        achievements: achievements,
-        interests: interests,
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+        phone: profileData.phone,
+        bio: profileData.bio,
+        location: profileData.location,
+        school: profileData.school,
+        graduationYear: profileData.graduationYear,
+        position: profileData.position,
+        gpa: profileData.gpa,
+        goals: profileData.goals,
+        achievements: profileData.achievements,
+        interests: profileData.interests,
         profileImageUrl: profileImageUrl,
         onboardingCompleted: true,
       }
@@ -323,53 +306,74 @@ export default function MemberDashboardPage() {
     }
   }
 
-  const addGoal = useCallback(() => {
-    setGoals(prev => [...prev, "New goal"])
-  }, [])
-
-  const removeGoal = useCallback((index: number) => {
-    setGoals(prev => prev.filter((_, i) => i !== index))
-  }, [])
-
-  const updateGoal = useCallback((index: number, value: string) => {
-    setGoals(prev => {
-      const newGoals = [...prev]
-      newGoals[index] = value
-      return newGoals
+  const addGoal = () => {
+    setProfileData({
+      ...profileData,
+      goals: [...profileData.goals, "New goal"],
     })
-  }, [])
+  }
 
-  const addAchievement = useCallback(() => {
-    setAchievements(prev => [...prev, "New achievement"])
-  }, [])
-
-  const removeAchievement = useCallback((index: number) => {
-    setAchievements(prev => prev.filter((_, i) => i !== index))
-  }, [])
-
-  const updateAchievement = useCallback((index: number, value: string) => {
-    setAchievements(prev => {
-      const newAchievements = [...prev]
-      newAchievements[index] = value
-      return newAchievements
+  const removeGoal = (index: number) => {
+    setProfileData({
+      ...profileData,
+      goals: profileData.goals.filter((_, i) => i !== index),
     })
-  }, [])
+  }
 
-  const addInterest = useCallback(() => {
-    setInterests(prev => [...prev, "New interest"])
-  }, [])
-
-  const removeInterest = useCallback((index: number) => {
-    setInterests(prev => prev.filter((_, i) => i !== index))
-  }, [])
-
-  const updateInterest = useCallback((index: number, value: string) => {
-    setInterests(prev => {
-      const newInterests = [...prev]
-      newInterests[index] = value
-      return newInterests
+  const updateGoal = (index: number, value: string) => {
+    const newGoals = [...profileData.goals]
+    newGoals[index] = value
+    setProfileData({
+      ...profileData,
+      goals: newGoals,
     })
-  }, [])
+  }
+
+  const addAchievement = () => {
+    setProfileData({
+      ...profileData,
+      achievements: [...profileData.achievements, "New achievement"],
+    })
+  }
+
+  const removeAchievement = (index: number) => {
+    setProfileData({
+      ...profileData,
+      achievements: profileData.achievements.filter((_, i) => i !== index),
+    })
+  }
+
+  const updateAchievement = (index: number, value: string) => {
+    const newAchievements = [...profileData.achievements]
+    newAchievements[index] = value
+    setProfileData({
+      ...profileData,
+      achievements: newAchievements,
+    })
+  }
+
+  const addInterest = () => {
+    setProfileData({
+      ...profileData,
+      interests: [...profileData.interests, "New interest"],
+    })
+  }
+
+  const removeInterest = (index: number) => {
+    setProfileData({
+      ...profileData,
+      interests: profileData.interests.filter((_, i) => i !== index),
+    })
+  }
+
+  const updateInterest = (index: number, value: string) => {
+    const newInterests = [...profileData.interests]
+    newInterests[index] = value
+    setProfileData({
+      ...profileData,
+      interests: newInterests,
+    })
+  }
 
   const getActivityIcon = useCallback((type: string) => {
     switch (type) {
@@ -389,130 +393,16 @@ export default function MemberDashboardPage() {
   }, [])
 
   const DesktopHeader = () => (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center space-x-8">
-            <Link href="/member-home" className="flex items-center space-x-3 group cursor-pointer">
-              <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
-                <Image
-                  src="/Prologue LOGO-1.png"
-                  alt="PROLOGUE"
-                  width={32}
-                  height={32}
-                  className="w-full h-full object-contain"
-                />
-              </div>
-              <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-prologue-electric transition-colors tracking-wider">
-                PROLOGUE
-              </span>
-            </Link>
-            
-            {/* Search Bar */}
-            <div className="w-80">
-              <SearchBar onSearch={handleSearch} placeholder="Search coaches, content..." delay={1000} initialValue={currentSearchTerm} />
-            </div>
-          </div>
-          <div className="flex items-center space-x-6">
-            {/* Navigation Items */}
-            <nav className="flex items-center space-x-6">
-              <Link
-                href="/member-home"
-                className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
-              >
-                <Home className="h-5 w-5" />
-                <span className="text-xs font-medium">Home</span>
-                <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              </Link>
-              <Link
-                href="/member-training"
-                className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group relative"
-              >
-                <BookOpen className="h-5 w-5" />
-                <span className="text-xs font-medium">Training</span>
-                <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                {hasNewTrainingContent && (
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-                )}
-              </Link>
-              <Link
-                href="/member-browse"
-                className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
-              >
-                <Compass className="h-5 w-5" />
-                <span className="text-xs font-medium">Browse</span>
-                <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              </Link>
-              <Link
-                href="/member-feedback"
-                className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
-              >
-                <MessageSquare className="h-5 w-5" />
-                <span className="text-xs font-medium">Feedback</span>
-                <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              </Link>
-              <Link
-                href="/member-messaging"
-                className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors relative group"
-              >
-                <MessageCircle className="h-5 w-5" />
-                <span className="text-xs font-medium">Messages</span>
-                <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                {unreadMessagesCount > 0 && (
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-                )}
-              </Link>
-              <Link
-                href="/member-notifications"
-                className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors relative group"
-              >
-                <Bell className="h-5 w-5" />
-                <span className="text-xs font-medium">Notifications</span>
-                <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                {unreadNotificationsCount > 0 && (
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-                )}
-              </Link>
-            </nav>
-
-            {/* User Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2 p-2" disabled={loadingState.isLoading}>
-                  <Avatar className="w-8 h-8">
-                    <AvatarImage src={profileImageUrl || undefined} alt={profileData.firstName + ' ' + profileData.lastName} />
-                    <AvatarFallback>
-                      {profileData.firstName && profileData.lastName
-                        ? `${profileData.firstName[0]}${profileData.lastName[0]}`.toUpperCase()
-                        : <User className="w-full h-full text-gray-500 p-1" />}
-                    </AvatarFallback>
-                  </Avatar>
-                  <ChevronDown className="h-4 w-4 text-gray-500" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem>
-                  <Link href="/member-dashboard" className="flex items-center w-full">
-                    <LayoutDashboard className="h-4 w-4 mr-2" />
-                    Profile
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Link href="/member-settings" className="flex items-center w-full">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Settings
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer" disabled={loadingState.isLoading}>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  {loadingState.isLoading ? "Logging out..." : "Logout"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </div>
-    </header>
+    <MemberHeader
+      currentPath="/member-dashboard"
+      onLogout={handleLogout}
+      showSearch={true}
+      unreadNotifications={unreadNotificationsCount}
+      unreadMessages={unreadMessagesCount}
+      hasNewContent={hasNewTrainingContent}
+      profileImageUrl={profileImageUrl}
+      profileData={profileData}
+    />
   )
 
   const MainContent = () => (
@@ -583,27 +473,27 @@ export default function MemberDashboardPage() {
               <div className="pt-4 lg:pt-16 text-center lg:text-left">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-3 mb-2">
                   <h1 className="text-xl lg:text-3xl font-bold text-gray-900">
-                    {firstName} {lastName}
+                    {profileData.firstName} {profileData.lastName}
                   </h1>
                   <Badge className="bg-prologue-electric/10 text-prologue-electric text-xs lg:text-sm w-fit mx-auto lg:mx-0">
                     Student Athlete
                   </Badge>
                 </div>
                 <p className="text-gray-600 mb-2 text-sm lg:text-base">
-                  {sport} Player • Class of {graduationYear}
+                  {profileData.sport} Player • Class of {profileData.graduationYear}
                 </p>
                 <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-4 text-xs lg:text-sm text-gray-600 mb-4 space-y-1 lg:space-y-0">
                   <div className="flex items-center justify-center lg:justify-start space-x-1">
                     <MapPin className="h-3 w-3 lg:h-4 lg:w-4" />
-                    <span>{location ? location : <span className="italic text-gray-400">Add your location</span>}</span>
+                    <span>{profileData.location}</span>
                   </div>
                   <div className="flex items-center justify-center lg:justify-start space-x-1">
                     <School className="h-3 w-3 lg:h-4 lg:w-4" />
-                    <span>{school ? school : <span className="italic text-gray-400">Add your school</span>}</span>
+                    <span>{profileData.school}</span>
                   </div>
                   <div className="flex items-center justify-center lg:justify-start space-x-1">
                     <Star className="h-3 w-3 lg:h-4 lg:w-4 text-yellow-500" />
-                    <span>{gpa ? `${gpa} GPA` : <span className="italic text-gray-400">Add your GPA</span>}</span>
+                    <span>{profileData.gpa} GPA</span>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-center lg:justify-start">
@@ -621,31 +511,60 @@ export default function MemberDashboardPage() {
             </div>
 
             <div className="pt-4 lg:pt-16 flex flex-col items-center lg:items-end space-y-3">
-              <Button variant="outline" size="sm" onClick={() => setIsEditing(!isEditing)} className="w-full lg:w-auto">
-                <Edit3 className="h-4 w-4 mr-2" />
-                {isEditing ? "View Profile" : "Edit Profile"}
-              </Button>
+              {!isEditing ? (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="w-full lg:w-auto">
+                    <Edit3 className="h-4 w-4 mr-2" />
+                    Edit Profile
+                  </Button>
 
-              {completionPercentage < 100 && (
-                <div
-                  className="flex flex-col items-center lg:items-end space-y-2 p-3 bg-prologue-electric/10 rounded-lg border border-prologue-electric/20 cursor-pointer hover:bg-prologue-electric/20 transition-colors w-full lg:w-auto"
-                  onClick={() => setShowProfileChecklist(!showProfileChecklist)}
-                >
-                  <div className="flex items-center space-x-2">
-                    <Target className="h-4 w-4 text-prologue-electric" />
-                    <span className="text-sm font-medium text-prologue-electric">Profile Completion</span>
-                    {showProfileChecklist ? (
-                      <ChevronDown className="h-4 w-4 text-prologue-electric" />
+                  {completionPercentage < 100 && (
+                    <div
+                      className="flex flex-col items-center lg:items-end space-y-2 p-3 bg-prologue-electric/10 rounded-lg border border-prologue-electric/20 cursor-pointer hover:bg-prologue-electric/20 transition-colors w-full lg:w-auto"
+                      onClick={() => setShowProfileChecklist(!showProfileChecklist)}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <Target className="h-4 w-4 text-prologue-electric" />
+                        <span className="text-sm font-medium text-prologue-electric">Profile Completion</span>
+                        {showProfileChecklist ? (
+                          <ChevronDown className="h-4 w-4 text-prologue-electric" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-prologue-electric" />
+                        )}
+                      </div>
+                      <div className="w-full lg:w-48">
+                        <Progress value={completionPercentage} className="h-2" />
+                        <p className="text-xs text-prologue-electric mt-1 text-center lg:text-right">
+                          {completedItems}/{totalItems} completed ({completionPercentage}%)
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex space-x-2 w-full lg:w-auto">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsEditing(false)}
+                    disabled={isLoading}
+                    className="flex-1 lg:flex-none"
+                  >
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={handleSaveProfile} disabled={isLoading} className="flex-1 lg:flex-none">
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
                     ) : (
-                      <ChevronRight className="h-4 w-4 text-prologue-electric" />
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Changes
+                      </>
                     )}
-                  </div>
-                  <div className="w-full lg:w-48">
-                    <Progress value={completionPercentage} className="h-2" />
-                    <p className="text-xs text-prologue-electric mt-1 text-center lg:text-right">
-                      {completedItems}/{totalItems} completed ({completionPercentage}%)
-                    </p>
-                  </div>
+                  </Button>
                 </div>
               )}
             </div>
@@ -754,20 +673,14 @@ export default function MemberDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   {isEditing ? (
-                    <div>
-                      <textarea
-                        value={bio}
-                        onChange={e => setBio(e.target.value)}
-                        placeholder="Tell coaches about your athletic journey and goals..."
-                        disabled={true}
-                        className="min-h-[120px] w-full border px-3 py-2 rounded-md resize-none bg-gray-50"
-                        rows={4}
-                      />
-                    </div>
-                  ) : bio.trim() === "" ? (
-                    <div className="text-gray-500 text-sm italic">Fill up the About Me section to let coaches know more about you!</div>
+                    <Textarea
+                      value={profileData.bio}
+                      onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                      placeholder="Tell coaches about your athletic journey and goals..."
+                      className="min-h-[120px] resize-none"
+                    />
                   ) : (
-                    <p className="text-gray-700 leading-relaxed text-sm lg:text-base">{bio}</p>
+                    <div className="text-gray-700 leading-relaxed text-sm lg:text-base whitespace-pre-line">{profileData.bio}</div>
                   )}
                 </CardContent>
               </Card>
@@ -781,17 +694,33 @@ export default function MemberDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {interests.length === 0 ? (
-                      <div className="text-gray-500 text-sm italic">Add your training interests to get personalized recommendations.</div>
-                    ) : (
-                      interests.map((interest, index) => (
-                        <div key={index} className="flex items-start space-x-3">
-                          <Star className="h-4 w-4 text-prologue-electric mt-0.5 flex-shrink-0" />
-                          <p className="text-gray-700 text-sm lg:text-base">{interest}</p>
-                        </div>
-                      ))
+                    {profileData.interests.map((interest, index) => (
+                      <div key={index} className="flex items-start space-x-3">
+                        {isEditing ? (
+                          <div className="flex-1 flex items-center space-x-2">
+                            <Input
+                              value={interest}
+                              onChange={(e) => updateInterest(index, e.target.value)}
+                              className="flex-1"
+                            />
+                            <Button variant="outline" size="sm" onClick={() => removeInterest(index)} className="p-2">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <Star className="h-4 w-4 text-prologue-electric mt-0.5 flex-shrink-0" />
+                            <p className="text-gray-700 text-sm lg:text-base">{interest}</p>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                    {isEditing && (
+                      <Button variant="outline" size="sm" onClick={addInterest} className="w-full bg-transparent">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Interest
+                      </Button>
                     )}
-
                   </div>
                 </CardContent>
               </Card>
@@ -806,126 +735,116 @@ export default function MemberDashboardPage() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="firstName">First Name</Label>
-                      <input
+                      <Input
                         id="firstName"
-                        value={firstName}
-                        onChange={e => setFirstName(e.target.value)}
-                        placeholder="Enter your first name"
-                        disabled={true}
-                        className="min-h-[40px] w-full border px-2 py-1 rounded-md bg-gray-50"
+                        value={profileData.firstName}
+                        onChange={(e) => setProfileData({ ...profileData, firstName: e.target.value })}
+                        disabled={!isEditing}
                       />
                     </div>
                     <div>
                       <Label htmlFor="lastName">Last Name</Label>
-                      <input
+                      <Input
                         id="lastName"
-                        value={lastName}
-                        onChange={e => setLastName(e.target.value)}
-                        placeholder="Enter your last name"
-                        disabled={true}
-                        className="min-h-[40px] w-full border px-2 py-1 rounded-md bg-gray-50"
+                        value={profileData.lastName}
+                        onChange={(e) => setProfileData({ ...profileData, lastName: e.target.value })}
+                        disabled={!isEditing}
                       />
                     </div>
                   </div>
+
                   <div>
                     <Label htmlFor="email">Email</Label>
-                    <input
+                    <Input
                       id="email"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      placeholder="Enter your email"
-                      disabled={true}
-                      className="min-h-[40px] w-full border px-2 py-1 rounded-md bg-gray-50"
+                      type="email"
+                      value={profileData.email}
+                      onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                      disabled={!isEditing}
                     />
                   </div>
+
                   <div>
                     <Label htmlFor="phone">Phone</Label>
-                    <input
+                    <Input
                       id="phone"
-                      value={phone}
-                      onChange={e => setPhone(e.target.value)}
-                      placeholder="Enter your phone number"
-                      disabled={true}
-                      className="min-h-[40px] w-full border px-2 py-1 rounded-md bg-gray-50"
+                      value={profileData.phone}
+                      onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                      disabled={!isEditing}
                     />
                   </div>
+
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="location">Location</Label>
-                      <input
+                      <Input
                         id="location"
-                        value={location}
-                        onChange={e => setLocation(e.target.value)}
-                        placeholder="Enter your location"
-                        disabled={true}
-                        className="min-h-[40px] w-full border px-2 py-1 rounded-md bg-gray-50"
+                        value={profileData.location}
+                        onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
+                        disabled={!isEditing}
                       />
                     </div>
                     <div>
                       <Label htmlFor="school">School</Label>
-                      <input
+                      <Input
                         id="school"
-                        value={school}
-                        onChange={e => setSchool(e.target.value)}
-                        placeholder="Enter your school"
-                        disabled={true}
-                        className="min-h-[40px] w-full border px-2 py-1 rounded-md bg-gray-50"
+                        value={profileData.school}
+                        onChange={(e) => setProfileData({ ...profileData, school: e.target.value })}
+                        disabled={!isEditing}
                       />
                     </div>
                   </div>
+
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div>
                       <Label htmlFor="sport">Primary Sport</Label>
-                      <Select value={sport} onValueChange={setSport} disabled={true}>
-                        <SelectTrigger className="min-h-[40px]">
-                          <SelectValue placeholder="Select your sport" />
+                      <Select
+                        value={profileData.sport}
+                        onValueChange={(value) => setProfileData({ ...profileData, sport: value })}
+                        disabled={!isEditing}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Tennis">Tennis</SelectItem>
                           <SelectItem value="Basketball">Basketball</SelectItem>
                           <SelectItem value="Soccer">Soccer</SelectItem>
-                          <SelectItem value="Football">Football</SelectItem>
-                          <SelectItem value="Baseball">Baseball</SelectItem>
-                          <SelectItem value="Volleyball">Volleyball</SelectItem>
                           <SelectItem value="Swimming">Swimming</SelectItem>
                           <SelectItem value="Track & Field">Track & Field</SelectItem>
                           <SelectItem value="Golf">Golf</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
+                          <SelectItem value="Baseball">Baseball</SelectItem>
+                          <SelectItem value="Volleyball">Volleyball</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
                       <Label htmlFor="position">Position</Label>
-                      <input
+                      <Input
                         id="position"
-                        value={position}
-                        onChange={e => setPosition(e.target.value)}
-                        placeholder="Enter your position"
-                        disabled={true}
-                        className="min-h-[40px] w-full border px-2 py-1 rounded-md bg-gray-50"
+                        value={profileData.position}
+                        onChange={(e) => setProfileData({ ...profileData, position: e.target.value })}
+                        disabled={!isEditing}
                       />
                     </div>
                     <div>
                       <Label htmlFor="graduationYear">Graduation Year</Label>
-                      <input
+                      <Input
                         id="graduationYear"
-                        value={graduationYear}
-                        onChange={e => setGraduationYear(e.target.value)}
-                        placeholder="Enter graduation year"
-                        disabled={true}
-                        className="min-h-[40px] w-full border px-2 py-1 rounded-md bg-gray-50"
+                        value={profileData.graduationYear}
+                        onChange={(e) => setProfileData({ ...profileData, graduationYear: e.target.value })}
+                        disabled={!isEditing}
                       />
                     </div>
                   </div>
+
                   <div>
                     <Label htmlFor="gpa">GPA</Label>
-                    <input
+                    <Input
                       id="gpa"
-                      value={gpa}
-                      onChange={e => setGpa(e.target.value)}
-                      placeholder="Enter your GPA"
-                      disabled={true}
-                      className="min-h-[40px] w-full border px-2 py-1 rounded-md bg-gray-50"
+                      value={profileData.gpa}
+                      onChange={(e) => setProfileData({ ...profileData, gpa: e.target.value })}
+                      disabled={!isEditing}
                     />
                   </div>
                 </CardContent>
@@ -942,19 +861,33 @@ export default function MemberDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {goals.length === 0 ? (
-                      <div className="text-gray-500 text-sm italic">
-                        Set your first goal to get started!
+                    {profileData.goals.map((goal, index) => (
+                      <div key={index} className="flex items-center space-x-3">
+                        {isEditing ? (
+                          <>
+                            <Input
+                              value={goal}
+                              onChange={(e) => updateGoal(index, e.target.value)}
+                              className="flex-1"
+                            />
+                            <Button variant="outline" size="sm" onClick={() => removeGoal(index)} className="p-2">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Target className="h-4 w-4 text-prologue-electric flex-shrink-0" />
+                            <span className="text-gray-700 text-sm lg:text-base">{goal}</span>
+                          </>
+                        )}
                       </div>
-                    ) : (
-                      goals.map((goal, index) => (
-                        <div key={index} className="flex items-center space-x-3">
-                          <Target className="h-4 w-4 text-prologue-electric flex-shrink-0" />
-                          <span className="text-gray-700 text-sm lg:text-base">{goal}</span>
-                        </div>
-                      ))
+                    ))}
+                    {isEditing && (
+                      <Button variant="outline" size="sm" onClick={addGoal} className="w-full bg-transparent">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Goal
+                      </Button>
                     )}
-
                   </div>
                 </CardContent>
               </Card>
@@ -970,19 +903,38 @@ export default function MemberDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {achievements.length === 0 ? (
-                      <div className="text-gray-500 text-sm italic">
-                        Add your first achievement to showcase your journey!
+                    {profileData.achievements.map((achievement, index) => (
+                      <div key={index} className="flex items-center space-x-3">
+                        {isEditing ? (
+                          <>
+                            <Input
+                              value={achievement}
+                              onChange={(e) => updateAchievement(index, e.target.value)}
+                              className="flex-1"
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removeAchievement(index)}
+                              className="p-2"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Award className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+                            <span className="text-gray-700 text-sm lg:text-base">{achievement}</span>
+                          </>
+                        )}
                       </div>
-                    ) : (
-                      achievements.map((achievement, index) => (
-                        <div key={index} className="flex items-center space-x-3">
-                          <Award className="h-4 w-4 text-yellow-500 flex-shrink-0" />
-                          <span className="text-gray-700 text-sm lg:text-base">{achievement}</span>
-                        </div>
-                      ))
+                    ))}
+                    {isEditing && (
+                      <Button variant="outline" size="sm" onClick={addAchievement} className="w-full bg-transparent">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Achievement
+                      </Button>
                     )}
-
                   </div>
                 </CardContent>
               </Card>
@@ -1075,21 +1027,7 @@ export default function MemberDashboardPage() {
             coverImageUrl: memberProfile.coverImageUrl || null,
           }))
           
-          // Update individual state variables
-          setFirstName(memberProfile.firstName || "")
-          setLastName(memberProfile.lastName || "")
-          setEmail(memberProfile.email || "")
-          setPhone(memberProfile.phone || "")
-          setBio(memberProfile.bio || "")
-          setLocation(memberProfile.location || "")
-          setSchool(memberProfile.school || "")
-          setGraduationYear(memberProfile.graduationYear || "")
-          setPosition(memberProfile.position || "")
-          setGpa(memberProfile.gpa || "")
-          setSport(memberProfile.sport || "")
-          setGoals(memberProfile.goals || [])
-          setAchievements(memberProfile.achievements || [])
-          setInterests(memberProfile.interests || [])
+
           if (memberProfile.profileImageUrl) {
             setProfileImageUrl(memberProfile.profileImageUrl)
           }
