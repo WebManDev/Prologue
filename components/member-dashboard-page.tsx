@@ -1,6 +1,6 @@
 "use client"
 
-import type React from "react"
+import React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,18 +11,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
-  Settings,
   User,
-  Bell,
-  Home,
-  BookOpen,
-  MessageCircle,
-  MessageSquare,
   ChevronDown,
-  LogOut,
-  LayoutDashboard,
   Edit3,
   Plus,
   Trash2,
@@ -34,7 +25,6 @@ import {
   Award,
   MapPin,
   School,
-  Search,
   Camera,
   Upload,
   Clock,
@@ -42,13 +32,9 @@ import {
   CheckCircle,
   Circle,
   ChevronRight,
-  X,
   Save,
   Loader2,
-  Compass,
 } from "lucide-react"
-import Link from "next/link"
-import Image from "next/image"
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { toast } from "@/components/ui/use-toast"
@@ -56,364 +42,95 @@ import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutNotification } from "@/components/ui/logout-notification"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
-import { auth, saveMemberProfile, getMemberProfile, uploadProfilePicture, uploadCoverPhoto } from "@/lib/firebase"
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
-import SearchBar from "./SearchBar"
 import { MemberHeader } from "@/components/navigation/member-header"
+import { auth, saveMemberProfile, getMemberProfile, uploadProfilePicture, uploadCoverPhoto } from "@/lib/firebase"
 
-// Define MemberProfile type
-interface MemberProfile {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  bio: string;
-  location: string;
-  school: string;
-  graduationYear: string;
-  sport: string;
-  position: string;
-  gpa: string;
-  goals: string[];
-  achievements: string[];
-  interests: string[];
-  coverImageUrl: string | null;
+// Helper function defined outside the component to prevent re-creation
+const getActivityIcon = (type: string) => {
+  switch (type) {
+    case "session":
+      return <Clock className="h-4 w-4 text-blue-500" />
+    case "achievement":
+      return <Trophy className="h-4 w-4 text-yellow-500" />
+    case "feedback":
+      return <Star className="h-4 w-4 text-green-500" />
+    case "milestone":
+      return <Award className="h-4 w-4 text-orange-500" />
+    case "goal":
+      return <Target className="h-4 w-4 text-purple-500" />
+    default:
+      return <Activity className="h-4 w-4 text-gray-500" />
+  }
 }
 
-export default function MemberDashboardPage() {
-  const { isMobile, isTablet } = useMobileDetection()
-  const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
-
-  // Search dropdown state
-  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
-  const searchRef = useRef<HTMLDivElement>(null)
-  const [isEditing, setIsEditing] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [showProfileChecklist, setShowProfileChecklist] = useState(false)
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true)
-  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
-  const [selectedProfileImage, setSelectedProfileImage] = useState<File | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
-  const [selectedCoverImage, setSelectedCoverImage] = useState<File | null>(null)
-  const coverFileInputRef = useRef<HTMLInputElement>(null)
-  const [activeTab, setActiveTab] = useState<string>("overview")
-  const [searchResults, setSearchResults] = useState<any[]>([])
-  const [currentSearchTerm, setCurrentSearchTerm] = useState("")
-
-  // Quick search suggestions
-  const quickSearches = useMemo(
-    () => [
-      "Navigate Recruitment",
-      "Nutrition",
-      "NIL",
-      "Training Programs",
-      "Mental Performance",
-      "Injury Prevention",
-      "Sports Psychology",
-      "Athletic Scholarships",
-    ],
-    [],
-  )
-
-  // Profile data state
-  const [profileData, setProfileData] = useState<MemberProfile | null>(null)
-
-  // Profile completion checklist
-  const profileChecklist = useMemo(() => [
-    {
-      id: "basic-info",
-      title: "Complete Basic Information",
-      description: "Add your contact details and personal information",
-      completed: !!(profileData?.firstName && profileData?.lastName && profileData?.email && profileData?.phone),
-      action: () => document.getElementById("profile-tab")?.click(),
-    },
-    {
-      id: "bio",
-      title: "Write Your Bio",
-      description: "Tell coaches about your athletic journey and goals",
-      completed: (profileData?.bio?.length ?? 0) > 50,
-      action: () => document.getElementById("overview-tab")?.click(),
-    },
-    {
-      id: "goals",
-      title: "Set Your Goals",
-      description: "Define what you want to achieve in your sport",
-      completed: (profileData?.goals?.length ?? 0) >= 3,
-      action: () => document.getElementById("goals-tab")?.click(),
-    },
-    {
-      id: "achievements",
-      title: "Add Achievements",
-      description: "Showcase your athletic accomplishments",
-      completed: (profileData?.achievements?.length ?? 0) >= 3,
-      action: () => document.getElementById("achievements-tab")?.click(),
-    },
-    {
-      id: "profile-photo",
-      title: "Upload Profile Photo",
-      description: "Add a professional photo to build trust with coaches",
-      completed: false, // This would be based on actual photo upload
-      action: () => toast({ title: "Photo Upload", description: "Click the camera icon to upload your photo" }),
-    },
-  ], [profileData?.firstName, profileData?.lastName, profileData?.email, profileData?.phone, profileData?.bio, profileData?.goals, profileData?.achievements])
-
-  const completedItems = useMemo(() => profileChecklist.filter((item) => item.completed).length, [profileChecklist])
-  const totalItems = profileChecklist.length
-  const completionPercentage = useMemo(() => Math.round((completedItems / totalItems) * 100), [completedItems, totalItems])
-
-  // Member stats
-  const memberStats = useMemo(() => ({
-    activeCoaches: 2,
-    totalSessions: 18,
-    thisWeek: 3,
-    thisMonth: 12,
-    avgRating: 4.8,
-    hoursTraining: 45,
-    goalsCompleted: 8,
-    improvement: 15,
-  }), [])
-
-  // Recent activity
-  const recentActivity = useMemo(() => [
-    { type: "session", title: "Training session with Jordan Smith", time: "2 hours ago", coach: "Jordan S." },
-    { type: "achievement", title: "Completed serve consistency goal", time: "1 day ago" },
-    { type: "feedback", title: "Received feedback from Alex Rodriguez", time: "2 days ago", coach: "Alex R." },
-    { type: "session", title: "Mental performance session", time: "3 days ago", coach: "Jordan S." },
-    { type: "milestone", title: "Reached 40 hours of training", time: "4 days ago" },
-    { type: "goal", title: "Set new fitness improvement goal", time: "5 days ago" },
-  ], [])
-
-  // Handle clicks outside search dropdown
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowSearchDropdown(false)
-      }
-    }
-
-    // Only add the event listener when the search dropdown is open
-    if (showSearchDropdown) {
-      document.addEventListener("mousedown", handleClickOutside)
-      return () => {
-        document.removeEventListener("mousedown", handleClickOutside)
-      }
-    }
-  }, [showSearchDropdown])
-
-  // Scroll to top on component mount (for post-login/signup)
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" })
-  }, [])
-
-  const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
-
-  const handleLogout = useCallback(async () => {
-    console.log("🔄 Member logout initiated from dashboard")
-
-    try {
-      const success = await logout({
-        customMessage: "Securing your member account and logging out...",
-        onComplete: () => {
-          console.log("✅ Member logout completed successfully from dashboard")
-          toast({
-            title: "Logged Out Successfully",
-            description: "You have been securely logged out. Redirecting to login page...",
-            duration: 2000,
-          })
-        },
-        onError: (error) => {
-          console.error("❌ Member logout failed from dashboard:", error)
-          toast({
-            title: "Logout Failed",
-            description: "There was an issue logging you out. Please try again.",
-            variant: "destructive",
-            duration: 3000,
-          })
-        },
-      })
-
-      if (!success) {
-        console.warn("⚠️ Member logout was not successful, attempting emergency logout")
-        setTimeout(() => {
-          window.location.href = "/login"
-        }, 3000)
-      }
-    } catch (error) {
-      console.error("Logout error:", error)
-      setTimeout(() => {
-        window.location.href = "/login"
-      }, 1000)
-    }
-  }, [logout])
-
-  const handleSaveProfile = async () => {
-    if (!auth.currentUser || !profileData) return
-    setIsLoading(true)
-    try {
-      const profileDataForFirebase = {
-        name: profileData.firstName + ' ' + profileData.lastName,
-        email: profileData.email,
-        sport: profileData.sport,
-        role: (profileData as any).role || 'member',
-        // Additional profile fields
-        firstName: profileData.firstName,
-        lastName: profileData.lastName,
-        phone: profileData.phone,
-        bio: profileData.bio,
-        location: profileData.location,
-        school: profileData.school,
-        graduationYear: profileData.graduationYear,
-        position: profileData.position,
-        gpa: profileData.gpa,
-        goals: profileData.goals,
-        achievements: profileData.achievements,
-        interests: profileData.interests,
-        profileImageUrl: profileImageUrl,
-        onboardingCompleted: true,
-      }
-      await saveMemberProfile(auth.currentUser.uid, profileDataForFirebase)
-      setIsEditing(false)
-      toast({ title: "Profile updated!" })
-    } catch (error) {
-      toast({ title: "Save failed", description: String(error), variant: "destructive" })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleInputChange = useCallback((field: keyof typeof profileData, value: string) => {
-    setProfileData(prev => ({ ...prev, [field]: value }));
-  }, []);
-
-  const updateGoal = useCallback((index: number, value: string) => {
-    setProfileData(prev => {
-      if (!prev) return prev;
-      const newGoals = [...prev.goals];
-      newGoals[index] = value;
-      return { ...prev, goals: newGoals };
-    });
-  }, []);
-
-  const addGoal = useCallback(() => {
-    setProfileData(prev => {
-      if (!prev) return prev as MemberProfile;
-      return { ...prev, goals: [...prev.goals, "New goal"] };
-    });
-  }, []);
-
-  const removeGoal = useCallback((index: number) => {
-    setProfileData(prev => {
-      if (!prev) return prev as MemberProfile;
-      return { ...prev, goals: prev.goals.filter((_, i) => i !== index) };
-    });
-  }, []);
-
-  const addAchievement = useCallback(() => {
-    setProfileData(prev => {
-      if (!prev) return prev as MemberProfile;
-      return { ...prev, achievements: [...prev.achievements, "New achievement"] };
-    });
-  }, []);
-
-  const removeAchievement = useCallback((index: number) => {
-    setProfileData(prev => {
-      if (!prev) return prev as MemberProfile;
-      return { ...prev, achievements: prev.achievements.filter((_, i) => i !== index) };
-    });
-  }, []);
-
-  const updateAchievement = useCallback((index: number, value: string) => {
-    setProfileData(prev => {
-      if (!prev) return prev as MemberProfile;
-      const newAchievements = [...prev.achievements];
-      newAchievements[index] = value;
-      return { ...prev, achievements: newAchievements };
-    });
-  }, []);
-
-  const addInterest = useCallback(() => {
-    setProfileData(prev => {
-      if (!prev) return prev as MemberProfile;
-      return { ...prev, interests: [...prev.interests, "New interest"] };
-    });
-  }, []);
-
-  const removeInterest = useCallback((index: number) => {
-    setProfileData(prev => {
-      if (!prev) return prev as MemberProfile;
-      return { ...prev, interests: prev.interests.filter((_, i) => i !== index) };
-    });
-  }, []);
-
-  const updateInterest = useCallback((index: number, value: string) => {
-    setProfileData(prev => {
-      if (!prev) return prev as MemberProfile;
-      const newInterests = [...prev.interests];
-      newInterests[index] = value;
-      return { ...prev, interests: newInterests };
-    });
-  }, []);
-
-  const getActivityIcon = useCallback((type: string) => {
-    switch (type) {
-      case "session":
-        return <Clock className="h-4 w-4 text-blue-500" />
-      case "achievement":
-        return <Trophy className="h-4 w-4 text-yellow-500" />
-      case "feedback":
-        return <Star className="h-4 w-4 text-green-500" />
-      case "milestone":
-        return <Award className="h-4 w-4 text-orange-500" />
-      case "goal":
-        return <Target className="h-4 w-4 text-purple-500" />
-      default:
-        return <Activity className="h-4 w-4 text-gray-500" />
-    }
-  }, [])
-
-  const DesktopHeader = () => (
+// Extracted DesktopHeader component
+const DesktopHeader = React.memo(
+  ({
+    onLogout,
+    unreadNotifications,
+    unreadMessages,
+    hasNewContent,
+  }: {
+    onLogout: () => void
+    unreadNotifications: number
+    unreadMessages: number
+    hasNewContent: boolean
+  }) => (
     <MemberHeader
       currentPath="/member-dashboard"
-      onLogout={handleLogout}
+      onLogout={onLogout}
       showSearch={true}
-      unreadNotifications={unreadNotificationsCount}
-      unreadMessages={unreadMessagesCount}
-      hasNewContent={hasNewTrainingContent}
-      profileImageUrl={profileImageUrl}
-      profileData={profileData}
+      unreadNotifications={unreadNotifications}
+      unreadMessages={unreadMessages}
+      hasNewContent={hasNewContent}
     />
-  )
+  ),
+)
+DesktopHeader.displayName = "DesktopHeader"
 
-  const MainContent = () => (
+// Extracted MainContent component
+const MainContent = React.memo(
+  ({
+    isMobile,
+    isEditing,
+    setIsEditing,
+    isLoading,
+    handleSaveProfile,
+    profileData,
+    handleProfileChange,
+    handleSportChange,
+    addGoal,
+    removeGoal,
+    updateGoal,
+    addAchievement,
+    removeAchievement,
+    updateAchievement,
+    addInterest,
+    removeInterest,
+    updateInterest,
+    profileChecklist,
+    completionPercentage,
+    completedItems,
+    totalItems,
+    showProfileChecklist,
+    setShowProfileChecklist,
+    memberStats,
+    recentActivity,
+  }: any) => (
     <main className={`${isMobile ? "px-4 py-6 pb-24" : "max-w-7xl mx-auto px-6 py-8"}`}>
       {/* Profile Header */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-4 lg:mb-8 overflow-hidden">
         <div className="h-24 lg:h-32 bg-gradient-to-r from-prologue-electric to-prologue-blue relative">
-          {coverImageUrl ? (
-            <Image src={coverImageUrl} alt="Cover" fill className="object-cover w-full h-full" />
-          ) : (
-            <div className="absolute inset-0 bg-black/10"></div>
-          )}
+          <div className="absolute inset-0 bg-black/10"></div>
           {isEditing && (
-            <>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="absolute top-2 right-2 lg:top-4 lg:right-4 bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 text-xs lg:text-sm"
-                onClick={() => coverFileInputRef.current?.click()}
-              >
-                <Camera className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
-                <span className="hidden sm:inline">Change Cover</span>
-              </Button>
-              <input
-                type="file"
-                accept="image/*"
-                ref={coverFileInputRef}
-                className="hidden"
-                onChange={handleCoverImageChange}
-              />
-            </>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="absolute top-2 right-2 lg:top-4 lg:right-4 bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 text-xs lg:text-sm"
+            >
+              <Camera className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
+              <span className="hidden sm:inline">Change Cover</span>
+            </Button>
           )}
         </div>
 
@@ -422,58 +139,42 @@ export default function MemberDashboardPage() {
             <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-6">
               <div className="relative self-center lg:self-auto">
                 <div className="w-20 h-20 lg:w-24 lg:h-24 bg-gradient-to-r from-prologue-electric to-prologue-blue rounded-full border-4 border-white overflow-hidden">
-                  {selectedProfileImage ? (
-                    <Image src={URL.createObjectURL(selectedProfileImage)} alt="Profile Preview" width={96} height={96} className="w-full h-full object-cover" />
-                  ) : profileImageUrl ? (
-                    <Image src={profileImageUrl} alt="Profile" width={96} height={96} className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-full h-full text-white p-4 lg:p-6" />
-                  )}
+                  <User className="w-full h-full text-white p-4 lg:p-6" />
                 </div>
                 {isEditing && (
-                  <>
-                    <Button
-                      size="sm"
-                      className="absolute -bottom-1 -right-1 lg:-bottom-2 lg:-right-2 w-6 h-6 lg:w-8 lg:h-8 rounded-full p-0 bg-prologue-electric hover:bg-prologue-blue"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Upload className="h-3 w-3 lg:h-4 lg:w-4" />
-                    </Button>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      ref={fileInputRef}
-                      className="hidden"
-                      onChange={handleProfileImageChange}
-                    />
-                  </>
+                  <Button
+                    size="sm"
+                    className="absolute -bottom-1 -right-1 lg:-bottom-2 lg:-right-2 w-6 h-6 lg:w-8 lg:h-8 rounded-full p-0 bg-prologue-electric hover:bg-prologue-blue"
+                  >
+                    <Upload className="h-3 w-3 lg:h-4 lg:w-4" />
+                  </Button>
                 )}
               </div>
 
               <div className="pt-4 lg:pt-16 text-center lg:text-left">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-3 mb-2">
                   <h1 className="text-xl lg:text-3xl font-bold text-gray-900">
-                    {profileData?.firstName} {profileData?.lastName}
+                    {profileData.firstName} {profileData.lastName}
                   </h1>
                   <Badge className="bg-prologue-electric/10 text-prologue-electric text-xs lg:text-sm w-fit mx-auto lg:mx-0">
                     Student Athlete
                   </Badge>
                 </div>
                 <p className="text-gray-600 mb-2 text-sm lg:text-base">
-                  {profileData?.sport} Player • Class of {profileData?.graduationYear}
+                  {profileData.sport} Player • Class of {profileData.graduationYear}
                 </p>
                 <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-4 text-xs lg:text-sm text-gray-600 mb-4 space-y-1 lg:space-y-0">
                   <div className="flex items-center justify-center lg:justify-start space-x-1">
                     <MapPin className="h-3 w-3 lg:h-4 lg:w-4" />
-                    <span>{profileData?.location}</span>
+                    <span>{profileData.location}</span>
                   </div>
                   <div className="flex items-center justify-center lg:justify-start space-x-1">
                     <School className="h-3 w-3 lg:h-4 lg:w-4" />
-                    <span>{profileData?.school}</span>
+                    <span>{profileData.school}</span>
                   </div>
                   <div className="flex items-center justify-center lg:justify-start space-x-1">
                     <Star className="h-3 w-3 lg:h-4 lg:w-4 text-yellow-500" />
-                    <span>{profileData?.gpa} GPA</span>
+                    <span>{profileData.gpa} GPA</span>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 justify-center lg:justify-start">
@@ -555,7 +256,7 @@ export default function MemberDashboardPage() {
             <div className="mt-6 p-4 bg-prologue-electric/10 rounded-lg border border-prologue-electric/20">
               <h3 className="text-sm font-semibold text-prologue-electric mb-3">Complete Your Profile</h3>
               <div className="space-y-2">
-                {profileChecklist.map((item) => (
+                {profileChecklist.map((item: any) => (
                   <div
                     key={item.id}
                     className="flex items-center justify-between p-2 bg-white rounded border hover:bg-gray-50 cursor-pointer"
@@ -627,7 +328,7 @@ export default function MemberDashboardPage() {
       {/* Main Content Tabs */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
         <div className="lg:col-span-2">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs defaultValue="overview" className="w-full">
             <TabsList className="grid w-full grid-cols-4 mb-4 lg:mb-6">
               <TabsTrigger value="overview" id="overview-tab" className="text-xs lg:text-sm">
                 Overview
@@ -654,27 +355,25 @@ export default function MemberDashboardPage() {
                 <CardContent>
                   {isEditing ? (
                     <Textarea
-                      value={profileData?.bio}
-                      onChange={(e) => handleInputChange('bio', e.target.value)}
+                      id="bio"
+                      value={profileData.bio}
+                      onChange={handleProfileChange}
                       placeholder="Tell coaches about your athletic journey and goals..."
-                      rows={10}
+                      className="min-h-[120px] resize-none"
                     />
                   ) : (
-                    <div className="text-gray-700 leading-relaxed text-sm lg:text-base whitespace-pre-line">{profileData?.bio}</div>
+                    <p className="text-gray-700 leading-relaxed text-sm lg:text-base">{profileData.bio}</p>
                   )}
                 </CardContent>
               </Card>
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Target className="h-5 w-5" />
-                    <span>Training Interests</span>
-                  </CardTitle>
+                  <CardTitle>Training Interests</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {profileData?.interests.map((interest, index) => (
+                    {profileData.interests.map((interest: string, index: number) => (
                       <div key={index} className="flex items-start space-x-3">
                         {isEditing ? (
                           <div className="flex-1 flex items-center space-x-2">
@@ -717,8 +416,8 @@ export default function MemberDashboardPage() {
                       <Label htmlFor="firstName">First Name</Label>
                       <Input
                         id="firstName"
-                        value={profileData?.firstName}
-                        onChange={(e) => handleInputChange('firstName', e.target.value)}
+                        value={profileData.firstName}
+                        onChange={handleProfileChange}
                         disabled={!isEditing}
                       />
                     </div>
@@ -726,8 +425,8 @@ export default function MemberDashboardPage() {
                       <Label htmlFor="lastName">Last Name</Label>
                       <Input
                         id="lastName"
-                        value={profileData?.lastName}
-                        onChange={(e) => handleInputChange('lastName', e.target.value)}
+                        value={profileData.lastName}
+                        onChange={handleProfileChange}
                         disabled={!isEditing}
                       />
                     </div>
@@ -738,20 +437,15 @@ export default function MemberDashboardPage() {
                     <Input
                       id="email"
                       type="email"
-                      value={profileData?.email}
-                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      value={profileData.email}
+                      onChange={handleProfileChange}
                       disabled={!isEditing}
                     />
                   </div>
 
                   <div>
                     <Label htmlFor="phone">Phone</Label>
-                    <Input
-                      id="phone"
-                      value={profileData?.phone}
-                      onChange={(e) => handleInputChange('phone', e.target.value)}
-                      disabled={!isEditing}
-                    />
+                    <Input id="phone" value={profileData.phone} onChange={handleProfileChange} disabled={!isEditing} />
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -759,8 +453,8 @@ export default function MemberDashboardPage() {
                       <Label htmlFor="location">Location</Label>
                       <Input
                         id="location"
-                        value={profileData?.location}
-                        onChange={(e) => handleInputChange('location', e.target.value)}
+                        value={profileData.location}
+                        onChange={handleProfileChange}
                         disabled={!isEditing}
                       />
                     </div>
@@ -768,8 +462,8 @@ export default function MemberDashboardPage() {
                       <Label htmlFor="school">School</Label>
                       <Input
                         id="school"
-                        value={profileData?.school}
-                        onChange={(e) => handleInputChange('school', e.target.value)}
+                        value={profileData.school}
+                        onChange={handleProfileChange}
                         disabled={!isEditing}
                       />
                     </div>
@@ -778,11 +472,7 @@ export default function MemberDashboardPage() {
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     <div>
                       <Label htmlFor="sport">Primary Sport</Label>
-                      <Select
-                        value={profileData?.sport}
-                        onValueChange={(value) => handleInputChange('sport', value)}
-                        disabled={!isEditing}
-                      >
+                      <Select value={profileData.sport} onValueChange={handleSportChange} disabled={!isEditing}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -802,8 +492,8 @@ export default function MemberDashboardPage() {
                       <Label htmlFor="position">Position</Label>
                       <Input
                         id="position"
-                        value={profileData?.position}
-                        onChange={(e) => handleInputChange('position', e.target.value)}
+                        value={profileData.position}
+                        onChange={handleProfileChange}
                         disabled={!isEditing}
                       />
                     </div>
@@ -811,8 +501,8 @@ export default function MemberDashboardPage() {
                       <Label htmlFor="graduationYear">Graduation Year</Label>
                       <Input
                         id="graduationYear"
-                        value={profileData?.graduationYear}
-                        onChange={(e) => handleInputChange('graduationYear', e.target.value)}
+                        value={profileData.graduationYear}
+                        onChange={handleProfileChange}
                         disabled={!isEditing}
                       />
                     </div>
@@ -820,12 +510,7 @@ export default function MemberDashboardPage() {
 
                   <div>
                     <Label htmlFor="gpa">GPA</Label>
-                    <Input
-                      id="gpa"
-                      value={profileData?.gpa}
-                      onChange={(e) => handleInputChange('gpa', e.target.value)}
-                      disabled={!isEditing}
-                    />
+                    <Input id="gpa" value={profileData.gpa} onChange={handleProfileChange} disabled={!isEditing} />
                   </div>
                 </CardContent>
               </Card>
@@ -841,7 +526,7 @@ export default function MemberDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {profileData?.goals.map((goal, index) => (
+                    {profileData.goals.map((goal: string, index: number) => (
                       <div key={index} className="flex items-center space-x-3">
                         {isEditing ? (
                           <>
@@ -883,7 +568,7 @@ export default function MemberDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {profileData?.achievements.map((achievement, index) => (
+                    {profileData.achievements.map((achievement: string, index: number) => (
                       <div key={index} className="flex items-center space-x-3">
                         {isEditing ? (
                           <>
@@ -933,7 +618,7 @@ export default function MemberDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {recentActivity.slice(0, 6).map((activity, index) => (
+                {recentActivity.map((activity: any, index: number) => (
                   <div key={index} className="flex items-start space-x-3 p-2 hover:bg-gray-50 rounded-lg">
                     {getActivityIcon(activity.type)}
                     <div className="flex-1 min-w-0">
@@ -975,13 +660,288 @@ export default function MemberDashboardPage() {
         </div>
       </div>
     </main>
+  ),
+)
+MainContent.displayName = "MainContent"
+
+export default function MemberDashboardPage() {
+  const { isMobile, isTablet } = useMobileDetection()
+  const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
+
+  // Search dropdown state
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const searchRef = useRef<HTMLDivElement>(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [showProfileChecklist, setShowProfileChecklist] = useState(false)
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
+
+  // Quick search suggestions
+  const quickSearches = useMemo(
+    () => [
+      "Navigate Recruitment",
+      "Nutrition",
+      "NIL",
+      "Training Programs",
+      "Mental Performance",
+      "Injury Prevention",
+      "Sports Psychology",
+      "Athletic Scholarships",
+    ],
+    [],
+  )
+
+  // Mock search results based on query
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return []
+
+    const mockResults = [
+      {
+        type: "coach",
+        name: "Jordan Smith",
+        sport: "Tennis",
+        rating: 4.9,
+        experience: "8+ years",
+        location: "Los Angeles, CA",
+      },
+      {
+        type: "coach",
+        name: "Alex Rodriguez",
+        sport: "Basketball",
+        rating: 4.8,
+        experience: "12+ years",
+        location: "Miami, FL",
+      },
+      {
+        type: "content",
+        title: "College Recruitment Guide",
+        creator: "PROLOGUE Team",
+        views: "45K",
+        duration: "12 min",
+      },
+      {
+        type: "content",
+        title: "NIL Deal Strategies",
+        creator: "Sports Business Pro",
+        views: "32K",
+        duration: "18 min",
+      },
+    ].filter(
+      (result) =>
+        result.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        result.sport?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        result.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        result.creator?.toLowerCase().includes(searchQuery.toLowerCase()),
+    )
+
+    return mockResults
+  }, [searchQuery])
+
+  // Profile data state
+  const [profileData, setProfileData] = useState({
+    firstName: "Alex",
+    lastName: "Johnson",
+    email: "alex.johnson@example.com",
+    phone: "+1 (555) 987-6543",
+    bio: "Dedicated high school tennis player with aspirations to compete at the collegiate level. Currently ranked #15 in state and actively seeking coaching to improve my mental game and technical skills. Passionate about continuous improvement and committed to excellence both on and off the court.",
+    location: "Miami, FL",
+    school: "Miami Prep Academy",
+    graduationYear: "2025",
+    sport: "Tennis",
+    position: "Singles Player",
+    gpa: "3.8",
+    goals: [
+      "Improve state ranking to top 10",
+      "Secure Division I tennis scholarship",
+      "Develop stronger mental game",
+      "Enhance serve consistency",
+      "Improve fitness and conditioning",
+      "Build college recruitment profile",
+    ],
+    achievements: [
+      "State Championship Semifinalist 2023",
+      "Regional Tournament Winner 2023",
+      "Team Captain - Varsity Tennis",
+      "Academic Honor Roll",
+      "Community Service Award",
+      "Junior Tournament Circuit Top 20",
+    ],
+    interests: [
+      "Tennis Strategy & Tactics",
+      "Sports Psychology",
+      "Nutrition & Fitness",
+      "College Recruitment",
+      "Mental Performance",
+      "Injury Prevention",
+    ],
+    coverImageUrl: null as string | null,
+  })
+
+  // Memoized handlers for profile form
+  const handleProfileChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { id, value } = e.target
+    setProfileData((prevData) => ({
+      ...prevData,
+      [id]: value,
+    }))
+  }, [])
+
+  const handleSportChange = useCallback((value: string) => {
+    setProfileData((prevData) => ({
+      ...prevData,
+      sport: value,
+    }))
+  }, [])
+
+  const addGoal = useCallback(() => {
+    setProfileData((prevData) => ({
+      ...prevData,
+      goals: [...prevData.goals, "New goal"],
+    }))
+  }, [])
+
+  const removeGoal = useCallback((index: number) => {
+    setProfileData((prevData) => ({
+      ...prevData,
+      goals: prevData.goals.filter((_, i) => i !== index),
+    }))
+  }, [])
+
+  const updateGoal = useCallback((index: number, value: string) => {
+    setProfileData((prevData) => {
+      const newGoals = [...prevData.goals]
+      newGoals[index] = value
+      return { ...prevData, goals: newGoals }
+    })
+  }, [])
+
+  const addAchievement = useCallback(() => {
+    setProfileData((prevData) => ({
+      ...prevData,
+      achievements: [...prevData.achievements, "New achievement"],
+    }))
+  }, [])
+
+  const removeAchievement = useCallback((index: number) => {
+    setProfileData((prevData) => ({
+      ...prevData,
+      achievements: prevData.achievements.filter((_, i) => i !== index),
+    }))
+  }, [])
+
+  const updateAchievement = useCallback((index: number, value: string) => {
+    setProfileData((prevData) => {
+      const newAchievements = [...prevData.achievements]
+      newAchievements[index] = value
+      return { ...prevData, achievements: newAchievements }
+    })
+  }, [])
+
+  const addInterest = useCallback(() => {
+    setProfileData((prevData) => ({
+      ...prevData,
+      interests: [...prevData.interests, "New interest"],
+    }))
+  }, [])
+
+  const removeInterest = useCallback((index: number) => {
+    setProfileData((prevData) => ({
+      ...prevData,
+      interests: prevData.interests.filter((_, i) => i !== index),
+    }))
+  }, [])
+
+  const updateInterest = useCallback((index: number, value: string) => {
+    setProfileData((prevData) => {
+      const newInterests = [...prevData.interests]
+      newInterests[index] = value
+      return { ...prevData, interests: newInterests }
+    })
+  }, [])
+
+  const profileChecklist = useMemo(
+    () => [
+      {
+        id: "basic-info",
+        title: "Complete Basic Information",
+        description: "Add your contact details and personal information",
+        completed: !!(profileData.firstName && profileData.lastName && profileData.email && profileData.phone),
+        action: () => document.getElementById("profile-tab")?.click(),
+      },
+      {
+        id: "bio",
+        title: "Write Your Bio",
+        description: "Tell coaches about your athletic journey and goals",
+        completed: profileData.bio.length > 50,
+        action: () => document.getElementById("overview-tab")?.click(),
+      },
+      {
+        id: "goals",
+        title: "Set Your Goals",
+        description: "Define what you want to achieve in your sport",
+        completed: profileData.goals.length >= 3,
+        action: () => document.getElementById("goals-tab")?.click(),
+      },
+      {
+        id: "achievements",
+        title: "Add Achievements",
+        description: "Showcase your athletic accomplishments",
+        completed: profileData.achievements.length >= 3,
+        action: () => document.getElementById("achievements-tab")?.click(),
+      },
+      {
+        id: "profile-photo",
+        title: "Upload Profile Photo",
+        description: "Add a professional photo to build trust with coaches",
+        completed: false, // This would be based on actual photo upload
+        action: () => toast({ title: "Photo Upload", description: "Click the camera icon to upload your photo" }),
+      },
+    ],
+    [profileData],
+  )
+
+  const { completedItems, totalItems, completionPercentage } = useMemo(() => {
+    const completed = profileChecklist.filter((item) => item.completed).length
+    const total = profileChecklist.length
+    return {
+      completedItems: completed,
+      totalItems: total,
+      completionPercentage: Math.round((completed / total) * 100),
+    }
+  }, [profileChecklist])
+
+  const memberStats = useMemo(
+    () => ({
+      activeCoaches: 2,
+      totalSessions: 18,
+      thisWeek: 3,
+      thisMonth: 12,
+      avgRating: 4.8,
+      hoursTraining: 45,
+      goalsCompleted: 8,
+      improvement: 15,
+    }),
+    [],
+  )
+
+  const recentActivity = useMemo(
+    () => [
+      { type: "session", title: "Training session with Jordan Smith", time: "2 hours ago", coach: "Jordan S." },
+      { type: "achievement", title: "Completed serve consistency goal", time: "1 day ago" },
+      { type: "feedback", title: "Received feedback from Alex Rodriguez", time: "2 days ago", coach: "Alex R." },
+      { type: "session", title: "Mental performance session", time: "3 days ago", coach: "Jordan S." },
+      { type: "milestone", title: "Reached 40 hours of training", time: "4 days ago" },
+      { type: "goal", title: "Set new fitness improvement goal", time: "5 days ago" },
+    ],
+    [],
   )
 
   // Load profile data from Firebase on component mount
   useEffect(() => {
     const loadProfileData = async () => {
       if (!auth.currentUser) {
-        setIsLoadingProfile(false)
         return
       }
 
@@ -1005,7 +965,6 @@ export default function MemberDashboardPage() {
             interests: memberProfile.interests || [],
             coverImageUrl: memberProfile.coverImageUrl || null,
           })
-          
           if (memberProfile.profileImageUrl) {
             setProfileImageUrl(memberProfile.profileImageUrl)
           }
@@ -1021,107 +980,117 @@ export default function MemberDashboardPage() {
           variant: "destructive",
           duration: 3000,
         })
-      } finally {
-        setIsLoadingProfile(false)
       }
     }
 
     loadProfileData()
   }, [])
 
-  // Handler for file input change (show preview, upload, update Firestore)
-  const handleProfileImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !auth.currentUser) return
-    setSelectedProfileImage(file)
-    setIsLoading(true)
-    try {
-      console.log("Previewing image...");
-      const previewUrl = URL.createObjectURL(file)
-      setProfileImageUrl(previewUrl)
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }, [])
 
-      console.log("Uploading to Firebase Storage...");
-      const url = await uploadProfilePicture(auth.currentUser.uid, file)
-      console.log("Upload complete, URL:", url);
+  const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
 
-      setProfileImageUrl(url)
-      setProfileData(prev => ({
-        ...prev,
-        profileImageUrl: url,
-      }))
+  const handleLogout = useCallback(async () => {
+    console.log("🔄 Member logout initiated from dashboard")
+    await logout({
+      customMessage: "Securing your member account and logging out...",
+      onComplete: () => {
+        console.log("✅ Member logout completed successfully from dashboard")
+        toast({
+          title: "Logged Out Successfully",
+          description: "You have been securely logged out. Redirecting to login page...",
+          duration: 2000,
+        })
+      },
+      onError: (error) => {
+        console.error("❌ Member logout failed from dashboard:", error)
+        toast({
+          title: "Logout Failed",
+          description: "There was an issue logging you out. Please try again.",
+          variant: "destructive",
+          duration: 3000,
+        })
+      },
+    })
+  }, [logout])
 
-      // Use the latest profileData with the new image URL
-      const updatedProfileData = {
-        ...profileData,
-        profileImageUrl: url,
-        name: profileData.firstName + ' ' + profileData.lastName,
-        role: (profileData as any).role || 'member',
-        onboardingCompleted: true,
-      }
-      console.log("Saving to Firestore...", updatedProfileData);
-      await saveMemberProfile(auth.currentUser.uid, updatedProfileData)
-      console.log("Save to Firestore complete.");
-
-      toast({ title: "Profile picture updated!" })
-    } catch (error) {
-      console.error("Profile image upload error:", error)
-      toast({ title: "Upload failed", description: String(error), variant: "destructive" })
-    } finally {
-      setIsLoading(false)
-      console.log("setIsLoading(false) called");
-    }
-  }
-
-  const handleCoverImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !auth.currentUser) return;
-    setSelectedCoverImage(file);
-    setIsLoading(true);
-    try {
-      const previewUrl = URL.createObjectURL(file);
-      setCoverImageUrl(previewUrl);
-      // Upload to Firebase Storage
-      const url = await uploadCoverPhoto(auth.currentUser.uid, file);
-      setCoverImageUrl(url);
-      setProfileData(prev => ({
-        ...prev,
-        coverImageUrl: url,
-      }));
-      await saveMemberProfile(auth.currentUser.uid, {
-        ...profileData,
-        coverImageUrl: url,
-        name: profileData.firstName + ' ' + profileData.lastName,
-        role: (profileData as any).role || 'member',
-        onboardingCompleted: true,
-      });
-      toast({ title: "Cover photo updated!" });
-    } catch (error) {
-      toast({ title: "Upload failed", description: String(error), variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  const handleSearch = useCallback(async (term: string) => {
-    // Only perform search if there's a new term or if we're clearing a previous search
-    if (term === currentSearchTerm) return
-    
-    setCurrentSearchTerm(term)
-    
-    if (!term) {
-      // Don't clear results when input is empty, just don't perform new search
+  const handleSaveProfile = useCallback(async () => {
+    if (!auth.currentUser) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to save your profile.",
+        variant: "destructive",
+        duration: 3000,
+      })
       return
     }
     
+    setIsLoading(true)
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(term)}`)
-      if (!res.ok) throw new Error('Search failed')
-      const items = await res.json()
-      setSearchResults(items)
-    } catch (e) {
-      setSearchResults([])
+      console.log("Saving profile to Firebase:", profileData)
+      
+      const profileDataForFirebase = {
+        ...profileData,
+        name: profileData.firstName + ' ' + profileData.lastName,
+        email: profileData.email,
+        sport: profileData.sport,
+        role: 'member',
+        onboardingCompleted: true,
+        profileImageUrl: profileImageUrl,
+        coverImageUrl: coverImageUrl,
+        updatedAt: new Date().toISOString(),
+      }
+      
+      await saveMemberProfile(auth.currentUser.uid, profileDataForFirebase)
+      
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been saved successfully to Firebase.",
+        duration: 3000,
+      })
+      setIsEditing(false)
+    } catch (error) {
+      console.error("Error saving profile to Firebase:", error)
+      toast({
+        title: "Save Failed",
+        description: "Failed to save profile to Firebase. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      })
+    } finally {
+      setIsLoading(false)
     }
-  }, [currentSearchTerm])
+  }, [profileData, profileImageUrl, coverImageUrl])
+
+  const mainContentProps = {
+    isMobile,
+    isEditing,
+    setIsEditing,
+    isLoading,
+    handleSaveProfile,
+    profileData,
+    handleProfileChange,
+    handleSportChange,
+    addGoal,
+    removeGoal,
+    updateGoal,
+    addAchievement,
+    removeAchievement,
+    updateAchievement,
+    addInterest,
+    removeInterest,
+    updateInterest,
+    profileChecklist,
+    completionPercentage,
+    completedItems,
+    totalItems,
+    showProfileChecklist,
+    setShowProfileChecklist,
+    memberStats,
+    recentActivity,
+  }
 
   if (isMobile || isTablet) {
     return (
@@ -1133,46 +1102,20 @@ export default function MemberDashboardPage() {
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
       >
-        <MainContent />
+        <MainContent {...mainContentProps} />
       </MobileLayout>
-    )
-  }
-
-  if (isLoadingProfile) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-prologue-electric mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your profile...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!profileData) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-prologue-electric mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your profile...</p>
-        </div>
-      </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <DesktopHeader />
-      <div className="p-4">
-        <ul className="mt-4">
-          {searchResults.map((item) => (
-            <li key={item.id}>{item.name}</li>
-          ))}
-        </ul>
-      </div>
-      <MainContent />
-
-      {/* Logout Notification */}
+      <DesktopHeader
+        onLogout={handleLogout}
+        unreadNotifications={unreadNotificationsCount}
+        unreadMessages={unreadMessagesCount}
+        hasNewContent={hasNewTrainingContent}
+      />
+      <MainContent {...mainContentProps} />
       <LogoutNotification
         isVisible={loadingState.isVisible}
         userType={loadingState.userType}
