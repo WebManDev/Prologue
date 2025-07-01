@@ -43,6 +43,8 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
+import { MemberHeader } from "@/components/navigation/member-header"
+import { auth, getMemberProfile } from "@/lib/firebase"
 
 export default function MemberHomePage() {
   // Mobile detection
@@ -503,257 +505,35 @@ export default function MemberHomePage() {
     )
   }, [searchQuery, searchResults, quickSearches, handleSearchSelect])
 
+  const [profileData, setProfileData] = useState({ firstName: "", lastName: "", profileImageUrl: null })
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!auth.currentUser) return
+      const memberProfile = await getMemberProfile(auth.currentUser.uid)
+      if (memberProfile) {
+        setProfileData({
+          firstName: memberProfile.firstName || "",
+          lastName: memberProfile.lastName || "",
+          profileImageUrl: memberProfile.profileImageUrl || null,
+        })
+        setProfileImageUrl(memberProfile.profileImageUrl || null)
+      }
+    }
+    loadProfile()
+  }, [])
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile Header - Fixed Navigation */}
-      <header className="lg:hidden bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="flex items-center justify-between h-16 px-4">
-          {/* Logo */}
-          <Link href="/member-home" className="flex items-center space-x-2">
-            <div className="w-8 h-8 relative">
-              <Image
-                src="/prologue-logo.png"
-                alt="PROLOGUE"
-                width={32}
-                height={32}
-                className="w-full h-full object-contain"
-                priority
-              />
-            </div>
-            <span className="text-lg font-athletic font-bold text-gray-900 tracking-wider">PROLOGUE</span>
-          </Link>
-
-          {/* Right Actions - Search, Bell, Dropdown */}
-          <div className="flex items-center space-x-2">
-            {/* Search Button */}
-            <Button variant="ghost" size="sm" className="p-2" onClick={() => setShowSearchDropdown(true)}>
-              <Search className="h-5 w-5 text-gray-600" />
-            </Button>
-
-            {/* Notification Bell */}
-            <Link href="/member-notifications" className="relative">
-              <Button variant="ghost" size="sm" className="p-2 relative">
-                <Bell className="h-5 w-5 text-gray-600" />
-                {unreadNotificationsCount > 0 && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div>
-                )}
-              </Button>
-            </Link>
-
-            {/* User Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2 p-2" disabled={false}>
-                  <Link href="/member-dashboard">
-                    <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-prologue-electric/30 transition-all">
-                      <User className="w-full h-full text-gray-500 p-1" />
-                    </div>
-                  </Link>
-                  <ChevronDown className="h-4 w-4 text-gray-500" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem asChild>
-                  <Link href="/member-dashboard" className="flex items-center w-full cursor-pointer">
-                    <LayoutDashboard className="h-4 w-4 mr-2" />
-                    Profile
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/member-settings" className="flex items-center w-full cursor-pointer">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Settings
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer" disabled={false}>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Mobile Search Overlay */}
-        {showSearchDropdown && (
-          <div className="fixed inset-0 z-50 bg-white">
-            <div className="flex items-center h-16 px-4 border-b border-gray-200">
-              <Button variant="ghost" size="sm" className="p-2 mr-2" onClick={() => setShowSearchDropdown(false)}>
-                <X className="h-5 w-5 text-gray-600" />
-              </Button>
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search athletes, content..."
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            <div className="p-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick Searches</h3>
-              <div className="space-y-2">
-                {quickSearches.slice(0, 8).map((search: string | { name?: string; title?: string }, index) => (
-                  <button
-                    key={index}
-                    className="w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors"
-                    onClick={() => handleSearchSelect(typeof search === "string" ? search : (search.name || search.title || ""))}
-                  >
-                    <span className="text-gray-700">{typeof search === "string" ? search : (search.name || search.title || "")}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </header>
-
-      {/* Desktop Header */}
-      <header className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/member-home" className="flex items-center space-x-3 group cursor-pointer">
-                <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
-                  <Image
-                    src="/prologue-logo.png"
-                    alt="PROLOGUE"
-                    width={32}
-                    height={32}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-prologue-electric transition-colors tracking-wider">
-                  PROLOGUE
-                </span>
-              </Link>
-
-              <div className="flex items-center space-x-1 relative" ref={searchRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search athletes, content..."
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
-                    onFocus={handleSearchFocus}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={clearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Search Dropdown */}
-                {showSearchDropdown && searchDropdownContent}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-6">
-              <nav className="flex items-center space-x-6">
-                <Link
-                  href="/member-home"
-                  className="flex flex-col items-center space-y-1 text-prologue-electric transition-colors group relative"
-                >
-                  <Home className="h-5 w-5" />
-                  <span className="text-xs font-medium">Home</span>
-                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-prologue-electric rounded-full"></div>
-                </Link>
-                <Link
-                  href="/member-training"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group relative"
-                >
-                  <BookOpen className="h-5 w-5" />
-                  <span className="text-xs font-medium">Training</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {hasNewTrainingContent && (
-                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-                  )}
-                </Link>
-                <Link
-                  href="/member-discover"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
-                >
-                  <Search className="h-5 w-5" />
-                  <span className="text-xs font-medium">Discover</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/member-feedback"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
-                >
-                  <MessageSquare className="h-5 w-5" />
-                  <span className="text-xs font-medium">Feedback</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/member-messaging"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors relative group"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  <span className="text-xs font-medium">Messages</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {unreadMessagesCount > 0 && (
-                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-                  )}
-                </Link>
-              </nav>
-
-              <div className="flex items-center space-x-3">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center space-x-1 p-1.5" disabled={false}>
-                      <Link href="/member-dashboard">
-                        <div className="w-7 h-7 bg-gray-300 rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-prologue-electric/30 transition-all">
-                          <User className="w-full h-full text-gray-500 p-1" />
-                        </div>
-                      </Link>
-                      <ChevronDown className="h-3.5 w-3.5 text-gray-500" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem asChild>
-                      <Link href="/member-dashboard" className="flex items-center w-full cursor-pointer">
-                        <LayoutDashboard className="h-4 w-4 mr-2" />
-                        Profile
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/member-settings" className="flex items-center w-full cursor-pointer">
-                        <Settings className="h-4 w-4 mr-2" />
-                        Settings
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer" disabled={false}>
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Logout
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {/* Notification Bell - moved to right of dropdown */}
-                <Link href="/member-notifications" className="relative">
-                  <Button variant="ghost" size="sm" className="p-1.5 relative">
-                    <Bell className="h-4.5 w-4.5 text-gray-600" />
-                    {unreadNotificationsCount > 0 && (
-                      <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></div>
-                    )}
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <MemberHeader
+        currentPath="/member-home"
+        onLogout={handleLogout}
+        unreadNotifications={unreadNotificationsCount}
+        unreadMessages={unreadMessagesCount}
+        hasNewContent={hasNewTrainingContent}
+        profileImageUrl={profileImageUrl}
+        profileData={profileData}
+      />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 lg:px-6 py-8 pb-20 lg:pb-8">

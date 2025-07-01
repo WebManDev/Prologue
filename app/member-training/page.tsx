@@ -40,6 +40,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
+import { auth, getMemberProfile } from "@/lib/firebase"
 
 export default function MemberTrainingPage() {
   // Mobile detection
@@ -504,6 +505,24 @@ export default function MemberTrainingPage() {
     )
   }
 
+  const [profileData, setProfileData] = useState({ firstName: "", lastName: "", profileImageUrl: null })
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!auth.currentUser) return
+      const memberProfile = await getMemberProfile(auth.currentUser.uid)
+      if (memberProfile) {
+        setProfileData({
+          firstName: memberProfile.firstName || "",
+          lastName: memberProfile.lastName || "",
+          profileImageUrl: memberProfile.profileImageUrl || null,
+        })
+        setProfileImageUrl(memberProfile.profileImageUrl || null)
+      }
+    }
+    loadProfile()
+  }, [])
+
   return (
     <div className="min-h-screen bg-gray-50">
       <GoalsModal />
@@ -514,6 +533,8 @@ export default function MemberTrainingPage() {
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
         onLogout={() => {}}
+        profileImageUrl={profileImageUrl}
+        profileData={profileData}
       />
 
       {/* Main Content */}

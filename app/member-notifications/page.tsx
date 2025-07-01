@@ -30,6 +30,7 @@ import {
   Trash2,
   X,
   Compass,
+  TrendingUp,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -37,6 +38,10 @@ import { useState, useRef, useEffect } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import MemberMobileNavigation from "@/components/mobile/member-mobile-navigation"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
+import { MemberHeader } from "@/components/navigation/member-header"
+import { auth, getMemberProfile } from "@/lib/firebase"
+import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import { LogoutNotification } from "@/components/ui/logout-notification"
 
 export default function MemberNotificationsPage() {
   const { unreadMessagesCount, unreadNotificationsCount, markNotificationsAsRead, hasNewTrainingContent } =
@@ -239,18 +244,20 @@ export default function MemberNotificationsPage() {
     }
   }, [unreadNotificationsCount, markNotificationsAsRead])
 
-  const handleLogout = () => {
-    localStorage.removeItem("userToken")
-    localStorage.removeItem("userData")
-    localStorage.removeItem("authToken")
-    sessionStorage.clear()
+  const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
 
-    document.cookie.split(";").forEach((c) => {
-      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")
+  const handleLogout = React.useCallback(async () => {
+    await logout({
+      customMessage: "Securing your member account and logging out...",
+      onComplete: () => {
+        // Optionally show a toast or message
+      },
+      onError: (error) => {
+        // Optionally show a toast or message
+        console.error("Logout failed from notifications page:", error)
+      },
     })
-
-    window.location.href = "/"
-  }
+  }, [logout])
 
   const filteredNotifications = notifications.filter((notification) => {
     if (selectedFilter === "all") return true
@@ -269,6 +276,33 @@ export default function MemberNotificationsPage() {
   }
 
   const stats = getNotificationStats()
+
+  const [profileData, setProfileData] = useState({ firstName: "", lastName: "", profileImageUrl: null })
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
+  const [memberStats, setMemberStats] = useState({ activeCoaches: 2, thisWeek: 3, totalSessions: 18, improvement: 15 })
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!auth.currentUser) return
+      const memberProfile = await getMemberProfile(auth.currentUser.uid)
+      if (memberProfile) {
+        setProfileData({
+          firstName: memberProfile.firstName || "",
+          lastName: memberProfile.lastName || "",
+          profileImageUrl: memberProfile.profileImageUrl || null,
+        })
+        setProfileImageUrl(memberProfile.profileImageUrl || null)
+        // Optionally load stats from memberProfile if available
+        setMemberStats({
+          activeCoaches: memberProfile.activeCoaches || 2,
+          thisWeek: memberProfile.thisWeek || 3,
+          totalSessions: memberProfile.totalSessions || 18,
+          improvement: memberProfile.improvement || 15,
+        })
+      }
+    }
+    loadProfile()
+  }, [])
 
   // Memoized search dropdown content
   const searchDropdownContent = React.useMemo(() => {
@@ -331,211 +365,17 @@ export default function MemberNotificationsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/member-home" className="flex items-center space-x-3 group cursor-pointer">
-                <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
-                  <Image
-                    src="/Prologue LOGO-1.png"
-                    alt="PROLOGUE"
-                    width={32}
-                    height={32}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                {!isMobile && (
-                  <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-prologue-electric transition-colors tracking-wider">
-                    PROLOGUE
-                  </span>
-                )}
-              </Link>
-
-              <div className="hidden md:flex items-center space-x-1 relative" ref={searchRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search notifications..."
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-prologue-electric/20 transition-all"
-                    onFocus={handleSearchFocus}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={clearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-
-                {showSearchDropdown && searchDropdownContent}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-6">
-              <nav className="hidden lg:flex items-center space-x-6">
-                <Link
-                  href="/member-home"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
-                >
-                  <Home className="h-5 w-5" />
-                  <span className="text-xs font-medium">Home</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/member-training"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group relative"
-                >
-                  <BookOpen className="h-5 w-5" />
-                  <span className="text-xs font-medium">Training</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {hasNewTrainingContent && (
-                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-                  )}
-                </Link>
-                <Link
-                  href="/member-browse"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
-                >
-                  <Compass className="h-5 w-5" />
-                  <span className="text-xs font-medium">Browse</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/member-feedback"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
-                >
-                  <MessageSquare className="h-5 w-5" />
-                  <span className="text-xs font-medium">Feedback</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/member-messaging"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors relative group"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  <span className="text-xs font-medium">Messages</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {unreadMessagesCount > 0 && (
-                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-                  )}
-                </Link>
-                <Link
-                  href="/member-notifications"
-                  className="flex flex-col items-center space-y-1 text-prologue-electric relative"
-                >
-                  <div className="relative">
-                    <Bell className="h-5 w-5" />
-                    {unreadNotificationsCount > 0 && (
-                      <div className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 rounded-full border border-white flex items-center justify-center">
-                        <span className="text-xs text-white font-bold leading-none px-1">
-                          {unreadNotificationsCount > 9 ? "9+" : unreadNotificationsCount}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-xs font-medium">Notifications</span>
-                  <div className="w-full h-0.5 bg-prologue-electric"></div>
-                </Link>
-              </nav>
-
-              {/* Mobile/Tablet Navigation - Search and Bell */}
-              {(isMobile || isTablet) && (
-                <div className="flex items-center space-x-2">
-                  {/* Search Button */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowSearchDropdown(!showSearchDropdown)}
-                    className="p-2 touch-target"
-                  >
-                    <Search className="h-5 w-5 text-gray-600" />
-                  </Button>
-
-                  {/* Notification Bell - Active State with proper red dot */}
-                  <Link href="/member-notifications" className="relative">
-                    <Button variant="ghost" size="sm" className="p-2 touch-target relative bg-prologue-electric/10">
-                      <Bell className="h-5 w-5 text-prologue-electric" />
-                      {unreadNotificationsCount > 0 && (
-                        <div className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
-                          <span className="text-xs text-white font-bold leading-none px-1">
-                            {unreadNotificationsCount > 9 ? "9+" : unreadNotificationsCount}
-                          </span>
-                        </div>
-                      )}
-                    </Button>
-                  </Link>
-                </div>
-              )}
-
-              <div className="flex items-center space-x-3">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center space-x-2 p-2">
-                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                        <User className="w-full h-full text-gray-500 p-1" />
-                      </div>
-                      {!isMobile && <ChevronDown className="h-4 w-4 text-gray-500" />}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem>
-                      <Link href="/member-dashboard" className="flex items-center w-full">
-                        <LayoutDashboard className="h-4 w-4 mr-2" />
-                        Profile
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Link href="/member-settings" className="flex items-center w-full">
-                        <Settings className="h-4 w-4 mr-2" />
-                        Settings
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Logout
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-
-          {/* Mobile Search Dropdown */}
-          {(isMobile || isTablet) && showSearchDropdown && (
-            <div className="border-t border-gray-200 bg-white">
-              <div className="px-4 py-4" ref={searchRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search notifications..."
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="w-full pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
-                    onFocus={handleSearchFocus}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={clearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                {searchDropdownContent}
-              </div>
-            </div>
-          )}
-        </div>
-      </header>
+      {/* Dashboard-style Header */}
+      <MemberHeader
+        currentPath="/member-notifications"
+        onLogout={handleLogout}
+        showSearch={true}
+        unreadNotifications={unreadNotificationsCount}
+        unreadMessages={unreadMessagesCount}
+        hasNewContent={hasNewTrainingContent}
+        profileImageUrl={profileImageUrl}
+        profileData={profileData}
+      />
 
       {/* Main Content */}
       <main className={`max-w-7xl mx-auto px-6 py-8 ${isMobile || isTablet ? "pb-20" : ""}`}>
@@ -648,6 +488,46 @@ export default function MemberNotificationsPage() {
                 </div>
               </div>
             </CardContent>
+          </Card>
+        </div>
+
+        {/* Add dashboard widgets above notifications list */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6 mb-4 lg:mb-8">
+          <Card className="p-3 lg:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs lg:text-sm font-medium text-gray-600">Active Coaches</p>
+                <p className="text-lg lg:text-2xl font-bold text-gray-900">{memberStats.activeCoaches}</p>
+              </div>
+              <User className="h-6 w-6 lg:h-8 lg:w-8 text-prologue-electric" />
+            </div>
+          </Card>
+          <Card className="p-3 lg:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs lg:text-sm font-medium text-gray-600">This Week</p>
+                <p className="text-lg lg:text-2xl font-bold text-gray-900">{memberStats.thisWeek}</p>
+              </div>
+              <Calendar className="h-6 w-6 lg:h-8 lg:w-8 text-green-500" />
+            </div>
+          </Card>
+          <Card className="p-3 lg:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs lg:text-sm font-medium text-gray-600">Total Sessions</p>
+                <p className="text-lg lg:text-2xl font-bold text-gray-900">{memberStats.totalSessions}</p>
+              </div>
+              <BookOpen className="h-6 w-6 lg:h-8 lg:w-8 text-blue-500" />
+            </div>
+          </Card>
+          <Card className="p-3 lg:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs lg:text-sm font-medium text-gray-600">Improvement</p>
+                <p className="text-lg lg:text-2xl font-bold text-green-600">+{memberStats.improvement}%</p>
+              </div>
+              <TrendingUp className="h-6 w-6 lg:h-8 lg:w-8 text-orange-500" />
+            </div>
           </Card>
         </div>
 
@@ -778,6 +658,17 @@ export default function MemberNotificationsPage() {
       {(isMobile || isTablet) && (
         <MemberMobileNavigation />
       )}
+
+      <LogoutNotification
+        isVisible={loadingState.isVisible}
+        userType={loadingState.userType}
+        stage={loadingState.stage}
+        message={loadingState.message}
+        error={loadingState.error}
+        canRetry={loadingState.canRetry}
+        onRetry={retryLogout}
+        onCancel={cancelLogout}
+      />
     </div>
   )
 }
