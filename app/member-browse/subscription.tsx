@@ -1,0 +1,1 @@
+// Move the contents of subscription.tsx to app/member-browse/subscription/[id]/page.tsx for dynamic routing. 

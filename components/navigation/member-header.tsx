@@ -95,7 +95,10 @@ export function MemberHeader({
                 <span className="text-xs font-medium">Training</span>
                 <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 {hasNewContent && (
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+                  <div className="absolute top-0 right-0 flex space-x-0.5">
+                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                  </div>
                 )}
               </Link>
               <Link
@@ -125,53 +128,54 @@ export function MemberHeader({
                   <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
                 )}
               </Link>
-              <Link
-                href="/member-notifications"
-                className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors relative group"
-              >
-                <Bell className="h-5 w-5" />
-                <span className="text-xs font-medium">Notifications</span>
-                <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                {unreadNotifications > 0 && (
-                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-                )}
-              </Link>
             </nav>
 
-            {/* User Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2 p-2">
-                  <Avatar className="w-8 h-8">
-                    <AvatarImage src={profileImageUrl || undefined} alt={profileData ? `${profileData.firstName} ${profileData.lastName}` : 'User'} />
-                    <AvatarFallback>
-                      {profileData && profileData.firstName && profileData.lastName
-                        ? `${profileData.firstName[0]}${profileData.lastName[0]}`.toUpperCase()
-                        : <User className="w-full h-full text-gray-500 p-1" />}
-                    </AvatarFallback>
-                  </Avatar>
-                  <ChevronDown className="h-4 w-4 text-gray-500" />
+            {/* Notification Bell to the right of profile avatar */}
+            <div className="flex items-center space-x-3">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center space-x-2 p-2">
+                    <Avatar className="w-8 h-8">
+                      <AvatarImage src={profileImageUrl || undefined} alt={profileData ? `${profileData.firstName} ${profileData.lastName}` : 'User'} />
+                      <AvatarFallback>
+                        {profileData && profileData.firstName && profileData.lastName
+                          ? `${profileData.firstName[0]}${profileData.lastName[0]}`.toUpperCase()
+                          : <User className="w-full h-full text-gray-500 p-1" />}
+                      </AvatarFallback>
+                    </Avatar>
+                    <ChevronDown className="h-4 w-4 text-gray-500" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem>
+                    <Link href="/member-dashboard" className="flex items-center w-full">
+                      <LayoutDashboard className="h-4 w-4 mr-2" />
+                      Profile
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Link href="/member-settings" className="flex items-center w-full">
+                      <Settings className="h-4 w-4 mr-2" />
+                      Settings
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onLogout} className="cursor-pointer">
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Notification Bell */}
+              <Link href="/member-notifications" className="relative">
+                <Button variant="ghost" size="icon" className="p-2">
+                  <Bell className="h-5 w-5 text-gray-700" />
+                  {unreadNotifications > 0 && (
+                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+                  )}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem>
-                  <Link href="/member-dashboard" className="flex items-center w-full">
-                    <LayoutDashboard className="h-4 w-4 mr-2" />
-                    Profile
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Link href="/member-settings" className="flex items-center w-full">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Settings
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={onLogout} className="cursor-pointer">
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
