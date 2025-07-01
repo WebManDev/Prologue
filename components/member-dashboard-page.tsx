@@ -70,11 +70,15 @@ const DesktopHeader = React.memo(
     unreadNotifications,
     unreadMessages,
     hasNewContent,
+    profileImageUrl,
+    profileData,
   }: {
     onLogout: () => void
     unreadNotifications: number
     unreadMessages: number
     hasNewContent: boolean
+    profileImageUrl?: string | null
+    profileData?: any
   }) => (
     <MemberHeader
       currentPath="/member-dashboard"
@@ -83,6 +87,8 @@ const DesktopHeader = React.memo(
       unreadNotifications={unreadNotifications}
       unreadMessages={unreadMessages}
       hasNewContent={hasNewContent}
+      profileImageUrl={profileImageUrl}
+      profileData={profileData}
     />
   ),
 )
@@ -116,21 +122,43 @@ const MainContent = React.memo(
     setShowProfileChecklist,
     memberStats,
     recentActivity,
+    profileImageInputRef,
+    coverImageInputRef,
+    isUploadingProfile,
+    isUploadingCover,
+    handleProfileImageChange,
+    handleCoverImageChange,
   }: any) => (
     <main className={`${isMobile ? "px-4 py-6 pb-24" : "max-w-7xl mx-auto px-6 py-8"}`}>
       {/* Profile Header */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-4 lg:mb-8 overflow-hidden">
         <div className="h-24 lg:h-32 bg-gradient-to-r from-prologue-electric to-prologue-blue relative">
+          {/* Cover Image */}
+          {profileData.coverImageUrl ? (
+            <img src={profileData.coverImageUrl} alt="Cover" className="absolute inset-0 w-full h-full object-cover" />
+          ) : null}
           <div className="absolute inset-0 bg-black/10"></div>
           {isEditing && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="absolute top-2 right-2 lg:top-4 lg:right-4 bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 text-xs lg:text-sm"
-            >
-              <Camera className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
-              <span className="hidden sm:inline">Change Cover</span>
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="absolute top-2 right-2 lg:top-4 lg:right-4 bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 text-xs lg:text-sm"
+                onClick={() => coverImageInputRef.current?.click()}
+                disabled={isUploadingCover}
+              >
+                <Camera className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
+                <span className="hidden sm:inline">{isUploadingCover ? "Uploading..." : "Change Cover"}</span>
+              </Button>
+              <input
+                type="file"
+                accept="image/*"
+                ref={coverImageInputRef}
+                className="hidden"
+                onChange={handleCoverImageChange}
+                disabled={isUploadingCover}
+              />
+            </>
           )}
         </div>
 
@@ -139,15 +167,31 @@ const MainContent = React.memo(
             <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-6">
               <div className="relative self-center lg:self-auto">
                 <div className="w-20 h-20 lg:w-24 lg:h-24 bg-gradient-to-r from-prologue-electric to-prologue-blue rounded-full border-4 border-white overflow-hidden">
-                  <User className="w-full h-full text-white p-4 lg:p-6" />
+                  {profileData.profileImageUrl ? (
+                    <img src={profileData.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-full h-full text-white p-4 lg:p-6" />
+                  )}
                 </div>
                 {isEditing && (
-                  <Button
-                    size="sm"
-                    className="absolute -bottom-1 -right-1 lg:-bottom-2 lg:-right-2 w-6 h-6 lg:w-8 lg:h-8 rounded-full p-0 bg-prologue-electric hover:bg-prologue-blue"
-                  >
-                    <Upload className="h-3 w-3 lg:h-4 lg:w-4" />
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      className="absolute -bottom-1 -right-1 lg:-bottom-2 lg:-right-2 w-6 h-6 lg:w-8 lg:h-8 rounded-full p-0 bg-prologue-electric hover:bg-prologue-blue"
+                      onClick={() => profileImageInputRef.current?.click()}
+                      disabled={isUploadingProfile}
+                    >
+                      <Upload className="h-3 w-3 lg:h-4 lg:w-4" />
+                    </Button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      ref={profileImageInputRef}
+                      className="hidden"
+                      onChange={handleProfileImageChange}
+                      disabled={isUploadingProfile}
+                    />
+                  </>
                 )}
               </div>
 
@@ -677,6 +721,10 @@ export default function MemberDashboardPage() {
   const [showProfileChecklist, setShowProfileChecklist] = useState(false)
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null)
+  const profileImageInputRef = useRef<HTMLInputElement>(null)
+  const coverImageInputRef = useRef<HTMLInputElement>(null)
+  const [isUploadingProfile, setIsUploadingProfile] = useState(false)
+  const [isUploadingCover, setIsUploadingCover] = useState(false)
 
   // Quick search suggestions
   const quickSearches = useMemo(
@@ -777,6 +825,7 @@ export default function MemberDashboardPage() {
       "Injury Prevention",
     ],
     coverImageUrl: null as string | null,
+    profileImageUrl: null as string | null,
   })
 
   // Memoized handlers for profile form
@@ -861,46 +910,43 @@ export default function MemberDashboardPage() {
     })
   }, [])
 
-  const profileChecklist = useMemo(
-    () => [
-      {
-        id: "basic-info",
-        title: "Complete Basic Information",
-        description: "Add your contact details and personal information",
-        completed: !!(profileData.firstName && profileData.lastName && profileData.email && profileData.phone),
-        action: () => document.getElementById("profile-tab")?.click(),
-      },
-      {
-        id: "bio",
-        title: "Write Your Bio",
-        description: "Tell coaches about your athletic journey and goals",
-        completed: profileData.bio.length > 50,
-        action: () => document.getElementById("overview-tab")?.click(),
-      },
-      {
-        id: "goals",
-        title: "Set Your Goals",
-        description: "Define what you want to achieve in your sport",
-        completed: profileData.goals.length >= 3,
-        action: () => document.getElementById("goals-tab")?.click(),
-      },
-      {
-        id: "achievements",
-        title: "Add Achievements",
-        description: "Showcase your athletic accomplishments",
-        completed: profileData.achievements.length >= 3,
-        action: () => document.getElementById("achievements-tab")?.click(),
-      },
-      {
-        id: "profile-photo",
-        title: "Upload Profile Photo",
-        description: "Add a professional photo to build trust with coaches",
-        completed: false, // This would be based on actual photo upload
-        action: () => toast({ title: "Photo Upload", description: "Click the camera icon to upload your photo" }),
-      },
-    ],
-    [profileData],
-  )
+  const profileChecklist = useMemo(() => [
+    {
+      id: "basic-info",
+      title: "Complete Basic Information",
+      description: "Add your contact details and personal information",
+      completed: !!(profileData.firstName && profileData.lastName && profileData.email && profileData.phone),
+      action: () => document.getElementById("profile-tab")?.click(),
+    },
+    {
+      id: "bio",
+      title: "Write Your Bio",
+      description: "Tell coaches about your athletic journey and goals",
+      completed: profileData.bio.length > 50,
+      action: () => document.getElementById("overview-tab")?.click(),
+    },
+    {
+      id: "goals",
+      title: "Set Your Goals",
+      description: "Define what you want to achieve in your sport",
+      completed: profileData.goals.length >= 3,
+      action: () => document.getElementById("goals-tab")?.click(),
+    },
+    {
+      id: "achievements",
+      title: "Add Achievements",
+      description: "Showcase your athletic accomplishments",
+      completed: profileData.achievements.length >= 3,
+      action: () => document.getElementById("achievements-tab")?.click(),
+    },
+    {
+      id: "profile-photo",
+      title: "Upload Profile Photo",
+      description: "Add a professional photo to build trust with coaches",
+      completed: !!profileData.profileImageUrl,
+      action: () => toast({ title: "Photo Upload", description: "Click the upload icon to upload your photo" }),
+    },
+  ], [profileData])
 
   const { completedItems, totalItems, completionPercentage } = useMemo(() => {
     const completed = profileChecklist.filter((item) => item.completed).length
@@ -964,6 +1010,7 @@ export default function MemberDashboardPage() {
             achievements: memberProfile.achievements || [],
             interests: memberProfile.interests || [],
             coverImageUrl: memberProfile.coverImageUrl || null,
+            profileImageUrl: memberProfile.profileImageUrl || null,
           })
           if (memberProfile.profileImageUrl) {
             setProfileImageUrl(memberProfile.profileImageUrl)
@@ -1064,6 +1111,40 @@ export default function MemberDashboardPage() {
     }
   }, [profileData, profileImageUrl, coverImageUrl])
 
+  // Handler for profile image upload
+  const handleProfileImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !auth.currentUser) return
+    setIsUploadingProfile(true)
+    try {
+      const url = await uploadProfilePicture(auth.currentUser.uid, file)
+      setProfileImageUrl(url)
+      setProfileData((prev) => ({ ...prev, profileImageUrl: url }))
+      toast({ title: "Profile picture updated!" })
+    } catch (err) {
+      toast({ title: "Upload failed", description: "Could not upload profile picture.", variant: "destructive" })
+    } finally {
+      setIsUploadingProfile(false)
+    }
+  }
+
+  // Handler for cover image upload
+  const handleCoverImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !auth.currentUser) return
+    setIsUploadingCover(true)
+    try {
+      const url = await uploadCoverPhoto(auth.currentUser.uid, file)
+      setCoverImageUrl(url)
+      setProfileData((prev) => ({ ...prev, coverImageUrl: url }))
+      toast({ title: "Cover photo updated!" })
+    } catch (err) {
+      toast({ title: "Upload failed", description: "Could not upload cover photo.", variant: "destructive" })
+    } finally {
+      setIsUploadingCover(false)
+    }
+  }
+
   const mainContentProps = {
     isMobile,
     isEditing,
@@ -1090,6 +1171,12 @@ export default function MemberDashboardPage() {
     setShowProfileChecklist,
     memberStats,
     recentActivity,
+    profileImageInputRef,
+    coverImageInputRef,
+    isUploadingProfile,
+    isUploadingCover,
+    handleProfileImageChange,
+    handleCoverImageChange,
   }
 
   if (isMobile || isTablet) {
@@ -1114,6 +1201,8 @@ export default function MemberDashboardPage() {
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
+        profileImageUrl={profileImageUrl || profileData.profileImageUrl}
+        profileData={profileData}
       />
       <MainContent {...mainContentProps} />
       <LogoutNotification

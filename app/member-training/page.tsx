@@ -826,7 +826,7 @@ export default function MemberTrainingPage() {
                       <p className="text-sm text-white/80 mb-4">
                         Find new training programs and connect with other athletes to enhance your performance.
                       </p>
-                      <Link href="/member-discover">
+                      <Link href="/member-browse">
                         <Button
                           variant="secondary"
                           size="sm"
