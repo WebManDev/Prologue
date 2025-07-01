@@ -109,10 +109,12 @@ export default function LandingPage() {
     checkAuthState();
   }, []);
 
-  // Handle member dashboard redirect
+  // Handle dashboard redirects
   useEffect(() => {
     if (showDashboard === "member") {
       router.replace("/member-dashboard");
+    } else if (showDashboard === "athlete-dashboard") {
+      router.replace("/athleteDashboard");
     }
   }, [showDashboard, router]);
 
@@ -166,14 +168,7 @@ export default function LandingPage() {
   }
 
   if (showDashboard === "athlete-dashboard") {
-    return (
-      <CoachDashboard
-        onLogout={() => {
-          setShowDashboard(null)
-          setShowRoleSelection(true)
-        }}
-      />
-    )
+    return null; // Will be redirected by useEffect
   }
 
   if (showLogin) {

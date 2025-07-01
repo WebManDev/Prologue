@@ -347,7 +347,7 @@ export default function DashboardPage() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
                     <DropdownMenuItem>
-                      <Link href="/dashboard" className="flex items-center w-full">
+                      <Link href="/athleteDashboard" className="flex items-center w-full">
                         <LayoutDashboard className="h-4 w-4 mr-2" />
                         Profile
                       </Link>

@@ -100,7 +100,7 @@ export default function LoginPage() {
         // Smooth scroll after navigation
         setTimeout(smoothScrollToTop, 100)
       } else if (selectedRole === "athlete") {
-        router.push("/dashboard")
+        router.push("/athleteDashboard")
         // Smooth scroll after navigation
         setTimeout(smoothScrollToTop, 100)
       }
@@ -128,7 +128,7 @@ export default function LoginPage() {
         // Smooth scroll after navigation
         setTimeout(smoothScrollToTop, 100)
       } else if (selectedRole === "athlete") {
-        router.push("/dashboard")
+        router.push("/athleteDashboard")
         // Smooth scroll after navigation
         setTimeout(smoothScrollToTop, 100)
       }
