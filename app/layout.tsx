@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { MemberNotificationProvider } from '@/contexts/member-notification-context'
 import { MemberSubscriptionProvider } from '@/contexts/member-subscription-context'
+import { NotificationProvider } from '@/contexts/notification-context'
 
 export const metadata: Metadata = {
   title: 'v0 App',
@@ -17,11 +18,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <MemberNotificationProvider>
-          <MemberSubscriptionProvider>
-            {children}
-          </MemberSubscriptionProvider>
-        </MemberNotificationProvider>
+        <NotificationProvider>
+          <MemberNotificationProvider>
+            <MemberSubscriptionProvider>
+              {children}
+            </MemberSubscriptionProvider>
+          </MemberNotificationProvider>
+        </NotificationProvider>
       </body>
     </html>
   )

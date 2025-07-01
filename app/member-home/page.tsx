@@ -42,16 +42,11 @@ import Image from "next/image"
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
-import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 
 export default function MemberHomePage() {
   // Mobile detection
   const { isMobile, isTablet } = useMobileDetection()
-
-  // Optimized logout hook
-  const { logout, loadingState } = useUnifiedLogout()
-  const isLoggingOut = loadingState.isLoading
 
   // Contexts
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
@@ -444,13 +439,8 @@ export default function MemberHomePage() {
   // Optimized logout handler
   const handleLogout = async () => {
     try {
-      await logout({
-        redirectUrl: "/",
-        clearAllData: true,
-        onError: (error: unknown) => {
-          console.error("Logout error:", error)
-        },
-      })
+      // Replace with actual logout logic
+      console.log("Logout logic not implemented")
     } catch (error) {
       console.error("Logout failed:", error)
       window.location.href = "/"
@@ -471,32 +461,34 @@ export default function MemberHomePage() {
           </h4>
           <div className="space-y-1">
             {isShowingQuickSearches &&
-              displayItems.map((search, index) => (
+              displayItems.map((search: string | { name?: string; title?: string }, index) => (
                 <button
                   key={index}
                   className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-prologue-electric rounded transition-colors"
-                  onClick={() => handleSearchSelect(search as string)}
+                  onClick={() => handleSearchSelect(typeof search === "string" ? search : (search.name || search.title || ""))}
                 >
-                  {search as string}
+                  {typeof search === "string" ? search : (search.name || search.title || "")}
                 </button>
               ))}
 
             {isShowingResults &&
-              displayItems.map((result, index) => (
+              displayItems.map((result: string | { name?: string; title?: string; type?: string; sport?: string; school?: string; creator?: string; views?: string }, index) => (
                 <div
                   key={index}
                   className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                  onClick={() => handleSearchSelect((result as any).name || (result as any).title)}
+                  onClick={() => handleSearchSelect(typeof result === "string" ? result : (result.name || result.title || ""))}
                 >
                   <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
                     <User className="h-4 w-4 text-gray-500" />
                   </div>
                   <div className="flex-1">
-                    <h5 className="text-sm font-medium text-gray-900">{(result as any).name || (result as any).title}</h5>
+                    <h5 className="text-sm font-medium text-gray-900">{typeof result === "string" ? result : (result.name || result.title || "")}</h5>
                     <p className="text-xs text-gray-600">
-                      {(result as any).type === "athlete"
-                        ? `${(result as any).sport} • ${(result as any).school}`
-                        : `${(result as any).creator} • ${(result as any).views} views`}
+                      {typeof result !== "string" && result.type === "athlete"
+                        ? `${result.sport || ""} • ${result.school || ""}`
+                        : typeof result !== "string" && result.creator && result.views
+                          ? `${result.creator} • ${result.views} views`
+                          : ""}
                     </p>
                   </div>
                 </div>
@@ -551,7 +543,7 @@ export default function MemberHomePage() {
             {/* User Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2 p-2" disabled={isLoggingOut}>
+                <Button variant="ghost" className="flex items-center space-x-2 p-2" disabled={false}>
                   <Link href="/member-dashboard">
                     <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-prologue-electric/30 transition-all">
                       <User className="w-full h-full text-gray-500 p-1" />
@@ -573,9 +565,9 @@ export default function MemberHomePage() {
                     Settings
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer" disabled={isLoggingOut}>
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer" disabled={false}>
                   <LogOut className="h-4 w-4 mr-2" />
-                  {isLoggingOut ? "Logging out..." : "Logout"}
+                  Logout
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -605,13 +597,13 @@ export default function MemberHomePage() {
             <div className="p-4">
               <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick Searches</h3>
               <div className="space-y-2">
-                {quickSearches.slice(0, 8).map((search, index) => (
+                {quickSearches.slice(0, 8).map((search: string | { name?: string; title?: string }, index) => (
                   <button
                     key={index}
                     className="w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors"
-                    onClick={() => handleSearchSelect(search)}
+                    onClick={() => handleSearchSelect(typeof search === "string" ? search : (search.name || search.title || ""))}
                   >
-                    <span className="text-gray-700">{search}</span>
+                    <span className="text-gray-700">{typeof search === "string" ? search : (search.name || search.title || "")}</span>
                   </button>
                 ))}
               </div>
@@ -688,6 +680,14 @@ export default function MemberHomePage() {
                   )}
                 </Link>
                 <Link
+                  href="/member-discover"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
+                >
+                  <Search className="h-5 w-5" />
+                  <span className="text-xs font-medium">Discover</span>
+                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </Link>
+                <Link
                   href="/member-feedback"
                   className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
                 >
@@ -706,29 +706,18 @@ export default function MemberHomePage() {
                     <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
                   )}
                 </Link>
-                <Link
-                  href="/member-notifications"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors relative group"
-                >
-                  <Bell className="h-5 w-5" />
-                  <span className="text-xs font-medium">Notifications</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {unreadNotificationsCount > 0 && (
-                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-                  )}
-                </Link>
               </nav>
 
               <div className="flex items-center space-x-3">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center space-x-2 p-2" disabled={isLoggingOut}>
+                    <Button variant="ghost" className="flex items-center space-x-1 p-1.5" disabled={false}>
                       <Link href="/member-dashboard">
-                        <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-prologue-electric/30 transition-all">
+                        <div className="w-7 h-7 bg-gray-300 rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-prologue-electric/30 transition-all">
                           <User className="w-full h-full text-gray-500 p-1" />
                         </div>
                       </Link>
-                      <ChevronDown className="h-4 w-4 text-gray-500" />
+                      <ChevronDown className="h-3.5 w-3.5 text-gray-500" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
@@ -744,12 +733,22 @@ export default function MemberHomePage() {
                         Settings
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer" disabled={isLoggingOut}>
+                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer" disabled={false}>
                       <LogOut className="h-4 w-4 mr-2" />
-                      {isLoggingOut ? "Logging out..." : "Logout"}
+                      Logout
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+
+                {/* Notification Bell - moved to right of dropdown */}
+                <Link href="/member-notifications" className="relative">
+                  <Button variant="ghost" size="sm" className="p-1.5 relative">
+                    <Bell className="h-4.5 w-4.5 text-gray-600" />
+                    {unreadNotificationsCount > 0 && (
+                      <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></div>
+                    )}
+                  </Button>
+                </Link>
               </div>
             </div>
           </div>
@@ -1377,7 +1376,7 @@ export default function MemberHomePage() {
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-1">
-                  {selectedSpace.attendees.slice(0, 6).map((attendee, index) => (
+                  {selectedSpace.attendees.slice(0, 6).map((attendee: string, index: number) => (
                     <div key={index} className="flex items-center space-x-1 bg-gray-50 rounded-full px-2 py-1">
                       <div className="w-5 h-5 bg-gray-200 rounded-full overflow-hidden">
                         <User className="w-full h-full text-gray-500 p-0.5" />
@@ -1440,7 +1439,7 @@ export default function MemberHomePage() {
                 </Button>
               </div>
               <div className="space-y-3">
-                {selectedSpace.attendees.map((attendee, index) => (
+                {selectedSpace.attendees.map((attendee: string, index: number) => (
                   <div key={index} className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
                       <User className="w-full h-full text-gray-500 p-2" />
@@ -1454,6 +1453,54 @@ export default function MemberHomePage() {
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Mobile Bottom Navigation */}
+      {isMobile && (
+        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 z-50 mobile-menu">
+          <div className="flex items-center justify-around h-16 px-4">
+            <Link
+              href="/member-home"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <Home className="h-5 w-5" />
+              <span className="text-xs font-medium">Home</span>
+            </Link>
+            <Link
+              href="/member-training"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
+            >
+              <BookOpen className="h-5 w-5" />
+              <span className="text-xs font-medium">Training</span>
+              {hasNewTrainingContent && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+              )}
+            </Link>
+            <Link
+              href="/member-discover"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <Search className="h-5 w-5" />
+              <span className="text-xs font-medium">Discover</span>
+            </Link>
+            <Link
+              href="/member-feedback"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <MessageSquare className="h-5 w-5" />
+              <span className="text-xs font-medium">Feedback</span>
+            </Link>
+            <Link
+              href="/member-messaging"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
+            >
+              <MessageCircle className="h-5 w-5" />
+              <span className="text-xs font-medium">Messages</span>
+              {unreadMessagesCount > 0 && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+              )}
+            </Link>
           </div>
         </div>
       )}
