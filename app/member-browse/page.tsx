@@ -1,12 +1,15 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import type React from "react"
+
+import { useState, useMemo, useCallback, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Search,
   Star,
@@ -34,6 +37,8 @@ import {
   Trophy,
   Play,
   ThumbsUp,
+  MessageCircleMore,
+  Crown,
 } from "lucide-react"
 import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
@@ -41,399 +46,23 @@ import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { MemberHeader } from "@/components/navigation/member-header"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { CREATORS } from "@/lib/creators"
+import { getDocs, collection } from "firebase/firestore"
+import { db } from "@/lib/firebase"
 
-// Mock athletes data - Enhanced with more comprehensive athlete profiles
-const mockAthletes = [
-  {
-    id: "athlete-1",
-    name: "Sarah Martinez",
-    sport: "Tennis",
-    type: "athlete" as const,
-    avatar: "/placeholder.svg?height=80&width=80",
-    coverImage: "/placeholder.svg?height=200&width=400",
-    followers: "15.2K",
-    following: "892",
-    rating: 4.9,
-    specialty: "Serve Technique",
-    bio: "Professional tennis player specializing in serve technique and mental game. NCAA Champion with 8+ years of competitive experience.",
-    location: "California, USA",
-    university: "Stanford University",
-    achievements: ["NCAA Champion 2022", "Regional Tournament Winner", "All-American 2021"],
-    isVerified: true,
-    subscriptionPrice: 29.99,
-    responseRate: "98%",
-    totalStudents: 127,
-    experience: "8+ years",
-    joinedDate: "2022-01-15",
-    totalPosts: 234,
-    totalVideos: 89,
-    avgSessionLength: "45 min",
-    languages: ["English", "Spanish"],
-    certifications: ["USPTA Certified", "Mental Performance Coach"],
-    socialMedia: {
-      instagram: "@sarahtennis",
-      twitter: "@sarahm_tennis",
-      youtube: "SarahTennisCoach",
-    },
-    recentActivity: [
-      {
-        type: "video",
-        title: "Advanced Serve Technique Breakdown",
-        timestamp: "2 hours ago",
-        likes: 234,
-        comments: 45,
-      },
-      {
-        type: "post",
-        title: "Mental preparation before big matches",
-        timestamp: "1 day ago",
-        likes: 156,
-        comments: 23,
-      },
-    ],
-    stats: {
-      totalLessons: 156,
-      avgRating: 4.9,
-      completionRate: "94%",
-      studentSatisfaction: "98%",
-      totalContent: 156,
-      totalViews: "2.3M",
-    },
-  },
-  {
-    id: "coach-1",
-    name: "Mike Johnson",
-    sport: "Basketball",
-    type: "coach" as const,
-    avatar: "/placeholder.svg?height=80&width=80",
-    coverImage: "/placeholder.svg?height=200&width=400",
-    followers: "8.7K",
-    following: "445",
-    rating: 4.8,
-    specialty: "Mental Performance",
-    bio: "Former professional player turned mental performance coach. Specializing in helping athletes overcome mental barriers and achieve peak performance.",
-    location: "Texas, USA",
-    achievements: ["Professional Player", "Mental Performance Certified", "NCAA Coach of the Year"],
-    isVerified: true,
-    subscriptionPrice: 39.99,
-    responseRate: "95%",
-    totalStudents: 89,
-    experience: "12+ years",
-    joinedDate: "2021-08-20",
-    totalPosts: 178,
-    totalVideos: 67,
-    avgSessionLength: "60 min",
-    languages: ["English"],
-    certifications: ["Mental Performance Certified", "NASM-CPT"],
-    socialMedia: {
-      instagram: "@coachmikeJ",
-      twitter: "@mikejcoach",
-      youtube: "CoachMikeBasketball",
-    },
-    recentActivity: [
-      {
-        type: "video",
-        title: "Building Mental Toughness in Young Athletes",
-        timestamp: "4 hours ago",
-        likes: 189,
-        comments: 34,
-      },
-      {
-        type: "post",
-        title: "The importance of visualization in sports",
-        timestamp: "2 days ago",
-        likes: 267,
-        comments: 56,
-      },
-    ],
-    stats: {
-      totalLessons: 234,
-      avgRating: 4.8,
-      completionRate: "91%",
-      studentSatisfaction: "96%",
-      totalContent: 203,
-      totalViews: "1.8M",
-    },
-  },
-  {
-    id: "athlete-2",
-    name: "Alex Rodriguez",
-    sport: "Basketball",
-    type: "athlete" as const,
-    avatar: "/placeholder.svg?height=80&width=80",
-    coverImage: "/placeholder.svg?height=200&width=400",
-    followers: "12.1K",
-    following: "623",
-    rating: 4.7,
-    specialty: "Shooting Form",
-    bio: "College basketball player focused on shooting mechanics and game strategy. All-Conference team member with expertise in 3-point shooting.",
-    location: "Florida, USA",
-    university: "University of Florida",
-    achievements: ["All-Conference Team", "3-Point Contest Winner", "Team Captain 2023"],
-    isVerified: true,
-    subscriptionPrice: 24.99,
-    responseRate: "92%",
-    totalStudents: 156,
-    experience: "5+ years",
-    joinedDate: "2022-03-10",
-    totalPosts: 145,
-    totalVideos: 52,
-    avgSessionLength: "40 min",
-    languages: ["English", "Spanish"],
-    certifications: ["USA Basketball Certified"],
-    socialMedia: {
-      instagram: "@alexhoops",
-      twitter: "@alexrod_bball",
-      youtube: "AlexBasketballTips",
-    },
-    recentActivity: [
-      {
-        type: "video",
-        title: "Perfect Shooting Form in 5 Steps",
-        timestamp: "6 hours ago",
-        likes: 345,
-        comments: 67,
-      },
-      {
-        type: "post",
-        title: "Game day preparation routine",
-        timestamp: "3 days ago",
-        likes: 198,
-        comments: 29,
-      },
-    ],
-    stats: {
-      totalLessons: 98,
-      avgRating: 4.7,
-      completionRate: "89%",
-      studentSatisfaction: "93%",
-      totalContent: 98,
-      totalViews: "1.2M",
-    },
-  },
-  {
-    id: "coach-2",
-    name: "Lisa Chen",
-    sport: "Swimming",
-    type: "coach" as const,
-    avatar: "/placeholder.svg?height=80&width=80",
-    coverImage: "/placeholder.svg?height=200&width=400",
-    followers: "9.8K",
-    following: "334",
-    rating: 4.9,
-    specialty: "Stroke Technique",
-    bio: "Olympic trials qualifier with expertise in stroke technique and endurance training. Certified USA Swimming coach with 8+ years experience.",
-    location: "California, USA",
-    achievements: ["Olympic Trials Qualifier", "USA Swimming Certified", "Masters National Champion"],
-    isVerified: true,
-    subscriptionPrice: 34.99,
-    responseRate: "99%",
-    totalStudents: 203,
-    experience: "8+ years",
-    joinedDate: "2021-11-05",
-    totalPosts: 267,
-    totalVideos: 78,
-    avgSessionLength: "50 min",
-    languages: ["English", "Mandarin"],
-    certifications: ["USA Swimming Certified", "Water Safety Instructor"],
-    socialMedia: {
-      instagram: "@lisaswimcoach",
-      twitter: "@lisachen_swim",
-      youtube: "LisaSwimmingTech",
-    },
-    recentActivity: [
-      {
-        type: "video",
-        title: "Freestyle Stroke Analysis and Correction",
-        timestamp: "1 hour ago",
-        likes: 278,
-        comments: 45,
-      },
-      {
-        type: "post",
-        title: "Training periodization for competitive swimmers",
-        timestamp: "1 day ago",
-        likes: 156,
-        comments: 34,
-      },
-    ],
-    stats: {
-      totalLessons: 312,
-      avgRating: 4.9,
-      completionRate: "96%",
-      studentSatisfaction: "99%",
-      totalContent: 145,
-      totalViews: "1.5M",
-    },
-  },
-  {
-    id: "mentor-1",
-    name: "David Rodriguez",
-    sport: "Soccer",
-    type: "mentor" as const,
-    avatar: "/placeholder.svg?height=80&width=80",
-    coverImage: "/placeholder.svg?height=200&width=400",
-    followers: "6.5K",
-    following: "289",
-    rating: 4.6,
-    specialty: "Career Guidance",
-    bio: "Former professional soccer player now mentoring young athletes. 15+ years of experience in professional soccer with focus on career development.",
-    location: "New York, USA",
-    achievements: ["Professional Player", "Youth Development Certified", "MLS Veteran"],
-    isVerified: false,
-    subscriptionPrice: 19.99,
-    responseRate: "88%",
-    totalStudents: 74,
-    experience: "15+ years",
-    joinedDate: "2022-06-18",
-    totalPosts: 123,
-    totalVideos: 34,
-    avgSessionLength: "35 min",
-    languages: ["English", "Spanish"],
-    certifications: ["Youth Development Certified", "USSF Licensed"],
-    socialMedia: {
-      instagram: "@davidfutbol",
-      twitter: "@davidrod_soccer",
-      youtube: "DavidSoccerMentor",
-    },
-    recentActivity: [
-      {
-        type: "post",
-        title: "Transitioning from college to professional soccer",
-        timestamp: "5 hours ago",
-        likes: 134,
-        comments: 28,
-      },
-      {
-        type: "video",
-        title: "Mental aspects of professional soccer",
-        timestamp: "4 days ago",
-        likes: 89,
-        comments: 15,
-      },
-    ],
-    stats: {
-      totalLessons: 67,
-      avgRating: 4.6,
-      completionRate: "85%",
-      studentSatisfaction: "91%",
-      totalContent: 67,
-      totalViews: "890K",
-    },
-  },
-  {
-    id: "athlete-3",
-    name: "Emma Davis",
-    sport: "Track & Field",
-    type: "athlete" as const,
-    avatar: "/placeholder.svg?height=80&width=80",
-    coverImage: "/placeholder.svg?height=200&width=400",
-    followers: "7.2K",
-    following: "456",
-    rating: 4.8,
-    specialty: "Sprint Training",
-    bio: "Collegiate sprinter specializing in 100m and 200m events. Conference champion with expertise in speed development and race strategy.",
-    location: "Texas, USA",
-    university: "University of Texas",
-    achievements: ["Conference Champion", "National Qualifier", "School Record Holder"],
-    isVerified: true,
-    subscriptionPrice: 27.99,
-    responseRate: "94%",
-    totalStudents: 98,
-    experience: "5+ years",
-    joinedDate: "2022-09-12",
-    totalPosts: 189,
-    totalVideos: 45,
-    avgSessionLength: "35 min",
-    languages: ["English"],
-    certifications: ["USATF Level 1"],
-    socialMedia: {
-      instagram: "@emmaspeed",
-      twitter: "@emma_sprints",
-      youtube: "EmmaSprintTraining",
-    },
-    recentActivity: [
-      {
-        type: "video",
-        title: "Sprint Start Technique Breakdown",
-        timestamp: "3 hours ago",
-        likes: 167,
-        comments: 23,
-      },
-      {
-        type: "post",
-        title: "Recovery strategies for sprinters",
-        timestamp: "2 days ago",
-        likes: 145,
-        comments: 31,
-      },
-    ],
-    stats: {
-      totalLessons: 78,
-      avgRating: 4.8,
-      completionRate: "92%",
-      studentSatisfaction: "95%",
-      totalContent: 89,
-      totalViews: "1.1M",
-    },
-  },
+// Static data to prevent recreation on every render
+const QUICK_SEARCHES = [
+  "Navigate Recruitment",
+  "Nutrition",
+  "NIL",
+  "Training Programs",
+  "Mental Performance",
+  "Injury Prevention",
+  "Sports Psychology",
+  "Athletic Scholarships",
 ]
 
-// Mock content data
-const getCreatorContent = (creatorId: string, isSubscribed: boolean) => {
-  const allContent = [
-    {
-      id: "1",
-      title: "Perfect Serve Technique Breakdown",
-      description: "Learn the fundamentals of a powerful and accurate tennis serve",
-      type: "video",
-      duration: "12:34",
-      isPremium: false,
-      thumbnail: "/placeholder.svg?height=200&width=300",
-      views: 15420,
-      likes: 892,
-      publishedAt: "2 days ago",
-    },
-    {
-      id: "2",
-      title: "Mental Preparation for Big Matches",
-      description: "Strategies to stay calm and focused during important competitions",
-      type: "article",
-      readTime: "8 min read",
-      isPremium: false,
-      thumbnail: "/placeholder.svg?height=200&width=300",
-      views: 8934,
-      likes: 567,
-      publishedAt: "5 days ago",
-    },
-    {
-      id: "3",
-      title: "Advanced Serve Variations (Premium)",
-      description: "Master kick serves, slice serves, and power serves with detailed analysis",
-      type: "video",
-      duration: "25:18",
-      isPremium: true,
-      thumbnail: "/placeholder.svg?height=200&width=300",
-      views: 3421,
-      likes: 234,
-      publishedAt: "1 week ago",
-    },
-    {
-      id: "4",
-      title: "Personalized Training Plan Template (Premium)",
-      description: "Downloadable training plan customized for your skill level",
-      type: "download",
-      isPremium: true,
-      thumbnail: "/placeholder.svg?height=200&width=300",
-      views: 2156,
-      likes: 189,
-      publishedAt: "2 weeks ago",
-    },
-  ]
-
-  return allContent.filter((content) => !content.isPremium || isSubscribed)
-}
+const EXPERIENCE_LEVELS = ["1-3 years", "3-5 years", "5-8 years", "8+ years"]
 
 export default function MemberDiscoverPage() {
   const { isMobile, isTablet } = useMobileDetection()
@@ -447,7 +76,6 @@ export default function MemberDiscoverPage() {
     isSubscribed,
   } = useMemberSubscriptions()
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
-  const router = useRouter();
 
   // Enhanced state management
   const [activeTab, setActiveTab] = useState<"browse" | "featured" | "trending">("browse")
@@ -460,21 +88,24 @@ export default function MemberDiscoverPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [sortBy, setSortBy] = useState<"rating" | "price" | "students" | "newest">("rating")
-  const [selectedCreator, setSelectedCreator] = useState<(typeof mockAthletes)[0] | null>(null)
+  const [selectedCreator, setSelectedCreator] = useState<(typeof CREATORS)[0] | null>(null)
   const [showCreatorProfile, setShowCreatorProfile] = useState(false)
   const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false)
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const [athletes, setAthletes] = useState(CREATORS)
+
+  // Refs for maintaining focus
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Get unique sports and other filter options
   const availableSports = useMemo(() => {
-    const sports = [...new Set(mockAthletes.map((athlete) => athlete.sport))]
+    const sports = [...new Set(CREATORS.map((athlete) => athlete.sport))]
     return sports.sort()
   }, [])
 
-  const experienceLevels = ["1-3 years", "3-5 years", "5-8 years", "8+ years"]
-
   // Enhanced filtering logic
   const filteredAthletes = useMemo(() => {
-    const filtered = mockAthletes.filter((athlete) => {
+    const filtered = athletes.filter((athlete) => {
       // Sport filter
       if (selectedSport !== "all" && athlete.sport !== selectedSport) return false
 
@@ -538,7 +169,45 @@ export default function MemberDiscoverPage() {
     })
 
     return filtered
-  }, [selectedSport, selectedType, selectedRating, selectedPrice, selectedExperience, searchQuery, sortBy])
+  }, [selectedSport, selectedType, selectedRating, selectedPrice, selectedExperience, searchQuery, sortBy, athletes])
+
+  // Stable event handlers
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value)
+    setShowSearchDropdown(e.target.value.length > 0)
+  }, [])
+
+  const handleSearchFocus = useCallback(() => {
+    if (searchQuery.length > 0) {
+      setShowSearchDropdown(true)
+    }
+  }, [searchQuery])
+
+  const handleSearchBlur = useCallback(() => {
+    setTimeout(() => setShowSearchDropdown(false), 200)
+  }, [])
+
+  const handleQuickSearchSelect = useCallback((searchTerm: string) => {
+    setSearchQuery(searchTerm)
+    setShowSearchDropdown(false)
+    searchInputRef.current?.focus()
+  }, [])
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery("")
+    setShowSearchDropdown(false)
+    searchInputRef.current?.focus()
+  }, [])
+
+  const handleSubscribe = useCallback(
+    (athleteId: string) => {
+      const athlete = athletes.find((a) => a.id === athleteId)
+      if (athlete) {
+        subscribeToCreator(athlete)
+      }
+    },
+    [subscribeToCreator, athletes],
+  )
 
   const handleUnsubscribe = useCallback(
     (athleteId: string) => {
@@ -546,14 +215,14 @@ export default function MemberDiscoverPage() {
     },
     [unsubscribeFromCreator],
   )
-  
-  const handleCreatorClick = useCallback((creator: (typeof mockAthletes)[0]) => {
+
+  const handleCreatorClick = useCallback((creator: (typeof CREATORS)[0]) => {
     window.location.href = `/creator/${creator.id}`
   }, [])
 
   const handleFollowToggle = useCallback(
     (creatorId: string) => {
-      const creator = mockAthletes.find((a) => a.id === creatorId)
+      const creator = athletes.find((a) => a.id === creatorId)
       if (!creator) return
 
       if (isFollowing(creatorId)) {
@@ -562,12 +231,16 @@ export default function MemberDiscoverPage() {
         followCreator(creator)
       }
     },
-    [isFollowing, followCreator, unfollowCreator],
+    [isFollowing, followCreator, unfollowCreator, athletes],
   )
 
   const handleSubscribeClick = useCallback((creatorId: string) => {
-    router.push(`/member-browse/subscription/${creatorId}`)
-  }, [router])
+    const creator = athletes.find((a) => a.id === creatorId)
+    if (!creator) return
+
+    setSelectedCreator(creator)
+    setSubscriptionDialogOpen(true)
+  }, [athletes])
 
   const handleConfirmSubscription = useCallback(() => {
     if (selectedCreator) {
@@ -576,14 +249,14 @@ export default function MemberDiscoverPage() {
     setSubscriptionDialogOpen(false)
   }, [selectedCreator, subscribeToCreator])
 
-  const clearAllFilters = () => {
+  const clearAllFilters = useCallback(() => {
     setSelectedSport("all")
     setSelectedType("all")
     setSelectedRating("all")
     setSelectedPrice("all")
     setSelectedExperience("all")
     setSearchQuery("")
-  }
+  }, [])
 
   const hasActiveFilters =
     selectedSport !== "all" ||
@@ -593,425 +266,592 @@ export default function MemberDiscoverPage() {
     selectedExperience !== "all" ||
     searchQuery
 
-  // Enhanced Athlete Card Component
-  const AthleteCard = ({ athlete }: { athlete: (typeof mockAthletes)[0] }) => (
-    <Card className="bg-white border border-gray-200 hover:shadow-lg transition-all duration-200 hover:border-prologue-electric/30 group">
-      <CardContent className="p-0">
-        {/* Cover Image */}
-        <div className="relative h-32 bg-gradient-to-r from-gray-300 to-gray-400 rounded-t-lg overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-          <div className="absolute top-3 right-3 flex items-center space-x-2">
-            {athlete.isVerified && (
-              <Badge className="bg-prologue-electric text-white text-xs">
-                <Verified className="h-3 w-3 mr-1" />
-                Verified
-              </Badge>
-            )}
-            <Badge variant="secondary" className="text-xs bg-white/90 text-gray-700">
-              {athlete.type}
-            </Badge>
-          </div>
-          <div className="absolute bottom-3 left-3 text-white">
-            <div className="flex items-center space-x-2 text-sm">
-              <MapPin className="h-4 w-4" />
-              <span>{athlete.location}</span>
-            </div>
+  // Memoized search dropdown
+  const SearchDropdown = useMemo(() => {
+    if (!showSearchDropdown || !searchQuery) return null
+
+    const filteredSearches = QUICK_SEARCHES.filter((search) => search.toLowerCase().includes(searchQuery.toLowerCase()))
+
+    return (
+      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+        <div className="p-3 border-b border-gray-100">
+          <p className="text-sm font-medium text-gray-700 mb-2">Quick Searches</p>
+          <div className="space-y-1">
+            {filteredSearches.map((search) => (
+              <button
+                key={search}
+                onClick={() => handleQuickSearchSelect(search)}
+                className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-md transition-colors"
+              >
+                {search}
+              </button>
+            ))}
           </div>
         </div>
+      </div>
+    )
+  }, [showSearchDropdown, searchQuery, handleQuickSearchSelect])
 
-        <div className="p-6">
-          {/* Profile Section */}
-          <div className="flex items-start space-x-4 mb-4">
-            <div className="relative flex-shrink-0">
-              <div
-                className="w-16 h-16 bg-gray-200 rounded-full overflow-hidden border-4 border-white -mt-8 relative z-10 cursor-pointer hover:ring-2 hover:ring-prologue-electric transition-all"
-                onClick={() => handleCreatorClick(athlete)}
-              >
-                <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                  <User className="h-8 w-8 text-gray-600" />
-                </div>
+  // Enhanced Athlete Card Component with pricing properly inside the card
+  const AthleteCard = useCallback(
+    ({ athlete }: { athlete: (typeof CREATORS)[0] }) => (
+      <Card className="bg-white border border-gray-200 hover:shadow-xl transition-all duration-300 hover:border-prologue-electric/30 group overflow-hidden">
+        <CardContent className="p-0 h-full">
+          {/* Cover Image */}
+          <div className="relative h-40 bg-gradient-to-r from-gray-300 to-gray-400 overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+            <div className="absolute top-4 right-4 flex items-center space-x-2">
+              {athlete.isVerified && (
+                <Badge className="bg-prologue-electric text-white text-xs px-2 py-1">
+                  <Verified className="h-3 w-3 mr-1" />
+                  Verified
+                </Badge>
+              )}
+              <Badge variant="secondary" className="text-xs bg-white/90 text-gray-700 px-2 py-1">
+                {athlete.type}
+              </Badge>
+            </div>
+            <div className="absolute bottom-4 left-4 text-white">
+              <div className="flex items-center space-x-2 text-sm">
+                <MapPin className="h-4 w-4" />
+                <span>{athlete.location}</span>
               </div>
             </div>
-            <div className="flex-1 min-w-0 pt-2">
-              <div className="flex items-start justify-between mb-2">
-                <div>
+          </div>
+
+          {/* Card Content - All content inside this div */}
+          <div className="p-6 space-y-6">
+            {/* Profile Section */}
+            <div className="flex items-start space-x-4">
+              <div className="relative flex-shrink-0">
+                <div
+                  className="w-20 h-20 bg-gray-200 rounded-full overflow-hidden border-4 border-white -mt-10 relative z-10 cursor-pointer hover:ring-4 hover:ring-prologue-electric/20 transition-all"
+                  onClick={() => handleCreatorClick(athlete)}
+                >
+                  <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
+                    <User className="h-10 w-10 text-gray-600" />
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 min-w-0 pt-2">
+                <div className="mb-3">
                   <h3
-                    className="font-semibold text-gray-900 text-lg cursor-pointer hover:text-prologue-electric transition-colors"
+                    className="font-semibold text-gray-900 text-xl cursor-pointer hover:text-prologue-electric transition-colors mb-2"
                     onClick={() => handleCreatorClick(athlete)}
                   >
                     {athlete.name}
                   </h3>
-                  <div className="flex items-center space-x-2 mt-1">
-                    <Badge variant="outline" className="text-xs">
+                  <div className="mb-2">
+                    <span className="text-sm font-medium text-gray-700">
                       {athlete.sport}
-                    </Badge>
-                    {athlete.university && (
-                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
-                        {athlete.university}
-                      </Badge>
-                    )}
+                      {athlete.university && <span className="text-gray-500"> • {athlete.university}</span>}
+                    </span>
                   </div>
-                </div>
-                <div className="text-right">
-                  <div className="flex items-center space-x-1 mb-1">
-                    <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                    <span className="text-sm font-medium">{athlete.rating}</span>
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-1">
+                      <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                      <span className="text-sm font-medium">{athlete.rating}</span>
+                    </div>
+                    <p className="text-sm text-gray-500">{athlete.followers} followers</p>
                   </div>
-                  <p className="text-xs text-gray-500">{athlete.followers} followers</p>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Bio and Specialty */}
-          <div className="mb-4">
-            <p className="text-sm font-medium text-prologue-electric mb-1">{athlete.specialty}</p>
-            <p className="text-sm text-gray-600 line-clamp-2">{athlete.bio}</p>
-          </div>
+            {/* Bio and Specialty */}
+            <div>
+              <p className="text-sm font-medium text-prologue-electric mb-2">{athlete.specialty}</p>
+              <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed">{athlete.bio}</p>
+            </div>
 
-          {/* Stats Row */}
-          <div className="grid grid-cols-3 gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
-            <div className="text-center">
-              <p className="text-lg font-bold text-gray-900">{athlete.totalStudents}</p>
-              <p className="text-xs text-gray-600">Students</p>
+            {/* Stats Row */}
+            <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="text-center">
+                <p className="text-xl font-bold text-gray-900 mb-1">{athlete.totalStudents}</p>
+                <p className="text-xs text-gray-600">Students</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xl font-bold text-gray-900 mb-1">{athlete.responseRate}</p>
+                <p className="text-xs text-gray-600">Response Rate</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xl font-bold text-gray-900 mb-1">{athlete.experience}</p>
+                <p className="text-xs text-gray-600">Experience</p>
+              </div>
             </div>
-            <div className="text-center">
-              <p className="text-lg font-bold text-gray-900">{athlete.responseRate}</p>
-              <p className="text-xs text-gray-600">Response Rate</p>
-            </div>
-            <div className="text-center">
-              <p className="text-lg font-bold text-gray-900">{athlete.experience}</p>
-              <p className="text-xs text-gray-600">Experience</p>
-            </div>
-          </div>
 
-          {/* Recent Activity */}
-          {athlete.recentActivity && athlete.recentActivity.length > 0 && (
-            <div className="mb-4 p-3 bg-prologue-electric/5 rounded-lg border border-prologue-electric/20">
-              <h4 className="text-sm font-medium text-prologue-electric mb-2">Recent Activity</h4>
-              <div className="space-y-2">
-                {athlete.recentActivity.slice(0, 1).map((activity, index) => (
-                  <div key={index} className="flex items-center space-x-2">
-                    <div className="w-6 h-6 bg-prologue-electric/20 rounded-full flex items-center justify-center flex-shrink-0">
-                      {activity.type === "video" ? (
-                        <Play className="h-3 w-3 text-prologue-electric" />
-                      ) : (
-                        <MessageSquare className="h-3 w-3 text-prologue-electric" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-gray-900 truncate">{activity.title}</p>
-                      <div className="flex items-center space-x-3 text-xs text-gray-500">
-                        <span>{activity.timestamp}</span>
-                        <div className="flex items-center space-x-1">
-                          <ThumbsUp className="h-3 w-3" />
-                          <span>{activity.likes}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <MessageCircle className="h-3 w-3" />
-                          <span>{activity.comments}</span>
+            {/* Recent Activity */}
+            {athlete.recentActivity && athlete.recentActivity.length > 0 && (
+              <div className="p-4 bg-prologue-electric/5 rounded-lg border border-prologue-electric/20">
+                <h4 className="text-sm font-medium text-prologue-electric mb-3">Recent Activity</h4>
+                <div className="space-y-3">
+                  {athlete.recentActivity.slice(0, 1).map((activity, index) => (
+                    <div key={index} className="flex items-start space-x-3">
+                      <div className="w-8 h-8 bg-prologue-electric/20 rounded-full flex items-center justify-center flex-shrink-0">
+                        {activity.type === "video" ? (
+                          <Play className="h-4 w-4 text-prologue-electric" />
+                        ) : (
+                          <MessageSquare className="h-4 w-4 text-prologue-electric" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 mb-1 line-clamp-2">{activity.title}</p>
+                        <div className="flex items-center space-x-4 text-xs text-gray-500">
+                          <span>{activity.timestamp}</span>
+                          <div className="flex items-center space-x-1">
+                            <ThumbsUp className="h-3 w-3" />
+                            <span>{activity.likes}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <MessageCircleMore className="h-3 w-3" />
+                            <span>{activity.comments}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Achievements */}
-          {athlete.achievements && athlete.achievements.length > 0 && (
-            <div className="mb-4">
-              <h4 className="text-sm font-medium text-gray-900 mb-2">Achievements</h4>
-              <div className="flex flex-wrap gap-1">
-                {athlete.achievements.slice(0, 2).map((achievement, index) => (
-                  <Badge
-                    key={index}
-                    variant="outline"
-                    className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200"
-                  >
-                    <Trophy className="h-3 w-3 mr-1" />
-                    {achievement}
-                  </Badge>
-                ))}
-                {athlete.achievements.length > 2 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{athlete.achievements.length - 2} more
-                  </Badge>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Pricing and Action */}
-          <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-            <div>
-              <span className="text-lg font-bold text-gray-900">${athlete.subscriptionPrice}</span>
-              <span className="text-sm text-gray-500">/month</span>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Button variant="ghost" size="sm" className="text-gray-500 hover:text-prologue-electric">
-                <Heart className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="sm" className="text-gray-500 hover:text-prologue-electric">
-                <Share2 className="h-4 w-4" />
-              </Button>
-              {isSubscribed(athlete.id) ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleUnsubscribe(athlete.id)}
-                  className="text-prologue-electric border-prologue-electric hover:bg-prologue-electric hover:text-white"
-                >
-                  <CheckCircle className="h-4 w-4 mr-1" />
-                  Subscribed
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  onClick={() => handleSubscribeClick(athlete.id)}
-                  className="bg-prologue-electric hover:bg-prologue-blue text-white"
-                >
-                  <UserPlus className="h-4 w-4 mr-1" />
-                  Subscribe
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-
-  // Enhanced List View Component
-  const AthleteListItem = ({ athlete }: { athlete: (typeof mockAthletes)[0] }) => (
-    <Card className="bg-white border border-gray-200 hover:shadow-md transition-all duration-200">
-      <CardContent className="p-6">
-        <div className="flex items-center space-x-6">
-          <div className="relative flex-shrink-0">
-            <div
-              className="w-20 h-20 bg-gray-200 rounded-full overflow-hidden cursor-pointer hover:ring-2 hover:ring-prologue-electric transition-all"
-              onClick={() => handleCreatorClick(athlete)}
-            >
-              <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                <User className="h-10 w-10 text-gray-600" />
-              </div>
-            </div>
-            {athlete.isVerified && (
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-prologue-electric rounded-full flex items-center justify-center">
-                <CheckCircle className="h-4 w-4 text-white" />
+                  ))}
+                </div>
               </div>
             )}
-          </div>
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between mb-3">
+            {/* Achievements */}
+            {athlete.achievements && athlete.achievements.length > 0 && (
               <div>
-                <h3
-                  className="font-semibold text-gray-900 text-lg mb-1 cursor-pointer hover:text-prologue-electric transition-colors"
-                  onClick={() => handleCreatorClick(athlete)}
-                >
-                  {athlete.name}
-                </h3>
-                <div className="flex items-center space-x-2 mb-2">
-                  <Badge variant="secondary" className="text-xs">
-                    {athlete.type}
-                  </Badge>
-                  <Badge variant="outline" className="text-xs">
-                    {athlete.sport}
-                  </Badge>
-                  <span className="text-sm text-gray-500">•</span>
-                  <span className="text-sm text-gray-500">{athlete.location}</span>
+                <h4 className="text-sm font-medium text-gray-900 mb-3">Achievements</h4>
+                <div className="flex flex-wrap gap-2">
+                  {athlete.achievements.slice(0, 2).map((achievement, index) => (
+                    <Badge
+                      key={index}
+                      variant="outline"
+                      className="text-xs bg-yellow-50 text-yellow-700 border-yellow-200 px-2 py-1"
+                    >
+                      <Trophy className="h-3 w-3 mr-1" />
+                      {achievement}
+                    </Badge>
+                  ))}
+                  {athlete.achievements.length > 2 && (
+                    <Badge variant="outline" className="text-xs px-2 py-1">
+                      +{athlete.achievements.length - 2} more
+                    </Badge>
+                  )}
                 </div>
-                <p className="text-sm font-medium text-prologue-electric mb-1">{athlete.specialty}</p>
-                <p className="text-sm text-gray-600 line-clamp-2">{athlete.bio}</p>
               </div>
-              <div className="text-right">
-                <div className="flex items-center space-x-1 mb-2">
-                  <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                  <span className="text-sm font-medium">{athlete.rating}</span>
-                  <span className="text-sm text-gray-500">({athlete.totalStudents} students)</span>
-                </div>
-                <p className="text-sm text-gray-500">{athlete.followers} followers</p>
-              </div>
-            </div>
+            )}
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-6 text-sm text-gray-600">
-                <div className="flex items-center space-x-1">
-                  <Zap className="h-4 w-4" />
-                  <span>{athlete.responseRate} response</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <Clock className="h-4 w-4" />
-                  <span>{athlete.avgSessionLength}</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <Calendar className="h-4 w-4" />
-                  <span>{athlete.experience}</span>
-                </div>
+            {/* Pricing and Action Section - Contained within card */}
+            <div className="pt-6 border-t border-gray-100">
+              {/* Price Display */}
+              <div className="text-center mb-4">
+                <span className="text-3xl font-bold text-gray-900">${athlete.subscriptionPrice}</span>
+                <span className="text-sm text-gray-500 ml-1">/month</span>
               </div>
 
-              <div className="flex items-center space-x-3">
-                <div className="text-right">
-                  <span className="text-lg font-bold text-gray-900">${athlete.subscriptionPrice}</span>
-                  <span className="text-sm text-gray-500">/month</span>
-                </div>
+              {/* Action Buttons */}
+              <div className="space-y-3">
                 {isSubscribed(athlete.id) ? (
                   <Button
                     variant="outline"
-                    size="sm"
                     onClick={() => handleUnsubscribe(athlete.id)}
-                    className="text-prologue-electric border-prologue-electric hover:bg-prologue-electric hover:text-white"
+                    className="w-full text-prologue-electric border-prologue-electric hover:bg-prologue-electric hover:text-white h-12"
                   >
-                    <CheckCircle className="h-4 w-4 mr-1" />
+                    <CheckCircle className="h-4 w-4 mr-2" />
                     Subscribed
                   </Button>
                 ) : (
                   <Button
-                    size="sm"
-                    onClick={() => handleSubscribeClick(athlete.id)}
-                    className="bg-prologue-electric hover:bg-prologue-blue text-white"
+                    onClick={() => handleSubscribe(athlete.id)}
+                    className="w-full bg-prologue-electric hover:bg-prologue-blue text-white h-12"
                   >
-                    <UserPlus className="h-4 w-4 mr-1" />
+                    <UserPlus className="h-4 w-4 mr-2" />
                     Subscribe
                   </Button>
                 )}
+
+                {/* Secondary Actions */}
+                <div className="flex items-center justify-center space-x-4">
+                  <Button variant="ghost" size="sm" className="text-gray-500 hover:text-prologue-electric p-2">
+                    <Heart className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="text-gray-500 hover:text-prologue-electric p-2">
+                    <Share2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleCreatorClick(athlete)}
+                    className="text-gray-500 hover:text-prologue-electric text-sm"
+                  >
+                    View Profile
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    ),
+    [handleCreatorClick, isSubscribed, handleUnsubscribe, handleSubscribe],
   )
 
-  // Enhanced Filter Section
-  const FilterSection = () => (
-    <Card className="bg-white border border-gray-200">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-900">Filters</h3>
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-prologue-electric">
-              <X className="h-4 w-4 mr-1" />
-              Clear All
-            </Button>
-          )}
-        </div>
+  // Enhanced List View Component with better spacing
+  const AthleteListItem = useCallback(
+    ({ athlete }: { athlete: (typeof CREATORS)[0] }) => (
+      <Card className="bg-white border border-gray-200 hover:shadow-lg transition-all duration-200">
+        <CardContent className="p-8">
+          <div className="flex items-center space-x-8">
+            <div className="relative flex-shrink-0">
+              <div
+                className="w-24 h-24 bg-gray-200 rounded-full overflow-hidden cursor-pointer hover:ring-4 hover:ring-prologue-electric/20 transition-all"
+                onClick={() => handleCreatorClick(athlete)}
+              >
+                <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
+                  <User className="h-12 w-12 text-gray-600" />
+                </div>
+              </div>
+              {athlete.isVerified && (
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-prologue-electric rounded-full flex items-center justify-center">
+                  <CheckCircle className="h-5 w-5 text-white" />
+                </div>
+              )}
+            </div>
 
-        <div className="space-y-4">
-          {/* Sport Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Sport</label>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full justify-between bg-transparent">
-                  {selectedSport === "all" ? "All Sports" : selectedSport}
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-full">
-                <DropdownMenuItem onClick={() => setSelectedSport("all")}>All Sports</DropdownMenuItem>
-                {availableSports.map((sport) => (
-                  <DropdownMenuItem key={sport} onClick={() => setSelectedSport(sport)}>
-                    {sport}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3
+                    className="font-semibold text-gray-900 text-xl mb-2 cursor-pointer hover:text-prologue-electric transition-colors"
+                    onClick={() => handleCreatorClick(athlete)}
+                  >
+                    {athlete.name}
+                  </h3>
+                  <div className="flex items-center space-x-3 mb-3">
+                    <Badge variant="secondary" className="text-sm px-3 py-1">
+                      {athlete.type}
+                    </Badge>
+                    <Badge variant="outline" className="text-sm px-3 py-1">
+                      {athlete.sport}
+                    </Badge>
+                    <span className="text-sm text-gray-500">•</span>
+                    <span className="text-sm text-gray-500">{athlete.location}</span>
+                  </div>
+                  <p className="text-sm font-medium text-prologue-electric mb-2">{athlete.specialty}</p>
+                  <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed max-w-2xl">{athlete.bio}</p>
+                </div>
+                <div className="text-right">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Star className="h-5 w-5 text-yellow-400 fill-current" />
+                    <span className="text-lg font-medium">{athlete.rating}</span>
+                    <span className="text-sm text-gray-500">({athlete.totalStudents} students)</span>
+                  </div>
+                  <p className="text-sm text-gray-500">{athlete.followers} followers</p>
+                </div>
+              </div>
 
-          {/* Type Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full justify-between bg-transparent">
-                  {selectedType === "all" ? "All Types" : selectedType.charAt(0).toUpperCase() + selectedType.slice(1)}
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-full">
-                <DropdownMenuItem onClick={() => setSelectedType("all")}>All Types</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedType("athlete")}>Athletes</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedType("coach")}>Coaches</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedType("mentor")}>Mentors</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-8 text-sm text-gray-600">
+                  <div className="flex items-center space-x-2">
+                    <Zap className="h-4 w-4" />
+                    <span>{athlete.responseRate} response</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Clock className="h-4 w-4" />
+                    <span>{athlete.avgSessionLength}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Calendar className="h-4 w-4" />
+                    <span>{athlete.experience}</span>
+                  </div>
+                </div>
 
-          {/* Experience Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Experience</label>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full justify-between bg-transparent">
-                  {selectedExperience === "all" ? "Any Experience" : selectedExperience}
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-full">
-                <DropdownMenuItem onClick={() => setSelectedExperience("all")}>Any Experience</DropdownMenuItem>
-                {experienceLevels.map((level) => (
-                  <DropdownMenuItem key={level} onClick={() => setSelectedExperience(level)}>
-                    {level}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <div className="flex items-center space-x-4">
+                  <div className="text-right">
+                    <span className="text-2xl font-bold text-gray-900">${athlete.subscriptionPrice}</span>
+                    <span className="text-sm text-gray-500 ml-1">/month</span>
+                  </div>
+                  {isSubscribed(athlete.id) ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleUnsubscribe(athlete.id)}
+                      className="text-prologue-electric border-prologue-electric hover:bg-prologue-electric hover:text-white px-4 py-2"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Subscribed
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => handleSubscribe(athlete.id)}
+                      className="bg-prologue-electric hover:bg-prologue-blue text-white px-4 py-2"
+                    >
+                      <UserPlus className="h-4 w-4 mr-2" />
+                      Subscribe
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-
-          {/* Rating Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Minimum Rating</label>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full justify-between bg-transparent">
-                  {selectedRating === "all" ? "Any Rating" : `${selectedRating}+ Stars`}
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-full">
-                <DropdownMenuItem onClick={() => setSelectedRating("all")}>Any Rating</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedRating("4.5")}>4.5+ Stars</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedRating("4.0")}>4.0+ Stars</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedRating("3.5")}>3.5+ Stars</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {/* Price Filter */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Price Range</label>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full justify-between bg-transparent">
-                  {selectedPrice === "all"
-                    ? "Any Price"
-                    : selectedPrice === "under-25"
-                      ? "Under $25"
-                      : selectedPrice === "25-40"
-                        ? "$25 - $40"
-                        : "Over $40"}
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-full">
-                <DropdownMenuItem onClick={() => setSelectedPrice("all")}>Any Price</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedPrice("under-25")}>Under $25</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedPrice("25-40")}>$25 - $40</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedPrice("over-40")}>Over $40</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    ),
+    [handleCreatorClick, isSubscribed, handleUnsubscribe, handleSubscribe],
   )
 
-  // Creator Profile Modal
+  // Enhanced Filter Section with better spacing
+  const FilterSection = useMemo(
+    () => (
+      <Card className="bg-white border border-gray-200">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-semibold text-gray-900 text-lg">Filters</h3>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-prologue-electric">
+                <X className="h-4 w-4 mr-1" />
+                Clear All
+              </Button>
+            )}
+          </div>
+
+          <div className="space-y-6">
+            {/* Sport Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Sport</label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between bg-transparent h-10">
+                    {selectedSport === "all" ? "All Sports" : selectedSport}
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-full">
+                  <DropdownMenuItem onClick={() => setSelectedSport("all")}>All Sports</DropdownMenuItem>
+                  {availableSports.map((sport) => (
+                    <DropdownMenuItem key={sport} onClick={() => setSelectedSport(sport)}>
+                      {sport}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Type Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Type</label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between bg-transparent h-10">
+                    {selectedType === "all"
+                      ? "All Types"
+                      : selectedType.charAt(0).toUpperCase() + selectedType.slice(1)}
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-full">
+                  <DropdownMenuItem onClick={() => setSelectedType("all")}>All Types</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSelectedType("athlete")}>Athletes</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSelectedType("coach")}>Coaches</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSelectedType("mentor")}>Mentors</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Experience Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Experience</label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between bg-transparent h-10">
+                    {selectedExperience === "all" ? "Any Experience" : selectedExperience}
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-full">
+                  <DropdownMenuItem onClick={() => setSelectedExperience("all")}>Any Experience</DropdownMenuItem>
+                  {EXPERIENCE_LEVELS.map((level) => (
+                    <DropdownMenuItem key={level} onClick={() => setSelectedExperience(level)}>
+                      {level}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Rating Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Minimum Rating</label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between bg-transparent h-10">
+                    {selectedRating === "all" ? "Any Rating" : `${selectedRating}+ Stars`}
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-full">
+                  <DropdownMenuItem onClick={() => setSelectedRating("all")}>Any Rating</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSelectedRating("4.5")}>4.5+ Stars</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSelectedRating("4.0")}>4.0+ Stars</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSelectedRating("3.5")}>3.5+ Stars</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Price Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">Price Range</label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between bg-transparent h-10">
+                    {selectedPrice === "all"
+                      ? "Any Price"
+                      : selectedPrice === "under-25"
+                        ? "Under $25"
+                        : selectedPrice === "25-40"
+                          ? "$25 - $40"
+                          : "Over $40"}
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-full">
+                  <DropdownMenuItem onClick={() => setSelectedPrice("all")}>Any Price</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSelectedPrice("under-25")}>Under $25</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSelectedPrice("25-40")}>$25 - $40</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSelectedPrice("over-40")}>Over $40</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    ),
+    [
+      hasActiveFilters,
+      clearAllFilters,
+      selectedSport,
+      selectedType,
+      selectedExperience,
+      selectedRating,
+      selectedPrice,
+      availableSports,
+    ],
+  )
+
   // Subscription Dialog
+  const SubscriptionDialog = useMemo(() => {
+    if (!selectedCreator) return null
+
+    return (
+      <Dialog open={subscriptionDialogOpen} onOpenChange={setSubscriptionDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-xl">Subscribe to {selectedCreator.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-8">
+            <div className="text-center">
+              <div className="w-24 h-24 mx-auto mb-4 bg-gray-200 rounded-full overflow-hidden">
+                <User className="w-full h-full text-gray-500 p-6" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">{selectedCreator.name}</h3>
+              <p className="text-gray-600">
+                {selectedCreator.sport} • {selectedCreator.specialty}
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-r from-prologue-electric to-prologue-blue text-white rounded-lg p-8 text-center">
+              <div className="text-4xl font-bold mb-2">${selectedCreator.subscriptionPrice}</div>
+              <div className="text-blue-100">per month</div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center space-x-4">
+                <CheckCircle className="h-6 w-6 text-green-500 flex-shrink-0" />
+                <span className="text-gray-700">Access to all premium content</span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <CheckCircle className="h-6 w-6 text-green-500 flex-shrink-0" />
+                <span className="text-gray-700">Direct messaging with creator</span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <CheckCircle className="h-6 w-6 text-green-500 flex-shrink-0" />
+                <span className="text-gray-700">Personalized training plans</span>
+              </div>
+              <div className="flex items-center space-x-4">
+                <CheckCircle className="h-6 w-6 text-green-500 flex-shrink-0" />
+                <span className="text-gray-700">Priority support and feedback</span>
+              </div>
+            </div>
+
+            <div className="flex space-x-4">
+              <Button
+                variant="outline"
+                onClick={() => setSubscriptionDialogOpen(false)}
+                className="flex-1 bg-transparent h-12"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmSubscription}
+                className="flex-1 bg-prologue-electric hover:bg-prologue-blue text-white h-12"
+              >
+                <Crown className="h-5 w-5 mr-2" />
+                Subscribe Now
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    )
+  }, [selectedCreator, subscriptionDialogOpen, handleConfirmSubscription])
+
+  useEffect(() => {
+    async function fetchAthletes() {
+      try {
+        const snapshot = await getDocs(collection(db, "athletes"))
+        const fetched = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name || "",
+            sport: data.sport || "",
+            type: data.type || "athlete",
+            avatar: data.avatar || "/placeholder.svg?height=80&width=80",
+            coverImage: data.coverImage || "/placeholder.svg?height=200&width=400",
+            followers: data.followers || "0",
+            following: data.following || "0",
+            rating: data.rating || 0,
+            specialty: data.specialty || "",
+            bio: data.bio || "",
+            location: data.location || "",
+            university: data.university || "",
+            achievements: data.achievements || [],
+            isVerified: data.isVerified || false,
+            subscriptionPrice: data.subscriptionPrice || 0,
+            responseRate: data.responseRate || "",
+            totalStudents: data.totalStudents || 0,
+            experience: data.experience || "",
+            joinedDate: data.joinedDate || "",
+            totalPosts: data.totalPosts || 0,
+            totalVideos: data.totalVideos || 0,
+            avgSessionLength: data.avgSessionLength || "",
+            languages: data.languages || [],
+            certifications: data.certifications || [],
+            socialMedia: data.socialMedia || {},
+            recentActivity: data.recentActivity || [],
+            stats: data.stats || {},
+          }
+        })
+        // Merge fetched with static by id
+        const merged = [
+          ...fetched,
+          ...CREATORS.filter(staticAthlete => !fetched.some(f => f.id === staticAthlete.id))
+        ]
+        setAthletes(merged)
+      } catch (e) {
+        setAthletes(CREATORS)
+      }
+    }
+    fetchAthletes()
+  }, [])
 
   if (isMobile || isTablet) {
     return (
@@ -1022,17 +862,29 @@ export default function MemberDiscoverPage() {
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
       >
-        <div className="p-4 space-y-6">
-          {/* Mobile Search */}
+        <div className="p-6 space-y-8">
+          {/* Mobile Search with better spacing */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <Input
+              ref={searchInputRef}
               type="text"
               placeholder="Search athletes, coaches, mentors..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 bg-gray-100 border-0 focus:ring-2 focus:ring-prologue-electric/20"
+              onChange={handleSearchChange}
+              onFocus={handleSearchFocus}
+              onBlur={handleSearchBlur}
+              className="pl-12 pr-12 h-12 bg-gray-100 border-0 focus:ring-2 focus:ring-prologue-electric/20 text-base"
             />
+            {searchQuery && (
+              <button
+                onClick={handleClearSearch}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+            {SearchDropdown}
           </div>
 
           <div className="flex items-center justify-between">
@@ -1040,39 +892,41 @@ export default function MemberDiscoverPage() {
               variant="outline"
               size="sm"
               onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center space-x-2"
+              className="flex items-center space-x-2 h-10 px-4"
             >
               <SlidersHorizontal className="h-4 w-4" />
               <span>Filters</span>
             </Button>
           </div>
 
-          {/* Mobile Tabs */}
+          {/* Mobile Tabs with better spacing */}
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 bg-white/50 backdrop-blur-sm">
-              <TabsTrigger value="browse">Browse</TabsTrigger>
-              <TabsTrigger value="featured">Featured</TabsTrigger>
-              <TabsTrigger value="trending">Trending</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 bg-white/50 backdrop-blur-sm h-12">
+              <TabsTrigger value="browse" className="text-sm">
+                Browse
+              </TabsTrigger>
+              <TabsTrigger value="featured" className="text-sm">
+                Featured
+              </TabsTrigger>
+              <TabsTrigger value="trending" className="text-sm">
+                Trending
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="browse" className="space-y-4">
+            <TabsContent value="browse" className="space-y-6 mt-6">
               {/* Mobile Filters */}
-              {showFilters && (
-                <div className="space-y-4">
-                  <FilterSection />
-                </div>
-              )}
+              {showFilters && <div className="space-y-6">{FilterSection}</div>}
 
               {/* Mobile Sort and View Controls */}
               <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-600">
                   {filteredAthletes.length} athlete{filteredAthletes.length !== 1 ? "s" : ""} found
                 </p>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-3">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Filter className="h-4 w-4 mr-1" />
+                      <Button variant="outline" size="sm" className="h-10 px-4 bg-transparent">
+                        <Filter className="h-4 w-4 mr-2" />
                         Sort
                       </Button>
                     </DropdownMenuTrigger>
@@ -1084,34 +938,34 @@ export default function MemberDiscoverPage() {
                     </DropdownMenuContent>
                   </DropdownMenu>
                   {hasActiveFilters && (
-                    <Badge variant="secondary" className="bg-prologue-electric/10 text-prologue-electric">
+                    <Badge variant="secondary" className="bg-prologue-electric/10 text-prologue-electric px-3 py-1">
                       Filtered
                     </Badge>
                   )}
                 </div>
               </div>
 
-              {/* Mobile Athlete Cards */}
-              <div className="space-y-4">
+              {/* Mobile Athlete Cards with better spacing */}
+              <div className="space-y-6">
                 {filteredAthletes.map((athlete) => (
                   <AthleteCard key={athlete.id} athlete={athlete} />
                 ))}
               </div>
 
               {filteredAthletes.length === 0 && (
-                <div className="text-center py-12">
-                  <User className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No athletes found</h3>
-                  <p className="text-gray-600 mb-4">Try adjusting your filters or search terms.</p>
-                  <Button onClick={clearAllFilters} variant="outline">
+                <div className="text-center py-16">
+                  <User className="h-20 w-20 mx-auto mb-6 text-gray-300" />
+                  <h3 className="text-xl font-medium text-gray-900 mb-3">No athletes found</h3>
+                  <p className="text-gray-600 mb-6">Try adjusting your filters or search terms.</p>
+                  <Button onClick={clearAllFilters} variant="outline" className="h-12 px-6 bg-transparent">
                     Clear Filters
                   </Button>
                 </div>
               )}
             </TabsContent>
 
-            <TabsContent value="featured" className="space-y-4">
-              <div className="grid gap-4">
+            <TabsContent value="featured" className="space-y-6 mt-6">
+              <div className="space-y-6">
                 {filteredAthletes
                   .filter((athlete) => athlete.isVerified)
                   .slice(0, 6)
@@ -1121,8 +975,8 @@ export default function MemberDiscoverPage() {
               </div>
             </TabsContent>
 
-            <TabsContent value="trending" className="space-y-4">
-              <div className="grid gap-4">
+            <TabsContent value="trending" className="space-y-6 mt-6">
+              <div className="space-y-6">
                 {filteredAthletes
                   .sort((a, b) => b.totalStudents - a.totalStudents)
                   .slice(0, 6)
@@ -1134,49 +988,51 @@ export default function MemberDiscoverPage() {
           </Tabs>
         </div>
 
-        {/* Mobile Bottom Navigation */}
+        {/* Mobile Bottom Navigation with better spacing */}
         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-          <div className="flex items-center justify-around h-16 px-4">
+          <div className="flex items-center justify-around h-20 px-6">
             <Link
               href="/member-home"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
             >
-              <Home className="h-5 w-5" />
+              <Home className="h-6 w-6" />
               <span className="text-xs font-medium">Home</span>
             </Link>
             <Link
               href="/member-training"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
             >
-              <BookOpen className="h-5 w-5" />
+              <BookOpen className="h-6 w-6" />
               <span className="text-xs font-medium">Training</span>
             </Link>
             <Link
               href="/member-discover"
-              className="flex flex-col items-center space-y-1 text-prologue-electric transition-colors"
+              className="flex flex-col items-center space-y-2 text-prologue-electric transition-colors"
             >
-              <Search className="h-5 w-5" />
+              <Search className="h-6 w-6" />
               <span className="text-xs font-medium">Discover</span>
             </Link>
             <Link
               href="/member-feedback"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
             >
-              <MessageSquare className="h-5 w-5" />
+              <MessageSquare className="h-6 w-6" />
               <span className="text-xs font-medium">Feedback</span>
             </Link>
             <Link
               href="/member-messaging"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
+              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors relative"
             >
-              <MessageCircle className="h-5 w-5" />
+              <MessageCircle className="h-6 w-6" />
               <span className="text-xs font-medium">Messages</span>
               {unreadMessagesCount > 0 && (
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
               )}
             </Link>
           </div>
         </nav>
+
+        {SubscriptionDialog}
       </MobileLayout>
     )
   }
@@ -1192,24 +1048,30 @@ export default function MemberDiscoverPage() {
         onLogout={() => {}}
       />
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Enhanced Tabs */}
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <TabsList className="grid w-full max-w-md grid-cols-3 bg-white/50 backdrop-blur-sm">
-              <TabsTrigger value="browse">Browse All</TabsTrigger>
-              <TabsTrigger value="featured">Featured</TabsTrigger>
-              <TabsTrigger value="trending">Trending</TabsTrigger>
+      {/* Main Content with better spacing */}
+      <main className="max-w-7xl mx-auto px-8 py-12">
+        {/* Enhanced Tabs with better spacing */}
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="mb-12">
+          <div className="flex items-center justify-between mb-8">
+            <TabsList className="grid w-full max-w-md grid-cols-3 bg-white/50 backdrop-blur-sm h-12">
+              <TabsTrigger value="browse" className="text-sm">
+                Browse All
+              </TabsTrigger>
+              <TabsTrigger value="featured" className="text-sm">
+                Featured
+              </TabsTrigger>
+              <TabsTrigger value="trending" className="text-sm">
+                Trending
+              </TabsTrigger>
             </TabsList>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-1 bg-white rounded-lg p-1">
                 <Button
                   variant={viewMode === "grid" ? "default" : "ghost"}
                   size="sm"
                   onClick={() => setViewMode("grid")}
-                  className="h-8 w-8 p-0"
+                  className="h-10 w-10 p-0"
                 >
                   <Grid3X3 className="h-4 w-4" />
                 </Button>
@@ -1217,14 +1079,14 @@ export default function MemberDiscoverPage() {
                   variant={viewMode === "list" ? "default" : "ghost"}
                   size="sm"
                   onClick={() => setViewMode("list")}
-                  className="h-8 w-8 p-0"
+                  className="h-10 w-10 p-0"
                 >
                   <List className="h-4 w-4" />
                 </Button>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex items-center space-x-2 bg-white">
+                  <Button variant="outline" className="flex items-center space-x-2 bg-white h-10 px-4">
                     <TrendingUp className="h-4 w-4" />
                     <span>Sort by {sortBy}</span>
                     <ChevronDown className="h-4 w-4" />
@@ -1240,86 +1102,110 @@ export default function MemberDiscoverPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-12 gap-8">
-            {/* Enhanced Sidebar Filters */}
-            <div className="col-span-3">
-              <FilterSection />
-            </div>
+          <div className="grid grid-cols-12 gap-10">
+            {/* Enhanced Sidebar Filters with better spacing */}
+            <div className="col-span-3">{FilterSection}</div>
 
-            {/* Main Content Area */}
+            {/* Main Content Area with better spacing */}
             <div className="col-span-9">
-              <TabsContent value="browse" className="space-y-6">
-                {/* Search and Results Header */}
-                <div className="mb-6">
-                  <div className="relative mb-4">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <TabsContent value="browse" className="space-y-8">
+                {/* Search and Results Header with better spacing */}
+                <div className="mb-8">
+                  <div className="relative mb-6">
+                    <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <Input
+                      ref={searchInputRef}
                       type="text"
                       placeholder="Search athletes by name, sport, specialty, or location..."
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-10 bg-white border border-gray-200 focus:ring-2 focus:ring-prologue-electric/20 focus:border-prologue-electric"
+                      onChange={handleSearchChange}
+                      onFocus={handleSearchFocus}
+                      onBlur={handleSearchBlur}
+                      className="pl-12 pr-12 h-12 bg-white border border-gray-200 focus:ring-2 focus:ring-prologue-electric/20 focus:border-prologue-electric text-base"
                     />
+                    {searchQuery && (
+                      <button
+                        onClick={handleClearSearch}
+                        className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    )}
+                    {SearchDropdown}
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <p className="text-sm text-gray-600">
+                    <p className="text-base text-gray-600">
                       {filteredAthletes.length} athlete{filteredAthletes.length !== 1 ? "s" : ""} found
                     </p>
                     {hasActiveFilters && (
-                      <Badge variant="secondary" className="bg-prologue-electric/10 text-prologue-electric">
+                      <Badge variant="secondary" className="bg-prologue-electric/10 text-prologue-electric px-3 py-1">
                         Filtered Results
                       </Badge>
                     )}
                   </div>
                 </div>
 
-                {/* Athletes Display */}
+                {/* Athletes Display with better spacing */}
                 {viewMode === "grid" ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
                     {filteredAthletes.map((athlete) => (
                       <AthleteCard key={athlete.id} athlete={athlete} />
                     ))}
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     {filteredAthletes.map((athlete) => (
                       <AthleteListItem key={athlete.id} athlete={athlete} />
                     ))}
                   </div>
                 )}
 
-                {/* Empty State */}
+                {/* Empty State with better spacing */}
                 {filteredAthletes.length === 0 && (
-                  <div className="text-center py-16">
-                    <User className="h-20 w-20 mx-auto mb-6 text-gray-300" />
-                    <h3 className="text-xl font-medium text-gray-900 mb-2">No athletes found</h3>
-                    <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                  <div className="text-center py-20">
+                    <User className="h-24 w-24 mx-auto mb-8 text-gray-300" />
+                    <h3 className="text-2xl font-medium text-gray-900 mb-4">No athletes found</h3>
+                    <p className="text-gray-600 mb-8 max-w-md mx-auto text-lg leading-relaxed">
                       We couldn't find any athletes matching your current filters. Try adjusting your search criteria.
                     </p>
-                    <Button onClick={clearAllFilters} variant="outline" className="mr-4 bg-transparent">
-                      Clear All Filters
-                    </Button>
-                    <Button className="bg-prologue-electric hover:bg-prologue-blue text-white">
-                      Browse All Athletes
-                    </Button>
+                    <div className="space-x-4">
+                      <Button onClick={clearAllFilters} variant="outline" className="h-12 px-8 bg-transparent">
+                        Clear All Filters
+                      </Button>
+                      <Button
+                        onClick={() => setSearchQuery("")}
+                        className="bg-prologue-electric hover:bg-prologue-blue text-white h-12 px-8"
+                      >
+                        Browse All Athletes
+                      </Button>
+                    </div>
                   </div>
                 )}
               </TabsContent>
 
-              <TabsContent value="featured" className="space-y-6">
+              <TabsContent value="featured" className="space-y-8">
+                <div className="mb-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">Featured Athletes & Coaches</h2>
+                  <p className="text-gray-600 text-lg">
+                    Discover our top-rated and verified creators who are making a difference in their sports.
+                  </p>
+                </div>
+
                 {viewMode === "grid" ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
                     {filteredAthletes
                       .filter((athlete) => athlete.isVerified)
+                      .slice(0, 9)
                       .map((athlete) => (
                         <AthleteCard key={athlete.id} athlete={athlete} />
                       ))}
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     {filteredAthletes
                       .filter((athlete) => athlete.isVerified)
+                      .slice(0, 9)
                       .map((athlete) => (
                         <AthleteListItem key={athlete.id} athlete={athlete} />
                       ))}
@@ -1327,19 +1213,28 @@ export default function MemberDiscoverPage() {
                 )}
               </TabsContent>
 
-              <TabsContent value="trending" className="space-y-6">
+              <TabsContent value="trending" className="space-y-8">
+                <div className="mb-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-4">Trending Now</h2>
+                  <p className="text-gray-600 text-lg">
+                    The most popular athletes and coaches based on recent activity and student engagement.
+                  </p>
+                </div>
+
                 {viewMode === "grid" ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
                     {filteredAthletes
                       .sort((a, b) => b.totalStudents - a.totalStudents)
+                      .slice(0, 9)
                       .map((athlete) => (
                         <AthleteCard key={athlete.id} athlete={athlete} />
                       ))}
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     {filteredAthletes
                       .sort((a, b) => b.totalStudents - a.totalStudents)
+                      .slice(0, 9)
                       .map((athlete) => (
                         <AthleteListItem key={athlete.id} athlete={athlete} />
                       ))}
@@ -1350,6 +1245,8 @@ export default function MemberDiscoverPage() {
           </div>
         </Tabs>
       </main>
+
+      {SubscriptionDialog}
     </div>
   )
 }
