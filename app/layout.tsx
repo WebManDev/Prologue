@@ -3,6 +3,7 @@ import './globals.css'
 import { MemberNotificationProvider } from '@/contexts/member-notification-context'
 import { MemberSubscriptionProvider } from '@/contexts/member-subscription-context'
 import { NotificationProvider } from '@/contexts/notification-context'
+import { AdvancedNotificationProvider } from '@/contexts/advanced-notification-context'
 
 export const metadata: Metadata = {
   title: 'v0 App',
@@ -19,11 +20,13 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <NotificationProvider>
-          <MemberNotificationProvider>
-            <MemberSubscriptionProvider>
-              {children}
-            </MemberSubscriptionProvider>
-          </MemberNotificationProvider>
+          <AdvancedNotificationProvider>
+            <MemberNotificationProvider>
+              <MemberSubscriptionProvider>
+                {children}
+              </MemberSubscriptionProvider>
+            </MemberNotificationProvider>
+          </AdvancedNotificationProvider>
         </NotificationProvider>
       </body>
     </html>
