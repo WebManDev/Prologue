@@ -44,6 +44,7 @@ import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
 import { auth, saveMemberProfile, getMemberProfile, uploadProfilePicture, uploadCoverPhoto } from "@/lib/firebase"
+import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 
 // Helper function defined outside the component to prevent re-creation
 const getActivityIcon = (type: string) => {
@@ -958,9 +959,12 @@ export default function MemberDashboardPage() {
     }
   }, [profileChecklist])
 
+  // Get subscribed creators (active coaches)
+  const { subscribedCreators } = useMemberSubscriptions()
+
   const memberStats = useMemo(
     () => ({
-      activeCoaches: 2,
+      activeCoaches: Math.max(subscribedCreators.length, 0),
       totalSessions: 18,
       thisWeek: 3,
       thisMonth: 12,
@@ -969,7 +973,7 @@ export default function MemberDashboardPage() {
       goalsCompleted: 8,
       improvement: 15,
     }),
-    [],
+    [subscribedCreators.length],
   )
 
   const recentActivity = useMemo(
@@ -1197,7 +1201,7 @@ export default function MemberDashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <DesktopHeader
-        onLogout={handleLogout}
+        onLogout={logout}
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}

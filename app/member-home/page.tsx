@@ -45,6 +45,7 @@ import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
 import { auth, getMemberProfile } from "@/lib/firebase"
+import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 
 export default function MemberHomePage() {
   // Mobile detection
@@ -439,15 +440,7 @@ export default function MemberHomePage() {
   }, [isMobileMenuOpen])
 
   // Optimized logout handler
-  const handleLogout = async () => {
-    try {
-      // Replace with actual logout logic
-      console.log("Logout logic not implemented")
-    } catch (error) {
-      console.error("Logout failed:", error)
-      window.location.href = "/"
-    }
-  }
+  const { logout } = useUnifiedLogout()
 
   // Memoized search dropdown content
   const searchDropdownContent = useMemo(() => {
@@ -527,7 +520,7 @@ export default function MemberHomePage() {
     <div className="min-h-screen bg-gray-50">
       <MemberHeader
         currentPath="/member-home"
-        onLogout={handleLogout}
+        onLogout={logout}
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}

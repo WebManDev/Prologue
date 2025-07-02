@@ -33,9 +33,11 @@ import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
-import { doc, getDoc } from "firebase/firestore"
-import { db } from "@/lib/firebase"
+import { doc, getDoc, collection, getDocs } from "firebase/firestore"
+import { db, auth } from "@/lib/firebase"
 import { CREATORS } from "@/lib/creators"
+import StarRating from "@/components/star-rating"
+import { setDoc } from "firebase/firestore"
 
 export default function AthleteProfilePage() {
   const params = useParams() || {}
@@ -47,6 +49,9 @@ export default function AthleteProfilePage() {
   const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false)
   const [athlete, setAthlete] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
+  const [userRating, setUserRating] = useState<number>(0)
+  const [avgRating, setAvgRating] = useState<number | null>(null)
+  const [ratingsCount, setRatingsCount] = useState<number>(0)
 
   useEffect(() => {
     async function fetchAthlete() {
@@ -55,27 +60,82 @@ export default function AthleteProfilePage() {
       if (staticAthlete) {
         setAthlete(staticAthlete)
         setLoading(false)
-        return
-      }
-      // Otherwise, fetch from Firebase
-      try {
-        const docRef = doc(db, "athletes", athleteId)
-        const docSnap = await getDoc(docRef)
-        if (docSnap.exists()) {
-          setAthlete({ id: docSnap.id, ...docSnap.data() })
-        } else {
+      } else {
+        // Otherwise, fetch from Firebase
+        try {
+          const docRef = doc(db, "athletes", athleteId)
+          const docSnap = await getDoc(docRef)
+          if (docSnap.exists()) {
+            setAthlete({ id: docSnap.id, ...docSnap.data() })
+          } else {
+            setAthlete(null)
+          }
+        } catch (e) {
           setAthlete(null)
         }
-      } catch (e) {
-        setAthlete(null)
+        setLoading(false)
       }
-      setLoading(false)
+      // Fetch ratings from Firestore
+      if (athleteId) {
+        try {
+          const ratingsCol = collection(db, "athleteRatings", athleteId, "ratings")
+          const ratingsSnap = await getDocs(ratingsCol)
+          let total = 0
+          let count = 0
+          let userRatingFetched = 0
+          ratingsSnap.forEach((doc) => {
+            const data = doc.data()
+            if (data && typeof data.rating === "number") {
+              total += data.rating
+              count++
+              if (auth.currentUser && doc.id === auth.currentUser.uid) {
+                userRatingFetched = data.rating
+              }
+            }
+          })
+          setAvgRating(count > 0 ? total / count : null)
+          setRatingsCount(count)
+          setUserRating(userRatingFetched)
+        } catch (e) {
+          setAvgRating(null)
+          setRatingsCount(0)
+        }
+      }
     }
     if (athleteId) {
       setLoading(true)
       fetchAthlete()
     }
   }, [athleteId])
+
+  // Save user rating to Firestore
+  const handleUserRating = async (rating: number) => {
+    setUserRating(rating)
+    if (!auth.currentUser) return
+    try {
+      await setDoc(
+        doc(db, "athleteRatings", athleteId, "ratings", auth.currentUser.uid),
+        { rating },
+        { merge: true }
+      )
+      // Re-fetch ratings to update average
+      const ratingsCol = collection(db, "athleteRatings", athleteId, "ratings")
+      const ratingsSnap = await getDocs(ratingsCol)
+      let total = 0
+      let count = 0
+      ratingsSnap.forEach((doc) => {
+        const data = doc.data()
+        if (data && typeof data.rating === "number") {
+          total += data.rating
+          count++
+        }
+      })
+      setAvgRating(count > 0 ? total / count : null)
+      setRatingsCount(count)
+    } catch (e) {
+      // Optionally show error toast
+    }
+  }
 
   if (loading) {
     return (
@@ -224,6 +284,13 @@ export default function AthleteProfilePage() {
                   <Share2 className="h-4 w-4 mr-2" />
                   Share Profile
                 </Button>
+
+                {isSubscribed(athlete.id) && (
+                  <div className="w-full flex flex-col items-center mt-2">
+                    <span className="text-xs text-gray-500 mb-1">Rate this athlete</span>
+                    <StarRating value={userRating} onChange={handleUserRating} />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -234,7 +301,10 @@ export default function AthleteProfilePage() {
                 <div className="flex flex-wrap items-center gap-3 mb-4">
                   <div className="flex items-center space-x-1">
                     <Star className="h-5 w-5 text-yellow-400 fill-current" />
-                    <span className="font-semibold">{athlete.rating}</span>
+                    <span className="font-semibold">{avgRating !== null ? avgRating.toFixed(2) : "N/A"}</span>
+                    {ratingsCount > 0 && (
+                      <span className="text-xs text-gray-500 ml-1">({ratingsCount} rating{ratingsCount > 1 ? "s" : ""})</span>
+                    )}
                     <span className="text-gray-500">({athlete.totalStudents} students)</span>
                   </div>
                   <div className="flex items-center space-x-1">
@@ -417,8 +487,11 @@ export default function AthleteProfilePage() {
                 <div className="flex items-center space-x-1">
                   <Star className="h-4 w-4 text-yellow-400 fill-current" />
                   <span className="font-semibold text-gray-900">
-                    {athlete.stats?.avgRating ?? "N/A"}
+                    {avgRating !== null ? avgRating.toFixed(2) : "N/A"}
                   </span>
+                  {ratingsCount > 0 && (
+                    <span className="text-xs text-gray-500 ml-1">({ratingsCount})</span>
+                  )}
                 </div>
               </div>
             </CardContent>

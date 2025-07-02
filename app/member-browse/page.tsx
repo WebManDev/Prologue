@@ -50,6 +50,7 @@ import { CREATORS } from "@/lib/creators"
 import { getDocs, collection } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
+import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -78,6 +79,7 @@ export default function MemberDiscoverPage() {
   } = useMemberSubscriptions()
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
   const router = useRouter()
+  const { logout } = useUnifiedLogout()
 
   // Enhanced state management
   const [activeTab, setActiveTab] = useState<"browse" | "featured" | "trending">("browse")
@@ -1049,7 +1051,7 @@ export default function MemberDiscoverPage() {
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
-        onLogout={() => {}}
+        onLogout={logout}
       />
 
       {/* Main Content with better spacing */}
