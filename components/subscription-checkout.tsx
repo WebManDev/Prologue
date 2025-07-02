@@ -32,14 +32,14 @@ interface SubscriptionCheckoutProps {
   memberName: string
   onSuccess: () => void
   onCancel: () => void
+  selectedPlan: 'basic' | 'pro' | 'premium'
 }
 
-function CheckoutForm({ athlete, memberEmail, memberName, onSuccess, onCancel }: SubscriptionCheckoutProps) {
+function CheckoutForm({ athlete, memberEmail, memberName, onSuccess, onCancel, selectedPlan }: SubscriptionCheckoutProps) {
   const stripe = useStripe()
   const elements = useElements()
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedPlan, setSelectedPlan] = useState<'basic' | 'pro' | 'premium'>('basic')
   const [subscriptionSucceeded, setSubscriptionSucceeded] = useState(false)
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -131,14 +131,17 @@ function CheckoutForm({ athlete, memberEmail, memberName, onSuccess, onCancel }:
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
-        <SubscriptionPlans
-          onSelectPlan={setSelectedPlan}
-          selectedPlan={selectedPlan}
-          isLoading={isProcessing}
-          prices={athlete.pricing}
-        />
+        <h3 className="text-lg font-semibold">Selected Plan</h3>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl capitalize">{selectedPlan} Plan</CardTitle>
+            <div className="mt-2 text-3xl font-bold">
+              ${athlete.pricing[selectedPlan]}
+              <span className="text-gray-500 text-lg">/month</span>
+            </div>
+          </CardHeader>
+        </Card>
       </div>
-
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Payment Details</h3>
         <Card>
@@ -162,13 +165,11 @@ function CheckoutForm({ athlete, memberEmail, memberName, onSuccess, onCancel }:
           </CardContent>
         </Card>
       </div>
-
       {error && (
         <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
           {error}
         </div>
       )}
-
       <div className="flex justify-end space-x-4">
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
