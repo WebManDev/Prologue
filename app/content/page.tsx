@@ -25,6 +25,8 @@ import {
   X,
   Plus,
   BarChart3,
+  Camera,
+  Upload,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -37,8 +39,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, Camera } from "lucide-react"
 import { AdvancedNotificationProvider } from "@/contexts/advanced-notification-context"
+import { db } from "@/lib/firebase"
+import { collection, getCountFromServer, addDoc, getDocs, Timestamp } from "firebase/firestore"
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -143,12 +147,75 @@ function ContentPageContent() {
   const [contentTitle, setContentTitle] = useState("")
   const [contentDescription, setContentDescription] = useState("")
   const [contentCategory, setContentCategory] = useState("")
+  const [coverImageFile, setCoverImageFile] = useState<File | null>(null)
+  const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null)
+  const [videoFile, setVideoFile] = useState<File | null>(null)
+  const [videoPreview, setVideoPreview] = useState<string | null>(null)
 
   // Refs for maintaining focus
   const searchRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Dynamic stats state
+  const [videoCount, setVideoCount] = useState<number | null>(null)
+  const [articleCount, setArticleCount] = useState<number | null>(null)
+  const [courseCount, setCourseCount] = useState<number | null>(null)
+  const [subscriberCount, setSubscriberCount] = useState<number | null>(null)
+  const [firebaseArticles, setFirebaseArticles] = useState<any[]>([])
+  const [firebaseVideos, setFirebaseVideos] = useState<any[]>([])
+
+  useEffect(() => {
+    async function fetchCounts() {
+      try {
+        const [videosSnap, articlesSnap, coursesSnap, subscribersSnap] = await Promise.all([
+          getCountFromServer(collection(db, "videos")),
+          getCountFromServer(collection(db, "articles")),
+          getCountFromServer(collection(db, "courses")),
+          getCountFromServer(collection(db, "subscribers")),
+        ])
+        setVideoCount(videosSnap.data().count)
+        setArticleCount(articlesSnap.data().count)
+        setCourseCount(coursesSnap.data().count)
+        setSubscriberCount(subscribersSnap.data().count)
+      } catch (e) {
+        setVideoCount(null)
+        setArticleCount(null)
+        setCourseCount(null)
+        setSubscriberCount(null)
+      }
+    }
+    fetchCounts()
+  }, [])
+
+  // Fetch articles from Firebase
+  useEffect(() => {
+    async function fetchArticles() {
+      try {
+        const snap = await getDocs(collection(db, "articles"))
+        const articles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        setFirebaseArticles(articles)
+      } catch (e) {
+        setFirebaseArticles([])
+      }
+    }
+    fetchArticles()
+  }, [])
+
+  // Fetch videos from Firebase
+  useEffect(() => {
+    async function fetchVideos() {
+      try {
+        const snap = await getDocs(collection(db, "videos"))
+        const videos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        setFirebaseVideos(videos)
+      } catch (e) {
+        setFirebaseVideos([])
+      }
+    }
+    fetchVideos()
+  }, [])
 
   // Handle clicks outside search dropdown
   useEffect(() => {
@@ -198,20 +265,97 @@ function ContentPageContent() {
     setContentDescription(e.target.value)
   }, [])
 
-  const handleCreateContent = useCallback(() => {
-    console.log("Creating content:", {
-      type: contentType,
-      title: contentTitle,
-      description: contentDescription,
-      category: contentCategory,
-    })
+  // Handle cover image file selection
+  const handleCoverImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setCoverImageFile(file)
+      setCoverImagePreview(URL.createObjectURL(file))
+    }
+  }
+
+  // Handle video file selection
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setVideoFile(file)
+      setVideoPreview(URL.createObjectURL(file))
+    }
+  }
+
+  // Save new article to Firebase (with cover image upload)
+  const handleCreateContent = useCallback(async () => {
+    if (contentType === "article") {
+      let coverImageUrl = ""
+      if (coverImageFile) {
+        try {
+          const storage = getStorage()
+          const storageRef = ref(storage, `article-covers/${Date.now()}-${coverImageFile.name}`)
+          await uploadBytes(storageRef, coverImageFile)
+          coverImageUrl = await getDownloadURL(storageRef)
+        } catch (e) {
+          // Optionally show error toast
+        }
+      }
+      try {
+        await addDoc(collection(db, "articles"), {
+          title: contentTitle,
+          category: contentCategory,
+          description: contentDescription,
+          readTime: "1 min read",
+          views: 0,
+          rating: 0,
+          coverImage: coverImageUrl,
+          createdAt: Timestamp.now(),
+        })
+        // Re-fetch articles after creation
+        const snap = await getDocs(collection(db, "articles"))
+        const articles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        setFirebaseArticles(articles)
+      } catch (e) {
+        // Optionally show error toast
+      }
+    }
+    if (contentType === "video") {
+      let videoUrl = ""
+      if (videoFile) {
+        try {
+          const storage = getStorage()
+          const storageRef = ref(storage, `videos/${Date.now()}-${videoFile.name}`)
+          await uploadBytes(storageRef, videoFile)
+          videoUrl = await getDownloadURL(storageRef)
+        } catch (e) {
+          // Optionally show error toast
+        }
+      }
+      try {
+        await addDoc(collection(db, "videos"), {
+          title: contentTitle,
+          category: contentCategory,
+          description: contentDescription,
+          videoUrl,
+          views: 0,
+          rating: 0,
+          createdAt: Timestamp.now(),
+        })
+        // Re-fetch videos after creation
+        const snap = await getDocs(collection(db, "videos"))
+        const videos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        setFirebaseVideos(videos)
+      } catch (e) {
+        // Optionally show error toast
+      }
+    }
     setShowCreateDialog(false)
-    // Reset form
     setContentTitle("")
     setContentDescription("")
     setContentCategory("")
     setContentType("video")
-  }, [contentType, contentTitle, contentDescription, contentCategory])
+    setCoverImageFile(null)
+    setCoverImagePreview(null)
+    setVideoFile(null)
+    setVideoPreview(null)
+  }, [contentType, contentTitle, contentDescription, contentCategory, coverImageFile, videoFile])
 
   // Memoized search dropdown to prevent recreation
   const SearchDropdown = useMemo(() => {
@@ -420,28 +564,68 @@ function ContentPageContent() {
                     ? "Cover Image"
                     : "Course Materials"}
               </Label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer">
+              {contentType === "video" && (
                 <div className="flex flex-col items-center space-y-2">
-                  {contentType === "video" ? (
-                    <Camera className="h-8 w-8 text-gray-400" />
-                  ) : (
-                    <Upload className="h-8 w-8 text-gray-400" />
+                  {videoPreview && (
+                    <video src={videoPreview} controls className="w-full max-w-xs rounded mb-2" />
                   )}
-                  <div className="text-sm text-gray-600">
-                    <span className="font-medium text-blue-600 hover:text-blue-500 cursor-pointer">
-                      Click to upload
-                    </span>{" "}
-                    or drag and drop
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    {contentType === "video"
-                      ? "MP4, MOV up to 500MB"
-                      : contentType === "article"
-                        ? "PNG, JPG up to 10MB"
-                        : "PDF, DOC up to 50MB"}
-                  </p>
+                  <input
+                    type="file"
+                    accept="video/mp4,video/quicktime"
+                    onChange={handleVideoChange}
+                    className="hidden"
+                    id="video-upload"
+                  />
+                  <label htmlFor="video-upload" className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer w-full max-w-xs">
+                    <Camera className="h-8 w-8 text-gray-400 mx-auto" />
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium text-blue-600 hover:text-blue-500 cursor-pointer">
+                        Click to upload
+                      </span>{" "}
+                      or drag and drop
+                    </div>
+                    <p className="text-xs text-gray-500">MP4, MOV up to 500MB</p>
+                  </label>
                 </div>
-              </div>
+              )}
+              {contentType === "article" && (
+                <div className="flex flex-col items-center space-y-2">
+                  {coverImagePreview && (
+                    <img src={coverImagePreview} alt="Cover Preview" className="w-full max-w-xs rounded mb-2" />
+                  )}
+                  <input
+                    type="file"
+                    accept="image/png, image/jpeg"
+                    onChange={handleCoverImageChange}
+                    className="hidden"
+                    id="cover-image-upload"
+                  />
+                  <label htmlFor="cover-image-upload" className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer w-full max-w-xs">
+                    <Upload className="h-8 w-8 text-gray-400 mx-auto" />
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium text-blue-600 hover:text-blue-500 cursor-pointer">
+                        Click to upload
+                      </span>{" "}
+                      or drag and drop
+                    </div>
+                    <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
+                  </label>
+                </div>
+              )}
+              {contentType === "course" && (
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer">
+                  <div className="flex flex-col items-center space-y-2">
+                    <Upload className="h-8 w-8 text-gray-400" />
+                    <div className="text-sm text-gray-600">
+                      <span className="font-medium text-blue-600 hover:text-blue-500 cursor-pointer">
+                        Click to upload
+                      </span>{" "}
+                      or drag and drop
+                    </div>
+                    <p className="text-xs text-gray-500">PDF, DOC up to 50MB</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}
@@ -467,8 +651,19 @@ function ContentPageContent() {
       handleTitleChange,
       handleDescriptionChange,
       handleCreateContent,
+      coverImageFile,
+      coverImagePreview,
+      handleCoverImageChange,
+      videoFile,
+      videoPreview,
+      handleVideoChange,
     ],
   )
+
+  // Merge Firebase and static articles for display
+  const allArticles = [...firebaseArticles, ...CONTENT_DATA.articles]
+  // Merge Firebase and static videos for display
+  const allVideos = [...firebaseVideos, ...CONTENT_DATA.videos]
 
   // Memoized main content
   const MainContent = useMemo(
@@ -520,7 +715,9 @@ function ContentPageContent() {
               <Video className={`${isMobile ? "h-3 w-3" : "h-4 w-4"} text-muted-foreground`} />
             </CardHeader>
             <CardContent>
-              <div className={`${isMobile ? "text-lg" : "text-2xl"} font-bold`}>{CONTENT_DATA.videos.length}</div>
+              <div className={`${isMobile ? "text-lg" : "text-2xl"} font-bold`}>
+                {videoCount !== null ? videoCount : 0}
+              </div>
               <p className={`${isMobile ? "text-xs" : "text-xs"} text-muted-foreground`}>Educational videos</p>
             </CardContent>
           </Card>
@@ -531,7 +728,9 @@ function ContentPageContent() {
               <FileText className={`${isMobile ? "h-3 w-3" : "h-4 w-4"} text-muted-foreground`} />
             </CardHeader>
             <CardContent>
-              <div className={`${isMobile ? "text-lg" : "text-2xl"} font-bold`}>{CONTENT_DATA.articles.length}</div>
+              <div className={`${isMobile ? "text-lg" : "text-2xl"} font-bold`}>
+                {articleCount !== null ? articleCount : 0}
+              </div>
               <p className={`${isMobile ? "text-xs" : "text-xs"} text-muted-foreground`}>Written guides</p>
             </CardContent>
           </Card>
@@ -542,7 +741,9 @@ function ContentPageContent() {
               <BookOpen className={`${isMobile ? "h-3 w-3" : "h-4 w-4"} text-muted-foreground`} />
             </CardHeader>
             <CardContent>
-              <div className={`${isMobile ? "text-lg" : "text-2xl"} font-bold`}>{CONTENT_DATA.courses.length}</div>
+              <div className={`${isMobile ? "text-lg" : "text-2xl"} font-bold`}>
+                {courseCount !== null ? courseCount : 0}
+              </div>
               <p className={`${isMobile ? "text-xs" : "text-xs"} text-muted-foreground`}>Training courses</p>
             </CardContent>
           </Card>
@@ -553,7 +754,9 @@ function ContentPageContent() {
               <Users className={`${isMobile ? "h-3 w-3" : "h-4 w-4"} text-muted-foreground`} />
             </CardHeader>
             <CardContent>
-              <div className={`${isMobile ? "text-lg" : "text-2xl"} font-bold`}>1,247</div>
+              <div className={`${isMobile ? "text-lg" : "text-2xl"} font-bold`}>
+                {subscriberCount !== null ? subscriberCount.toLocaleString() : "0"}
+              </div>
               <p className={`${isMobile ? "text-xs" : "text-xs"} text-muted-foreground`}>Active subscribers</p>
             </CardContent>
           </Card>
@@ -606,16 +809,15 @@ function ContentPageContent() {
           </div>
 
           {/* All Content */}
-          <TabsContent value="all" className="space-y-6">
-            {/* Videos Section */}
-            <div>
-              <h3 className={`${isMobile ? "text-lg" : "text-xl"} font-semibold mb-4`}>Latest Videos</h3>
-              <div
-                className={`grid ${isMobile ? "grid-cols-1 gap-4" : isTablet ? "grid-cols-2 gap-4" : "md:grid-cols-3 gap-6"}`}
-              >
-                {CONTENT_DATA.videos.map((video) => (
-                  <Card key={video.id} className="hover:shadow-lg transition-shadow cursor-pointer">
-                    <div className="relative">
+          <TabsContent value="all" className="space-y-8">
+            {/* Show all videos and all articles (Firebase + static) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              {allVideos.map((video) => (
+                <Card key={video.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+                  <div className="relative">
+                    {video.videoUrl ? (
+                      <video src={video.videoUrl} controls className="w-full h-48 object-cover rounded-t-lg" />
+                    ) : (
                       <Image
                         src={video.thumbnail || "/placeholder.svg"}
                         alt={video.title}
@@ -623,65 +825,67 @@ function ContentPageContent() {
                         height={200}
                         className="w-full h-48 object-cover rounded-t-lg"
                       />
-                      <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
-                        {video.duration}
+                    )}
+                    <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
+                      {video.duration}
+                    </div>
+                    <div className="absolute top-2 left-2">
+                      <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                        {video.category}
+                      </Badge>
+                    </div>
+                  </div>
+                  <CardContent className="p-4">
+                    <h4 className={`${isMobile ? "text-sm" : "text-base"} font-semibold mb-2 line-clamp-2`}>
+                      {video.title}
+                    </h4>
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                      <div className="flex items-center space-x-2">
+                        <Play className="h-4 w-4" />
+                        <span>{video.views} views</span>
                       </div>
-                      <div className="absolute top-2 left-2">
-                        <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                          {video.category}
-                        </Badge>
+                      <div className="flex items-center space-x-1">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span>{video.rating}</span>
                       </div>
                     </div>
-                    <CardContent className="p-4">
-                      <h4 className={`${isMobile ? "text-sm" : "text-base"} font-semibold mb-2 line-clamp-2`}>
-                        {video.title}
-                      </h4>
-                      <div className="flex items-center justify-between text-sm text-gray-600">
-                        <div className="flex items-center space-x-2">
-                          <Play className="h-4 w-4" />
-                          <span>{video.views} views</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span>{video.rating}</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-
-            {/* Articles Section */}
-            <div>
-              <h3 className={`${isMobile ? "text-lg" : "text-xl"} font-semibold mb-4`}>Recent Articles</h3>
-              <div
-                className={`grid ${isMobile ? "grid-cols-1 gap-4" : isTablet ? "grid-cols-1 gap-4" : "md:grid-cols-2 gap-6"}`}
-              >
-                {CONTENT_DATA.articles.map((article) => (
-                  <Card key={article.id} className="hover:shadow-lg transition-shadow cursor-pointer">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between mb-3">
-                        <Badge variant="secondary" className="bg-green-100 text-green-700">
-                          {article.category}
-                        </Badge>
-                        <div className="flex items-center space-x-1 text-sm text-gray-600">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span>{article.rating}</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {allArticles.map((article) => (
+                <Link key={article.id} href={`/article/${article.id}`} passHref legacyBehavior>
+                  <a style={{ textDecoration: 'none' }}>
+                    <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                      {article.coverImage && (
+                        <div className="relative w-full h-48 mb-2">
+                          <Image src={article.coverImage} alt={article.title} fill className="object-cover rounded-t-lg" />
                         </div>
-                      </div>
-                      <h4 className={`${isMobile ? "text-base" : "text-lg"} font-semibold mb-2`}>{article.title}</h4>
-                      <div className="flex items-center justify-between text-sm text-gray-600">
-                        <div className="flex items-center space-x-2">
-                          <Clock className="h-4 w-4" />
-                          <span>{article.readTime}</span>
+                      )}
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between mb-3">
+                          <Badge variant="secondary" className="bg-green-100 text-green-700">
+                            {article.category}
+                          </Badge>
+                          <div className="flex items-center space-x-1 text-sm text-gray-600">
+                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                            <span>{article.rating}</span>
+                          </div>
                         </div>
-                        <span>{article.views} views</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                        <h4 className={`${isMobile ? "text-base" : "text-lg"} font-semibold mb-2`}>{article.title}</h4>
+                        <div className="flex items-center justify-between text-sm text-gray-600">
+                          <div className="flex items-center space-x-2">
+                            <Clock className="h-4 w-4" />
+                            <span>{article.readTime}</span>
+                          </div>
+                          <span>{article.views} views</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </a>
+                </Link>
+              ))}
             </div>
           </TabsContent>
 
@@ -690,16 +894,20 @@ function ContentPageContent() {
             <div
               className={`grid ${isMobile ? "grid-cols-1 gap-4" : isTablet ? "grid-cols-2 gap-4" : "md:grid-cols-3 gap-6"}`}
             >
-              {CONTENT_DATA.videos.map((video) => (
+              {allVideos.map((video) => (
                 <Card key={video.id} className="hover:shadow-lg transition-shadow cursor-pointer">
                   <div className="relative">
-                    <Image
-                      src={video.thumbnail || "/placeholder.svg"}
-                      alt={video.title}
-                      width={300}
-                      height={200}
-                      className="w-full h-48 object-cover rounded-t-lg"
-                    />
+                    {video.videoUrl ? (
+                      <video src={video.videoUrl} controls className="w-full h-48 object-cover rounded-t-lg" />
+                    ) : (
+                      <Image
+                        src={video.thumbnail || "/placeholder.svg"}
+                        alt={video.title}
+                        width={300}
+                        height={200}
+                        className="w-full h-48 object-cover rounded-t-lg"
+                      />
+                    )}
                     <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
                       {video.duration}
                     </div>
@@ -730,32 +938,39 @@ function ContentPageContent() {
           </TabsContent>
 
           {/* Articles Tab */}
-          <TabsContent value="articles" className="space-y-4">
-            <div
-              className={`grid ${isMobile ? "grid-cols-1 gap-4" : isTablet ? "grid-cols-1 gap-4" : "md:grid-cols-2 gap-6"}`}
-            >
-              {CONTENT_DATA.articles.map((article) => (
-                <Card key={article.id} className="hover:shadow-lg transition-shadow cursor-pointer">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between mb-3">
-                      <Badge variant="secondary" className="bg-green-100 text-green-700">
-                        {article.category}
-                      </Badge>
-                      <div className="flex items-center space-x-1 text-sm text-gray-600">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span>{article.rating}</span>
-                      </div>
-                    </div>
-                    <h4 className={`${isMobile ? "text-base" : "text-lg"} font-semibold mb-2`}>{article.title}</h4>
-                    <div className="flex items-center justify-between text-sm text-gray-600">
-                      <div className="flex items-center space-x-2">
-                        <Clock className="h-4 w-4" />
-                        <span>{article.readTime}</span>
-                      </div>
-                      <span>{article.views} views</span>
-                    </div>
-                  </CardContent>
-                </Card>
+          <TabsContent value="articles" className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {allArticles.map((article) => (
+                <Link key={article.id} href={`/article/${article.id}`} passHref legacyBehavior>
+                  <a style={{ textDecoration: 'none' }}>
+                    <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                      {article.coverImage && (
+                        <div className="relative w-full h-48 mb-2">
+                          <Image src={article.coverImage} alt={article.title} fill className="object-cover rounded-t-lg" />
+                        </div>
+                      )}
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between mb-3">
+                          <Badge variant="secondary" className="bg-green-100 text-green-700">
+                            {article.category}
+                          </Badge>
+                          <div className="flex items-center space-x-1 text-sm text-gray-600">
+                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                            <span>{article.rating}</span>
+                          </div>
+                        </div>
+                        <h4 className={`${isMobile ? "text-base" : "text-lg"} font-semibold mb-2`}>{article.title}</h4>
+                        <div className="flex items-center justify-between text-sm text-gray-600">
+                          <div className="flex items-center space-x-2">
+                            <Clock className="h-4 w-4" />
+                            <span>{article.readTime}</span>
+                          </div>
+                          <span>{article.views} views</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </a>
+                </Link>
               ))}
             </div>
           </TabsContent>
@@ -798,6 +1013,50 @@ function ContentPageContent() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Latest Videos */}
+        <section className="mb-10">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Latest Videos</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {allVideos.map((video) => (
+              <Card key={video.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+                <div className="relative">
+                  {video.videoUrl ? (
+                    <video src={video.videoUrl} controls className="w-full h-48 object-cover rounded-t-lg" />
+                  ) : (
+                    <Image
+                      src={video.thumbnail || "/placeholder.svg"}
+                      alt={video.title}
+                      width={300}
+                      height={200}
+                      className="w-full h-48 object-cover rounded-t-lg"
+                    />
+                  )}
+                  <div className="absolute top-2 left-2">
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                      {video.category}
+                    </Badge>
+                  </div>
+                </div>
+                <CardContent className="p-4">
+                  <h4 className={`${isMobile ? "text-sm" : "text-base"} font-semibold mb-2 line-clamp-2`}>
+                    {video.title}
+                  </h4>
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <div className="flex items-center space-x-2">
+                      <Play className="h-4 w-4" />
+                      <span>{video.views} views</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span>{video.rating}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </section>
       </main>
     ),
     [isMobile, isTablet, activeTab, selectedFilter, CreateContentDialog],

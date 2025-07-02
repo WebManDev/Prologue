@@ -68,7 +68,7 @@ export default function ProfileHeader({ profileData, isEditing, isLoading, onEdi
     {
       id: "bio",
       title: "Write Your Bio",
-      description: "Tell athletes about your coaching philosophy and experience",
+      description: "Tell others about your athletic journey and experience",
       completed: (profileData.bio?.length || 0) > 50,
       action: () => document.getElementById("overview-tab")?.click(),
     },
@@ -138,11 +138,11 @@ export default function ProfileHeader({ profileData, isEditing, isLoading, onEdi
                   {profileData.firstName} {profileData.lastName}
                 </h1>
                 <Badge className="bg-blue-100 text-blue-700 text-xs lg:text-sm w-fit mx-auto lg:mx-0">
-                  Professional Coach
+                  Professional Athlete
                 </Badge>
               </div>
               <p className="text-gray-600 mb-2 text-sm lg:text-base">
-                {profileData.sport} Coach • {profileData.experience} Experience
+                {profileData.sport} Athlete • {profileData.experience} Experience
               </p>
               <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-4 text-xs lg:text-sm text-gray-600 mb-4 space-y-1 lg:space-y-0">
                 <div className="flex items-center justify-center lg:justify-start space-x-1">
