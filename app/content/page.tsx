@@ -464,9 +464,11 @@ function ContentPageContent() {
                         Analytics
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Logout
+                    <DropdownMenuItem asChild>
+                      <Link href="/">
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Logout
+                      </Link>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

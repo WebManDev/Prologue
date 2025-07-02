@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator"
 import { toast } from "@/components/ui/use-toast"
 import { User, Bell, CreditCard, Shield, Lock, Eye, EyeOff, Save, ArrowLeft, Trash2, Plus, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { useEnhancedLogout } from "@/hooks/use-enhanced-logout"
+import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutLoadingScreen } from "@/components/ui/logout-loading-screen"
 import { AthleteHeader } from "@/components/navigation/athlete-header"
 
@@ -119,7 +119,7 @@ const AthleteSettingsPage = () => {
     bankZip: "",
   })
 
-  const { logout, loadingState, retryLogout, cancelLogout } = useEnhancedLogout()
+  const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
 
   const handleLogout = async () => {
     console.log("🔄 Athlete logout initiated from settings")
