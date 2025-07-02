@@ -27,6 +27,7 @@ import {
   BarChart3,
   Camera,
   Upload,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -156,6 +157,7 @@ function ContentPageContent() {
   const [coverImagePreview, setCoverImagePreview] = useState<string | null>(null)
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const [videoPreview, setVideoPreview] = useState<string | null>(null)
+  const [isCreatingContent, setIsCreatingContent] = useState(false)
 
   // Refs for maintaining focus
   const searchRef = useRef<HTMLDivElement>(null)
@@ -295,80 +297,85 @@ function ContentPageContent() {
   // Save new article to Firebase (with cover image upload)
   const handleCreateContent = useCallback(async () => {
     if (!user) return;
-    if (contentType === "article") {
-      let coverImageUrl = ""
-      if (coverImageFile) {
+    setIsCreatingContent(true);
+    try {
+      if (contentType === "article") {
+        let coverImageUrl = ""
+        if (coverImageFile) {
+          try {
+            const storage = getStorage()
+            const storageRef = ref(storage, `article-covers/${Date.now()}-${coverImageFile.name}`)
+            await uploadBytes(storageRef, coverImageFile)
+            coverImageUrl = await getDownloadURL(storageRef)
+          } catch (e) {
+            // Optionally show error toast
+          }
+        }
         try {
-          const storage = getStorage()
-          const storageRef = ref(storage, `article-covers/${Date.now()}-${coverImageFile.name}`)
-          await uploadBytes(storageRef, coverImageFile)
-          coverImageUrl = await getDownloadURL(storageRef)
+          await addDoc(collection(db, "articles"), {
+            title: contentTitle,
+            category: contentCategory,
+            description: contentDescription,
+            readTime: "1 min read",
+            views: 0,
+            rating: 0,
+            coverImage: coverImageUrl,
+            createdAt: Timestamp.now(),
+            createdBy: user.uid,
+          })
+          // Re-fetch articles after creation
+          const q = query(collection(db, "articles"), where("createdBy", "==", user.uid));
+          const snap = await getDocs(q)
+          const articles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+          setFirebaseArticles(articles)
         } catch (e) {
           // Optionally show error toast
         }
       }
-      try {
-        await addDoc(collection(db, "articles"), {
-          title: contentTitle,
-          category: contentCategory,
-          description: contentDescription,
-          readTime: "1 min read",
-          views: 0,
-          rating: 0,
-          coverImage: coverImageUrl,
-          createdAt: Timestamp.now(),
-          createdBy: user.uid,
-        })
-        // Re-fetch articles after creation
-        const q = query(collection(db, "articles"), where("createdBy", "==", user.uid));
-        const snap = await getDocs(q)
-        const articles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-        setFirebaseArticles(articles)
-      } catch (e) {
-        // Optionally show error toast
-      }
-    }
-    if (contentType === "video") {
-      let videoUrl = ""
-      if (videoFile) {
+      if (contentType === "video") {
+        let videoUrl = ""
+        if (videoFile) {
+          try {
+            const storage = getStorage()
+            const storageRef = ref(storage, `videos/${Date.now()}-${videoFile.name}`)
+            await uploadBytes(storageRef, videoFile)
+            videoUrl = await getDownloadURL(storageRef)
+          } catch (e) {
+            // Optionally show error toast
+          }
+        }
         try {
-          const storage = getStorage()
-          const storageRef = ref(storage, `videos/${Date.now()}-${videoFile.name}`)
-          await uploadBytes(storageRef, videoFile)
-          videoUrl = await getDownloadURL(storageRef)
+          await addDoc(collection(db, "videos"), {
+            title: contentTitle,
+            category: contentCategory,
+            description: contentDescription,
+            videoUrl,
+            views: 0,
+            rating: 0,
+            createdAt: Timestamp.now(),
+            createdBy: user.uid,
+          })
+          // Re-fetch videos after creation
+          const q = query(collection(db, "videos"), where("createdBy", "==", user.uid));
+          const snap = await getDocs(q)
+          const videos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+          setFirebaseVideos(videos)
         } catch (e) {
           // Optionally show error toast
         }
       }
-      try {
-        await addDoc(collection(db, "videos"), {
-          title: contentTitle,
-          category: contentCategory,
-          description: contentDescription,
-          videoUrl,
-          views: 0,
-          rating: 0,
-          createdAt: Timestamp.now(),
-          createdBy: user.uid,
-        })
-        // Re-fetch videos after creation
-        const q = query(collection(db, "videos"), where("createdBy", "==", user.uid));
-        const snap = await getDocs(q)
-        const videos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-        setFirebaseVideos(videos)
-      } catch (e) {
-        // Optionally show error toast
-      }
+      setShowCreateDialog(false)
+      setContentTitle("")
+      setContentDescription("")
+      setContentCategory("")
+      setContentType("video")
+      setCoverImageFile(null)
+      setCoverImagePreview(null)
+      setVideoFile(null)
+      setVideoPreview(null)
+    } finally {
+      setIsCreatingContent(false);
     }
-    setShowCreateDialog(false)
-    setContentTitle("")
-    setContentDescription("")
-    setContentCategory("")
-    setContentType("video")
-    setCoverImageFile(null)
-    setCoverImagePreview(null)
-    setVideoFile(null)
-    setVideoPreview(null)
   }, [contentType, contentTitle, contentDescription, contentCategory, coverImageFile, videoFile, user])
 
   const handleLogout = async () => {
@@ -654,8 +661,15 @@ function ContentPageContent() {
               <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
                 Cancel
               </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleCreateContent}>
-                Create Content
+              <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleCreateContent} disabled={isCreatingContent}>
+                {isCreatingContent ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>Create Content</>
+                )}
               </Button>
             </div>
           </div>
@@ -678,6 +692,7 @@ function ContentPageContent() {
       videoFile,
       videoPreview,
       handleVideoChange,
+      isCreatingContent,
     ],
   )
 
@@ -685,6 +700,15 @@ function ContentPageContent() {
   const allArticles = [...firebaseArticles, ...CONTENT_DATA.articles]
   // Merge Firebase and static videos for display
   const allVideos = [...firebaseVideos, ...CONTENT_DATA.videos]
+
+  // Helper to merge and sort latest content
+  const latestContent = [
+    ...firebaseVideos.map(v => ({ ...v, type: 'video' })),
+    ...firebaseArticles.map(a => ({ ...a, type: 'article' }))
+  ]
+    .filter(item => item.createdAt)
+    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+    .slice(0, 6);
 
   // Memoized main content
   const MainContent = useMemo(
@@ -1035,52 +1059,87 @@ function ContentPageContent() {
           </TabsContent>
         </Tabs>
 
-        {/* Latest Videos */}
-        <section className="mb-10">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Latest Videos</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {allVideos.map((video) => (
-              <Card key={video.id} className="hover:shadow-lg transition-shadow cursor-pointer">
-                <div className="relative">
-                  {video.videoUrl ? (
-                    <video src={video.videoUrl} controls className="w-full h-48 object-cover rounded-t-lg" />
-                  ) : (
-                    <Image
-                      src={video.thumbnail || "/placeholder.svg"}
-                      alt={video.title}
-                      width={300}
-                      height={200}
-                      className="w-full h-48 object-cover rounded-t-lg"
-                    />
-                  )}
-                  <div className="absolute top-2 left-2">
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                      {video.category}
-                    </Badge>
-                  </div>
-                </div>
-                <CardContent className="p-4">
-                  <h4 className={`${isMobile ? "text-sm" : "text-base"} font-semibold mb-2 line-clamp-2`}>
-                    {video.title}
-                  </h4>
-                  <div className="flex items-center justify-between text-sm text-gray-600">
-                    <div className="flex items-center space-x-2">
-                      <Play className="h-4 w-4" />
-                      <span>{video.views} views</span>
+        {/* Latest Content (only show on All tab) */}
+        {activeTab === "all" && (
+          <section className="mb-10">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Latest Content</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {latestContent.map((item) => (
+                item.type === 'video' ? (
+                  <Card key={item.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+                    <div className="relative">
+                      {item.videoUrl ? (
+                        <video src={item.videoUrl} controls className="w-full h-48 object-cover rounded-t-lg" />
+                      ) : (
+                        <Image
+                          src={item.thumbnail || "/placeholder.svg"}
+                          alt={item.title}
+                          width={300}
+                          height={200}
+                          className="w-full h-48 object-cover rounded-t-lg"
+                        />
+                      )}
+                      <div className="absolute top-2 left-2">
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                          {item.category}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span>{video.rating}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </section>
+                    <CardContent className="p-4">
+                      <h4 className={`${isMobile ? "text-sm" : "text-base"} font-semibold mb-2 line-clamp-2`}>
+                        {item.title}
+                      </h4>
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <div className="flex items-center space-x-2">
+                          <Play className="h-4 w-4" />
+                          <span>{item.views} views</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          <span>{item.rating}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Link key={item.id} href={`/article/${item.id}`} passHref legacyBehavior>
+                    <a style={{ textDecoration: 'none' }}>
+                      <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                        {item.coverImage && (
+                          <div className="relative w-full h-48 mb-2">
+                            <Image src={item.coverImage} alt={item.title} fill className="object-cover rounded-t-lg" />
+                          </div>
+                        )}
+                        <CardContent className="p-6">
+                          <div className="flex items-start justify-between mb-3">
+                            <Badge variant="secondary" className="bg-green-100 text-green-700">
+                              {item.category}
+                            </Badge>
+                            <div className="flex items-center space-x-1 text-sm text-gray-600">
+                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                              <span>{item.rating}</span>
+                            </div>
+                          </div>
+                          <h4 className={`${isMobile ? "text-base" : "text-lg"} font-semibold mb-2`}>{item.title}</h4>
+                          <div className="flex items-center justify-between text-sm text-gray-600">
+                            <div className="flex items-center space-x-2">
+                              <Clock className="h-4 w-4" />
+                              <span>{item.readTime}</span>
+                            </div>
+                            <span>{item.views} views</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </a>
+                  </Link>
+                )
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     ),
-    [isMobile, isTablet, activeTab, selectedFilter, CreateContentDialog],
+    [isMobile, isTablet, activeTab, selectedFilter, CreateContentDialog, latestContent],
   )
 
   if (isMobile || isTablet) {
