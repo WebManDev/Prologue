@@ -49,6 +49,7 @@ import Link from "next/link"
 import { CREATORS } from "@/lib/creators"
 import { getDocs, collection } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { useRouter } from "next/navigation"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -76,6 +77,7 @@ export default function MemberDiscoverPage() {
     isSubscribed,
   } = useMemberSubscriptions()
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
+  const router = useRouter()
 
   // Enhanced state management
   const [activeTab, setActiveTab] = useState<"browse" | "featured" | "trending">("browse")
@@ -459,7 +461,7 @@ export default function MemberDiscoverPage() {
                   </Button>
                 ) : (
                   <Button
-                    onClick={() => handleSubscribe(athlete.id)}
+                    onClick={() => router.push(`/member-subscription-plans?athleteId=${athlete.id}`)}
                     className="w-full bg-prologue-electric hover:bg-prologue-blue text-white h-12"
                   >
                     <UserPlus className="h-4 w-4 mr-2" />
@@ -490,112 +492,114 @@ export default function MemberDiscoverPage() {
         </CardContent>
       </Card>
     ),
-    [handleCreatorClick, isSubscribed, handleUnsubscribe, handleSubscribe],
+    [handleCreatorClick, isSubscribed, handleUnsubscribe, handleSubscribe, router],
   )
 
   // Enhanced List View Component with better spacing
   const AthleteListItem = useCallback(
-    ({ athlete }: { athlete: (typeof CREATORS)[0] }) => (
-      <Card className="bg-white border border-gray-200 hover:shadow-lg transition-all duration-200">
-        <CardContent className="p-8">
-          <div className="flex items-center space-x-8">
-            <div className="relative flex-shrink-0">
-              <div
-                className="w-24 h-24 bg-gray-200 rounded-full overflow-hidden cursor-pointer hover:ring-4 hover:ring-prologue-electric/20 transition-all"
-                onClick={() => handleCreatorClick(athlete)}
-              >
-                <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                  <User className="h-12 w-12 text-gray-600" />
-                </div>
-              </div>
-              {athlete.isVerified && (
-                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-prologue-electric rounded-full flex items-center justify-center">
-                  <CheckCircle className="h-5 w-5 text-white" />
-                </div>
-              )}
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3
-                    className="font-semibold text-gray-900 text-xl mb-2 cursor-pointer hover:text-prologue-electric transition-colors"
-                    onClick={() => handleCreatorClick(athlete)}
-                  >
-                    {athlete.name}
-                  </h3>
-                  <div className="flex items-center space-x-3 mb-3">
-                    <Badge variant="secondary" className="text-sm px-3 py-1">
-                      {athlete.type}
-                    </Badge>
-                    <Badge variant="outline" className="text-sm px-3 py-1">
-                      {athlete.sport}
-                    </Badge>
-                    <span className="text-sm text-gray-500">•</span>
-                    <span className="text-sm text-gray-500">{athlete.location}</span>
+    ({ athlete }: { athlete: (typeof CREATORS)[0] }) => {
+      const router = useRouter();
+      return (
+        <Card className="bg-white border border-gray-200 hover:shadow-lg transition-all duration-200">
+          <CardContent className="p-8">
+            <div className="flex items-center space-x-8">
+              <div className="relative flex-shrink-0">
+                <div
+                  className="w-24 h-24 bg-gray-200 rounded-full overflow-hidden cursor-pointer hover:ring-4 hover:ring-prologue-electric/20 transition-all"
+                  onClick={() => handleCreatorClick(athlete)}
+                >
+                  <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
+                    <User className="h-12 w-12 text-gray-600" />
                   </div>
-                  <p className="text-sm font-medium text-prologue-electric mb-2">{athlete.specialty}</p>
-                  <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed max-w-2xl">{athlete.bio}</p>
                 </div>
-                <div className="text-right">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <Star className="h-5 w-5 text-yellow-400 fill-current" />
-                    <span className="text-lg font-medium">{athlete.rating}</span>
-                    <span className="text-sm text-gray-500">({athlete.totalStudents} students)</span>
+                {athlete.isVerified && (
+                  <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-prologue-electric rounded-full flex items-center justify-center">
+                    <CheckCircle className="h-5 w-5 text-white" />
                   </div>
-                  <p className="text-sm text-gray-500">{athlete.followers} followers</p>
-                </div>
+                )}
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-8 text-sm text-gray-600">
-                  <div className="flex items-center space-x-2">
-                    <Zap className="h-4 w-4" />
-                    <span>{athlete.responseRate} response</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3
+                      className="font-semibold text-gray-900 text-xl mb-2 cursor-pointer hover:text-prologue-electric transition-colors"
+                      onClick={() => handleCreatorClick(athlete)}
+                    >
+                      {athlete.name}
+                    </h3>
+                    <div className="flex items-center space-x-3 mb-3">
+                      <Badge variant="secondary" className="text-sm px-3 py-1">
+                        {athlete.type}
+                      </Badge>
+                      <Badge variant="outline" className="text-sm px-3 py-1">
+                        {athlete.sport}
+                      </Badge>
+                      <span className="text-sm text-gray-500">•</span>
+                      <span className="text-sm text-gray-500">{athlete.location}</span>
+                    </div>
+                    <p className="text-sm font-medium text-prologue-electric mb-2">{athlete.specialty}</p>
+                    <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed max-w-2xl">{athlete.bio}</p>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Clock className="h-4 w-4" />
-                    <span>{athlete.avgSessionLength}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-4 w-4" />
-                    <span>{athlete.experience}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-4">
                   <div className="text-right">
-                    <span className="text-2xl font-bold text-gray-900">${athlete.subscriptionPrice}</span>
-                    <span className="text-sm text-gray-500 ml-1">/month</span>
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Star className="h-5 w-5 text-yellow-400 fill-current" />
+                      <span className="text-lg font-medium">{athlete.rating}</span>
+                      <span className="text-sm text-gray-500">({athlete.totalStudents} students)</span>
+                    </div>
+                    <p className="text-sm text-gray-500">{athlete.followers} followers</p>
                   </div>
-                  {isSubscribed(athlete.id) ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleUnsubscribe(athlete.id)}
-                      className="text-prologue-electric border-prologue-electric hover:bg-prologue-electric hover:text-white px-4 py-2"
-                    >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Subscribed
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => handleSubscribe(athlete.id)}
-                      className="bg-prologue-electric hover:bg-prologue-blue text-white px-4 py-2"
-                    >
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Subscribe
-                    </Button>
-                  )}
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-8 text-sm text-gray-600">
+                    <div className="flex items-center space-x-2">
+                      <Zap className="h-4 w-4" />
+                      <span>{athlete.responseRate} response</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Clock className="h-4 w-4" />
+                      <span>{athlete.avgSessionLength}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="h-4 w-4" />
+                      <span>{athlete.experience}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-4">
+                    <div className="text-right">
+                      <span className="text-2xl font-bold text-gray-900">${athlete.subscriptionPrice}</span>
+                      <span className="text-sm text-gray-500 ml-1">/month</span>
+                    </div>
+                    {isSubscribed(athlete.id) ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUnsubscribe(athlete.id)}
+                        className="text-prologue-electric border-prologue-electric hover:bg-prologue-electric hover:text-white px-4 py-2"
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Subscribed
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={() => router.push(`/member-subscription-plans?athleteId=${athlete.id}`)}
+                        className="bg-prologue-electric hover:bg-prologue-blue text-white px-4 py-2"
+                      >
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Subscribe
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
-    ),
-    [handleCreatorClick, isSubscribed, handleUnsubscribe, handleSubscribe],
+          </CardContent>
+        </Card>
+      )
+    },
+    [handleCreatorClick, isSubscribed, handleUnsubscribe, handleSubscribe, router],
   )
 
   // Enhanced Filter Section with better spacing
