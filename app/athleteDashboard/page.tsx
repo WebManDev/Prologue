@@ -30,47 +30,10 @@ import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import ProfileHeader from "@/components/profile-header"
 import StatsCards from "@/components/stats-cards"
-import ProfileEditor from "@/components/profile-editor"
+import ProfileEditor, { ProfileData } from "@/components/profile-editor"
 import Sidebar from "@/components/sidebar"
 import { NotificationProvider } from "@/contexts/notification-context"
-
-const initialProfileData = {
-  firstName: "Jordan",
-  lastName: "Smith",
-  email: "jordan.smith@example.com",
-  phone: "+1 (555) 123-4567",
-  bio: "Passionate tennis coach with 8+ years of experience developing junior athletes. Specialized in mental performance coaching and technical skill development. Former Division I player with a focus on helping athletes reach their full potential both on and off the court.",
-  location: "Los Angeles, CA",
-  school: "UCLA",
-  graduationYear: "2018",
-  sport: "Tennis",
-  position: "Coach",
-  certifications: [
-    "USPTA Professional Tennis Instructor",
-    "Mental Performance Certified Coach",
-    "Youth Development Specialist",
-    "Sports Psychology Certificate",
-    "First Aid & CPR Certified",
-    "Strength & Conditioning Level 1",
-  ],
-  specialties: [
-    "Technical Skill Development",
-    "Mental Performance Coaching",
-    "Junior Player Development",
-    "Tournament Preparation",
-    "Injury Prevention",
-    "College Recruitment Guidance",
-  ],
-  experience: "8+ years",
-  achievements: [
-    "Coached 15+ players to college scholarships",
-    "Former Division I Tennis Player",
-    "Regional Coach of the Year 2022",
-    "Developed 3 state champions",
-    "Published author on tennis psychology",
-    "Speaker at national coaching conferences",
-  ],
-}
+import { saveAthleteProfile, auth, getAthleteProfile } from "@/lib/firebase"
 
 // Static quick searches to prevent re-creation
 const QUICK_SEARCHES = [
@@ -97,7 +60,24 @@ export default function DashboardPage() {
   // Profile state
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [profileData, setProfileData] = useState(initialProfileData)
+  const [profileData, setProfileData] = useState<ProfileData>({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    bio: "",
+    location: "",
+    school: "",
+    graduationYear: "",
+    sport: "",
+    position: "",
+    certifications: [],
+    specialties: [],
+    experience: "",
+    achievements: []
+  })
+
+  const profileEditorRef = useRef<any>(null)
 
   // Stable search handlers
   const handleSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -180,16 +160,36 @@ export default function DashboardPage() {
     }
   }, [logout])
 
-  const handleSaveProfile = useCallback(async (newProfileData: typeof initialProfileData) => {
+  const handleEditToggle = useCallback(() => {
+    setIsEditing((prev) => !prev)
+  }, [])
+
+  const handleSaveProfile = useCallback(async (newProfileData: ProfileData) => {
     setIsSaving(true)
-
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-
     try {
-      console.log("Saving profile:", newProfileData)
-      setProfileData(newProfileData)
+      const user = auth.currentUser
+      if (!user) throw new Error("User not authenticated")
+      await saveAthleteProfile(user.uid, newProfileData)
+      const updatedProfile = await getAthleteProfile(user.uid)
+      if (updatedProfile) {
+        setProfileData({
+          firstName: updatedProfile.firstName || "",
+          lastName: updatedProfile.lastName || "",
+          email: updatedProfile.email || "",
+          phone: updatedProfile.phone || "",
+          bio: updatedProfile.bio || "",
+          location: updatedProfile.location || "",
+          school: updatedProfile.school || "",
+          graduationYear: updatedProfile.graduationYear || "",
+          sport: updatedProfile.sport || "",
+          position: updatedProfile.position || "",
+          certifications: updatedProfile.certifications || [],
+          specialties: updatedProfile.specialties || [],
+          experience: updatedProfile.experience || "",
+          achievements: updatedProfile.achievements || []
+        })
+      }
       setIsEditing(false)
-
       toast({
         title: "Profile Updated",
         description: "Your profile has been saved successfully.",
@@ -205,6 +205,35 @@ export default function DashboardPage() {
     } finally {
       setIsSaving(false)
     }
+  }, [])
+
+  // Fetch athlete profile on mount and when auth state changes
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        getAthleteProfile(user.uid).then((profile) => {
+          if (profile) {
+            setProfileData({
+              firstName: profile.firstName || "",
+              lastName: profile.lastName || "",
+              email: profile.email || "",
+              phone: profile.phone || "",
+              bio: profile.bio || "",
+              location: profile.location || "",
+              school: profile.school || "",
+              graduationYear: profile.graduationYear || "",
+              sport: profile.sport || "",
+              position: profile.position || "",
+              certifications: profile.certifications || [],
+              specialties: profile.specialties || [],
+              experience: profile.experience || "",
+              achievements: profile.achievements || []
+            })
+          }
+        })
+      }
+    })
+    return () => unsubscribe()
   }, [])
 
   // Memoized search component to prevent re-renders
@@ -389,8 +418,8 @@ export default function DashboardPage() {
         profileData={profileData}
         isEditing={isEditing}
         isLoading={isSaving}
-        onEditToggle={() => setIsEditing(!isEditing)}
-        onSave={handleSaveProfile}
+        onEditToggle={handleEditToggle}
+        onSave={() => profileEditorRef.current?.save()}
       />
 
       <StatsCards />
@@ -398,6 +427,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
         <div className="lg:col-span-2">
           <ProfileEditor
+            ref={profileEditorRef}
             isEditing={isEditing}
             initialData={profileData}
             onSave={handleSaveProfile}

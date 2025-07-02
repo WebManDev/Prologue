@@ -86,13 +86,23 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
 
       // Save profile data to Firebase
       await saveAthleteProfile(auth.currentUser.uid, {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
         name: `${formData.firstName} ${formData.lastName}`,
         email: auth.currentUser.email || "",
-        sport: formData.selectedSports[0] || "", // Using first specialty as primary sport
-        role: "athlete",
+        phone: "",
         bio: formData.bio,
+        location: "",
+        school: "",
+        graduationYear: "",
+        sport: formData.selectedSports[0] || "",
+        position: "",
+        certifications: [],
         specialties: formData.selectedSports,
+        experience: "",
+        achievements: [],
         profilePicture: profilePictureUrl,
+        role: "athlete",
         pricing: {
           pro: parseFloat(formData.proTierPrice),
           premium: parseFloat(formData.premiumTierPrice)

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, type FC } from "react"
+import { useState, useEffect, useCallback, useMemo, type FC, useImperativeHandle, forwardRef } from "react"
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -36,16 +36,21 @@ interface ProfileEditorProps {
   onSave: (data: ProfileData) => void
 }
 
-const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialData, onSave }) => {
+const ProfileEditor = forwardRef(({ isEditing, isLoading, initialData, onSave }: ProfileEditorProps, ref) => {
   const [editingData, setEditingData] = useState<ProfileData>(initialData)
 
   /* -------------------------------------------------------------------------- */
   /*                                Side Effects                                */
   /* -------------------------------------------------------------------------- */
   useEffect(() => {
-    // Reset local state whenever initialData changes
     setEditingData(initialData)
   }, [initialData])
+
+  useImperativeHandle(ref, () => ({
+    save: () => {
+      onSave(editingData)
+    }
+  }))
 
   /* -------------------------------------------------------------------------- */
   /*                              Helper Functions                              */
@@ -121,7 +126,7 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
             <CardContent>
               {isEditing ? (
                 <Textarea
-                  value={editingData.bio}
+                  value={displayData.bio}
                   onChange={(e) => handleFieldChange("bio", e.target.value)}
                   placeholder="Tell athletes about your coaching philosophy..."
                   className="min-h-[120px] resize-none"
@@ -143,7 +148,7 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {displayData.achievements.map((achievement, index) => (
+                {(displayData.achievements || []).map((achievement, index) => (
                   <div key={`achievement-${index}`} className="flex items-start space-x-3">
                     {isEditing ? (
                       <div className="flex-1 flex items-center space-x-2">
@@ -200,7 +205,7 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
                   <Label htmlFor="firstName">First Name</Label>
                   <Input
                     id="firstName"
-                    value={editingData.firstName}
+                    value={displayData.firstName}
                     onChange={(e) => handleFieldChange("firstName", e.target.value)}
                     disabled={!isEditing || isLoading}
                   />
@@ -209,7 +214,7 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
                   <Label htmlFor="lastName">Last Name</Label>
                   <Input
                     id="lastName"
-                    value={editingData.lastName}
+                    value={displayData.lastName}
                     onChange={(e) => handleFieldChange("lastName", e.target.value)}
                     disabled={!isEditing || isLoading}
                   />
@@ -221,7 +226,7 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
                 <Input
                   id="email"
                   type="email"
-                  value={editingData.email}
+                  value={displayData.email}
                   onChange={(e) => handleFieldChange("email", e.target.value)}
                   disabled={!isEditing || isLoading}
                 />
@@ -231,7 +236,7 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
                 <Label htmlFor="phone">Phone</Label>
                 <Input
                   id="phone"
-                  value={editingData.phone}
+                  value={displayData.phone}
                   onChange={(e) => handleFieldChange("phone", e.target.value)}
                   disabled={!isEditing || isLoading}
                 />
@@ -242,7 +247,7 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
                   <Label htmlFor="location">Location</Label>
                   <Input
                     id="location"
-                    value={editingData.location}
+                    value={displayData.location}
                     onChange={(e) => handleFieldChange("location", e.target.value)}
                     disabled={!isEditing || isLoading}
                   />
@@ -251,7 +256,7 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
                   <Label htmlFor="school">School/Institution</Label>
                   <Input
                     id="school"
-                    value={editingData.school}
+                    value={displayData.school}
                     onChange={(e) => handleFieldChange("school", e.target.value)}
                     disabled={!isEditing || isLoading}
                   />
@@ -262,7 +267,7 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
                 <div>
                   <Label htmlFor="sport">Primary Sport</Label>
                   <Select
-                    value={editingData.sport}
+                    value={displayData.sport}
                     onValueChange={(value) => handleFieldChange("sport", value)}
                     disabled={!isEditing || isLoading}
                   >
@@ -285,7 +290,7 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
                   <Label htmlFor="position">Position/Role</Label>
                   <Input
                     id="position"
-                    value={editingData.position}
+                    value={displayData.position}
                     onChange={(e) => handleFieldChange("position", e.target.value)}
                     disabled={!isEditing || isLoading}
                   />
@@ -294,7 +299,7 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
                   <Label htmlFor="experience">Experience</Label>
                   <Input
                     id="experience"
-                    value={editingData.experience}
+                    value={displayData.experience}
                     onChange={(e) => handleFieldChange("experience", e.target.value)}
                     disabled={!isEditing || isLoading}
                   />
@@ -315,7 +320,7 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {displayData.certifications.map((cert, index) => (
+                {(displayData.certifications || []).map((cert, index) => (
                   <div key={`cert-${index}`} className="flex items-center space-x-3">
                     {isEditing ? (
                       <>
@@ -371,7 +376,7 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {displayData.specialties.map((specialty, index) => (
+                {(displayData.specialties || []).map((specialty, index) => (
                   <div key={`specialty-${index}`} className="flex items-center space-x-3">
                     {isEditing ? (
                       <>
@@ -419,12 +424,12 @@ const ProfileEditor: FC<ProfileEditorProps> = ({ isEditing, isLoading, initialDa
 
       {/* Hidden save button for parent to trigger programmatically */}
       {isEditing && (
-        <button id="save-profile-button" onClick={() => onSave(editingData)} className="hidden" disabled={isLoading}>
+        <button id="save-profile-button" onClick={() => onSave(displayData)} className="hidden" disabled={isLoading}>
           Save
         </button>
       )}
     </>
   )
-}
+})
 
 export default ProfileEditor 
