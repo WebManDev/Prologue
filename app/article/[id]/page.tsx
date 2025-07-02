@@ -105,8 +105,7 @@ export default function ArticlePage() {
           setArticle({
             id: articleId,
             title: data.title,
-            subtitle: data.description || "",
-            content: data.content || `<p>${data.description || ""}</p>`,
+            content: data.description || data.content || "",
             author: {
               name: data.authorName || "Unknown Author",
               avatar: data.authorAvatar || "/placeholder.svg?height=40&width=40",

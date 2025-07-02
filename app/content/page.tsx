@@ -46,6 +46,9 @@ import { collection, getCountFromServer, addDoc, getDocs, Timestamp, query, wher
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { getAuth } from "firebase/auth"
 import { useRouter } from "next/navigation"
+import dynamic from "next/dynamic"
+import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
+import "react-quill/dist/quill.snow.css"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -573,14 +576,9 @@ function ContentPageContent() {
             {/* Description */}
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
-              <Textarea
-                ref={descriptionInputRef}
-                id="description"
-                placeholder="Describe your content..."
-                value={contentDescription}
-                onChange={handleDescriptionChange}
-                rows={3}
-              />
+              <div className="bg-white rounded border border-input focus-within:ring-2 focus-within:ring-blue-500/20">
+                <LexicalRichTextEditor value={contentDescription} onChange={setContentDescription} />
+              </div>
             </div>
 
             {/* File Upload Area */}
