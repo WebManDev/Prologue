@@ -41,8 +41,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AdvancedNotificationProvider } from "@/contexts/advanced-notification-context"
 import { db } from "@/lib/firebase"
-import { collection, getCountFromServer, addDoc, getDocs, Timestamp } from "firebase/firestore"
+import { collection, getCountFromServer, addDoc, getDocs, Timestamp, query, where } from "firebase/firestore"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import { getAuth } from "firebase/auth"
+import { useRouter } from "next/navigation"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -136,6 +138,9 @@ export default function ContentPage() {
 
 function ContentPageContent() {
   const { isMobile, isTablet } = useMobileDetection()
+  const auth = typeof window !== "undefined" ? getAuth() : null;
+  const user = auth && auth.currentUser;
+  const router = useRouter();
 
   // Separate state for different inputs to prevent interference
   const [activeTab, setActiveTab] = useState("all")
@@ -193,7 +198,9 @@ function ContentPageContent() {
   useEffect(() => {
     async function fetchArticles() {
       try {
-        const snap = await getDocs(collection(db, "articles"))
+        if (!user) return;
+        const q = query(collection(db, "articles"), where("createdBy", "==", user.uid));
+        const snap = await getDocs(q)
         const articles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         setFirebaseArticles(articles)
       } catch (e) {
@@ -201,13 +208,15 @@ function ContentPageContent() {
       }
     }
     fetchArticles()
-  }, [])
+  }, [user])
 
   // Fetch videos from Firebase
   useEffect(() => {
     async function fetchVideos() {
       try {
-        const snap = await getDocs(collection(db, "videos"))
+        if (!user) return;
+        const q = query(collection(db, "videos"), where("createdBy", "==", user.uid));
+        const snap = await getDocs(q)
         const videos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         setFirebaseVideos(videos)
       } catch (e) {
@@ -215,7 +224,7 @@ function ContentPageContent() {
       }
     }
     fetchVideos()
-  }, [])
+  }, [user])
 
   // Handle clicks outside search dropdown
   useEffect(() => {
@@ -285,6 +294,7 @@ function ContentPageContent() {
 
   // Save new article to Firebase (with cover image upload)
   const handleCreateContent = useCallback(async () => {
+    if (!user) return;
     if (contentType === "article") {
       let coverImageUrl = ""
       if (coverImageFile) {
@@ -307,9 +317,11 @@ function ContentPageContent() {
           rating: 0,
           coverImage: coverImageUrl,
           createdAt: Timestamp.now(),
+          createdBy: user.uid,
         })
         // Re-fetch articles after creation
-        const snap = await getDocs(collection(db, "articles"))
+        const q = query(collection(db, "articles"), where("createdBy", "==", user.uid));
+        const snap = await getDocs(q)
         const articles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         setFirebaseArticles(articles)
       } catch (e) {
@@ -337,9 +349,11 @@ function ContentPageContent() {
           views: 0,
           rating: 0,
           createdAt: Timestamp.now(),
+          createdBy: user.uid,
         })
         // Re-fetch videos after creation
-        const snap = await getDocs(collection(db, "videos"))
+        const q = query(collection(db, "videos"), where("createdBy", "==", user.uid));
+        const snap = await getDocs(q)
         const videos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
         setFirebaseVideos(videos)
       } catch (e) {
@@ -355,7 +369,14 @@ function ContentPageContent() {
     setCoverImagePreview(null)
     setVideoFile(null)
     setVideoPreview(null)
-  }, [contentType, contentTitle, contentDescription, contentCategory, coverImageFile, videoFile])
+  }, [contentType, contentTitle, contentDescription, contentCategory, coverImageFile, videoFile, user])
+
+  const handleLogout = async () => {
+    if (auth) {
+      await auth.signOut();
+      router.push("/");
+    }
+  };
 
   // Memoized search dropdown to prevent recreation
   const SearchDropdown = useMemo(() => {
@@ -464,11 +485,9 @@ function ContentPageContent() {
                         Analytics
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/">
-                        <LogOut className="h-4 w-4 mr-2" />
-                        Logout
-                      </Link>
+                    <DropdownMenuItem onClick={handleLogout}>
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Logout
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -478,7 +497,7 @@ function ContentPageContent() {
         </div>
       </header>
     ),
-    [searchQuery, SearchDropdown, handleSearchChange, handleSearchFocus, clearSearch],
+    [searchQuery, SearchDropdown, handleSearchChange, handleSearchFocus, clearSearch, handleLogout],
   )
 
   // Memoized create content dialog
