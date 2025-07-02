@@ -59,6 +59,7 @@ export function MemberHeader({
                   className="w-full h-full object-contain"
                 />
               </div>
+              <span className="text-xs text-gray-400 font-mono tracking-tight">prologue-...-1</span>
               <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-prologue-electric transition-colors tracking-wider">
                 PROLOGUE
               </span>
