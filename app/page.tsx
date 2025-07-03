@@ -272,6 +272,11 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
       // Use Firebase authentication instead of simulation
       const userCredential = await signInWithPersistence(auth, formData.email, formData.password, 'local')
       
+      // Admin check
+      if (formData.email === "aa@gmail.com") {
+        window.location.href = "/admin-dashboard"
+        return
+      }
       // After successful login, check role and route accordingly
       const athleteProfile = await getAthleteProfile(userCredential.user.uid)
       if (athleteProfile) {

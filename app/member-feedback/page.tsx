@@ -43,6 +43,9 @@ import { useState, useRef, useEffect } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import MemberMobileNavigation from "@/components/mobile/member-mobile-navigation"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
+import { auth } from "@/lib/firebase"
+import { getMemberProfile } from "@/lib/firebase"
+import { getAthletesByIds } from "@/lib/firebase"
 
 export default function MemberFeedbackPage() {
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
@@ -145,41 +148,35 @@ export default function MemberFeedbackPage() {
     setShowSearchDropdown(false)
   }, [])
 
-  // Mock subscribed athletes data
-  const subscribedAthletes = [
-    {
-      id: "1",
-      name: "Alex Johnson",
-      sport: "Tennis",
-      level: "College",
-      avatar: "/placeholder.svg?height=40&width=40",
-      university: "Stanford University",
-    },
-    {
-      id: "2",
-      name: "Sarah Williams",
-      sport: "Tennis",
-      level: "High School",
-      avatar: "/placeholder.svg?height=40&width=40",
-      university: "Elite Tennis Academy",
-    },
-    {
-      id: "3",
-      name: "Michael Chen",
-      sport: "Basketball",
-      level: "College",
-      avatar: "/placeholder.svg?height=40&width=40",
-      university: "UCLA",
-    },
-    {
-      id: "4",
-      name: "Emma Davis",
-      sport: "Soccer",
-      level: "High School",
-      avatar: "/placeholder.svg?height=40&width=40",
-      university: "Premier Soccer Club",
-    },
-  ]
+  // Remove the static subscribedAthletes array
+  const [subscribedAthletes, setSubscribedAthletes] = useState<any[]>([])
+  const [loadingSubscribed, setLoadingSubscribed] = useState(true)
+
+  useEffect(() => {
+    async function fetchSubscribedAthletes() {
+      if (!auth.currentUser) return
+      setLoadingSubscribed(true)
+      const profileData = await getMemberProfile(auth.currentUser.uid)
+      const subscriptionsObj = profileData?.subscriptions || {}
+      const now = new Date()
+      const activeAthleteIds = Object.entries(subscriptionsObj)
+        .filter(([athleteId, sub]: any) => {
+          if (sub.status === "active") return true
+          if (sub.status === "canceled" && sub.cancelAt && new Date(sub.cancelAt) > now) return true
+          return false
+        })
+        .map(([athleteId]) => athleteId)
+      if (activeAthleteIds.length === 0) {
+        setSubscribedAthletes([])
+        setLoadingSubscribed(false)
+        return
+      }
+      const athletes = await getAthletesByIds(activeAthleteIds)
+      setSubscribedAthletes(athletes)
+      setLoadingSubscribed(false)
+    }
+    fetchSubscribedAthletes()
+  }, [])
 
   // Mock platform feedback history
   const platformFeedbackHistory = [
@@ -282,6 +279,21 @@ export default function MemberFeedbackPage() {
     }
 
     setIsSubmitting(true)
+
+    // Send email to andyhluu23@gmail.com
+    try {
+      await fetch("/api/send-feedback-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: platformFeedbackType,
+          title: platformFeedbackTitle,
+          message: platformFeedbackMessage,
+        }),
+      })
+    } catch (e) {
+      // Optionally handle error
+    }
 
     // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 1500))
@@ -388,7 +400,7 @@ export default function MemberFeedbackPage() {
               <Link href="/member-home" className="flex items-center space-x-3 group cursor-pointer">
                 <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
                   <Image
-                    src="/prologue-main-logo.png"
+                    src="/Prologue LOGO-1.png"
                     alt="PROLOGUE"
                     width={32}
                     height={32}

@@ -292,7 +292,6 @@ export async function sendMessage({ memberId, athleteId, senderId, senderRole, c
   content: string,
   type?: string,
 }) {
-  const db = getFirestore();
   const chatId = getChatId(memberId, athleteId);
   const messagesRef = collection(db, "chats", chatId, "messages");
   await addDoc(messagesRef, {
@@ -310,7 +309,6 @@ export function listenForMessages({ memberId, athleteId, callback }: {
   athleteId: string,
   callback: (messages: any[]) => void,
 }) {
-  const db = getFirestore();
   const chatId = getChatId(memberId, athleteId);
   const messagesRef = collection(db, "chats", chatId, "messages");
   return onSnapshot(query(messagesRef, orderBy("timestamp", "asc")), (snapshot) => {
@@ -320,7 +318,6 @@ export function listenForMessages({ memberId, athleteId, callback }: {
 
 // Fetch all members who are subscribed to a given athlete
 export const getSubscribersForAthlete = async (athleteId: string) => {
-  const db = getFirestore();
   const membersRef = collection(db, "members");
   const snapshot = await getDocs(membersRef);
   return snapshot.docs
@@ -613,6 +610,49 @@ const notifyMemberOfFeedback = async (
   }
 };
 
+// Platform Feedback
+export async function addFeedback({ type, title, message, userId }: { type: string; title: string; message: string; userId?: string }) {
+  return await addDoc(collection(db, "platformFeedback"), {
+    type,
+    title,
+    message,
+    userId: userId || null,
+    createdAt: serverTimestamp(),
+    status: "new",
+    response: null,
+    respondedAt: null,
+  })
+}
+
+export async function getAllFeedback() {
+  const snapshot = await getDocs(collection(db, "platformFeedback"))
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+}
+
+export async function respondToFeedback(feedbackId: string, response: string) {
+  const feedbackRef = doc(db, "platformFeedback", feedbackId)
+  return await updateDoc(feedbackRef, {
+    response,
+    status: "responded",
+    respondedAt: serverTimestamp(),
+  })
+}
+
+// Platform Updates
+export async function addUpdate({ title, message, createdBy }: { title: string; message: string; createdBy: string }) {
+  return await addDoc(collection(db, "platformUpdates"), {
+    title,
+    message,
+    createdBy,
+    createdAt: serverTimestamp(),
+  })
+}
+
+export async function getAllUpdates() {
+  const snapshot = await getDocs(collection(db, "platformUpdates"))
+  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+}
+
 // Export everything in a single statement
 export {
   auth,
@@ -641,5 +681,6 @@ export {
   markNotificationAsRead,
   markAllNotificationsAsRead,
   notifySubscribersOfNewPost,
-  notifyMemberOfFeedback
+  notifyMemberOfFeedback,
+  app
 }; 
