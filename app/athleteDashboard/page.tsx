@@ -300,7 +300,7 @@ export default function DashboardPage() {
               <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
                 <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
                   <Image
-                    src="/prologue-logo.png"
+                    src="/Prologue LOGO-1.png"
                     alt="PROLOGUE"
                     width={32}
                     height={32}

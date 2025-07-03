@@ -37,6 +37,8 @@ type ProfileData = {
   specialties: string[]
   experience: string
   achievements: string[]
+  profilePhotoUrl?: string // Add this
+  coverPhotoUrl?: string   // Add this
 }
 
 interface ProfileHeaderProps {
