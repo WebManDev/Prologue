@@ -35,6 +35,7 @@ import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { AdvancedNotificationProvider } from "@/contexts/advanced-notification-context"
 import { auth, getSubscribersForAthlete, sendMessage, listenForMessages, getChatId } from "@/lib/firebase"
 import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore"
+import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -76,6 +77,8 @@ function MessagingPageContent() {
   const headerSearchInputRef = useRef<HTMLInputElement>(null)
   const conversationSearchInputRef = useRef<HTMLInputElement>(null)
   const messageInputRef = useRef<HTMLTextAreaElement>(null)
+
+  const { logout } = useUnifiedLogout();
 
   // Fetch current user and subscribers
   useEffect(() => {
@@ -343,7 +346,7 @@ function MessagingPageContent() {
                       <Settings className="h-4 w-4 mr-2" />
                       Settings
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => logout()}>
                       <LogOut className="h-4 w-4 mr-2" />
                       Logout
                     </DropdownMenuItem>
@@ -355,7 +358,7 @@ function MessagingPageContent() {
         </div>
       </header>
     ),
-    [HeaderSearchComponent],
+    [HeaderSearchComponent, logout],
   )
 
   const ConversationsList = useMemo(
