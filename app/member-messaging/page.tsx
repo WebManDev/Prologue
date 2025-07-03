@@ -548,52 +548,52 @@ export default function MemberMessagingPage() {
                     </div>
                   ) : (
                     filteredConversations.map((conversation) => (
-                      <button
-                        key={conversation.id}
-                        onClick={() => setSelectedConversation(conversation.id)}
-                        className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-l-4 ${
-                          selectedConversation === conversation.id
-                            ? "bg-prologue-electric/10 border-prologue-electric"
-                            : "border-transparent"
-                        }`}
-                      >
-                        <div className="flex items-start space-x-3">
-                          <div className="relative">
-                            <Image
-                              src={conversation.avatar || "/placeholder.svg"}
-                              alt={conversation.name}
-                              width={40}
-                              height={40}
-                              className="w-10 h-10 rounded-full object-cover"
-                            />
-                            {conversation.online && (
-                              <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                    <button
+                      key={conversation.id}
+                      onClick={() => setSelectedConversation(conversation.id)}
+                      className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-l-4 ${
+                        selectedConversation === conversation.id
+                          ? "bg-prologue-electric/10 border-prologue-electric"
+                          : "border-transparent"
+                      }`}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <div className="relative">
+                          <Image
+                            src={conversation.avatar || "/placeholder.svg"}
+                            alt={conversation.name}
+                            width={40}
+                            height={40}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                          {conversation.online && (
+                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="font-medium text-gray-900 truncate">{conversation.name}</h4>
+                            <span className="text-xs text-gray-500">{conversation.timestamp}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-gray-600 truncate">{conversation.lastMessage}</p>
+                            {conversation.unread > 0 && (
+                              <Badge className="bg-prologue-electric text-white text-xs ml-2">
+                                {conversation.unread}
+                              </Badge>
                             )}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                              <h4 className="font-medium text-gray-900 truncate">{conversation.name}</h4>
-                              <span className="text-xs text-gray-500">{conversation.timestamp}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <p className="text-sm text-gray-600 truncate">{conversation.lastMessage}</p>
-                              {conversation.unread > 0 && (
-                                <Badge className="bg-prologue-electric text-white text-xs ml-2">
-                                  {conversation.unread}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center mt-1">
-                              <Badge variant="secondary" className="text-xs">
-                                {conversation.role}
-                              </Badge>
-                              {conversation.isCoach && (
-                                <Star className="h-3 w-3 text-yellow-500 ml-1" fill="currentColor" />
-                              )}
-                            </div>
+                          <div className="flex items-center mt-1">
+                            <Badge variant="secondary" className="text-xs">
+                              {conversation.role}
+                            </Badge>
+                            {conversation.isCoach && (
+                              <Star className="h-3 w-3 text-yellow-500 ml-1" fill="currentColor" />
+                            )}
                           </div>
                         </div>
-                      </button>
+                      </div>
+                    </button>
                     ))
                   )}
                 </div>

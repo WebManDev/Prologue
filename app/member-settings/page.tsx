@@ -37,6 +37,8 @@ import Image from "next/image"
 import { useState, useRef, useEffect } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import { auth, db } from "@/lib/firebase"
+import { doc, deleteDoc } from "firebase/firestore"
 
 export default function MemberSettingsPage() {
   const { unreadMessagesCount, unreadNotificationsCount } = useMemberNotifications()
@@ -109,14 +111,13 @@ export default function MemberSettingsPage() {
   const handleLogout = async () => {
     try {
       await logout({
-        clearAllData: true,
         onError: (error: unknown) => {
-          console.error("Logout error:", error)
-        },
-      })
+          console.error("Logout error:", error);
+        }
+      });
     } catch (error) {
-      console.error("Logout failed:", error)
-      window.location.href = "/"
+      console.error("Logout failed:", error);
+      window.location.href = "/";
     }
   }
 
@@ -131,9 +132,27 @@ export default function MemberSettingsPage() {
     alert("Your data export has been initiated. You'll receive an email when it's ready.")
   }
 
-  const handleDeleteAccount = () => {
-    if (confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
-      alert("Account deletion initiated. You'll receive a confirmation email.")
+  const handleDeleteAccount = async () => {
+    if (!auth.currentUser) {
+      alert("Not logged in!");
+      return;
+    }
+    if (!confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
+      return;
+    }
+    try {
+      // Delete Firestore document
+      await deleteDoc(doc(db, "members", auth.currentUser.uid));
+      // Delete Auth user
+      await auth.currentUser.delete();
+      // Log out and redirect
+      await logout();
+    } catch (error: any) {
+      if (error.code === "auth/requires-recent-login") {
+        alert("Please re-authenticate and try again.");
+      } else {
+        alert(error.message || "Account deletion failed. Please try again.");
+      }
     }
   }
 
