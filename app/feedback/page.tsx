@@ -424,7 +424,7 @@ function FeedbackPageContent() {
                 <MessageSquare className="h-5 w-5 text-gray-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">5</p>
+                <p className="text-2xl font-bold text-gray-900">{requestedFeedback.length + givenFeedback.length}</p>
                 <p className="text-sm text-gray-600">All feedback</p>
               </div>
             </div>
@@ -437,7 +437,7 @@ function FeedbackPageContent() {
                 <Users className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">3</p>
+                <p className="text-2xl font-bold text-gray-900">{requestedFeedback.length}</p>
                 <p className="text-sm text-gray-600">From subscribers</p>
               </div>
             </div>
@@ -476,11 +476,11 @@ function FeedbackPageContent() {
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="requested" className="flex items-center space-x-2">
             <Users className="h-4 w-4" />
-            <span>Requested (3)</span>
+            <span>Requested ({requestedFeedback.length})</span>
           </TabsTrigger>
           <TabsTrigger value="given" className="flex items-center space-x-2">
             <Star className="h-4 w-4" />
-            <span>Given (2)</span>
+            <span>Given ({givenFeedback.length})</span>
           </TabsTrigger>
           <TabsTrigger value="platform" className="flex items-center space-x-2">
             <Plus className="h-4 w-4" />
