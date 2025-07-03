@@ -39,7 +39,7 @@ import { AthleteNav } from "@/components/navigation/athlete-nav"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { AdvancedNotificationProvider } from "@/contexts/advanced-notification-context"
-import { collection, query, where, getDocs } from "firebase/firestore"
+import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore"
 import { db, auth } from "@/lib/firebase"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -50,6 +50,7 @@ import { ThumbsDown } from "lucide-react"
 import { useNotifications } from "@/contexts/notification-context"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutNotification } from "@/components/ui/logout-notification"
+import { onAuthStateChanged } from "firebase/auth";
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -126,6 +127,26 @@ const FEEDBACK_DATA = {
   ],
 }
 
+// Add a type for requested feedback
+interface RequestedFeedback {
+  id: string;
+  title: string;
+  message: string;
+  createdAt?: { seconds: number };
+  videoUrl?: string;
+  // Add other fields as needed
+}
+
+// Add a type for given feedback
+interface GivenFeedback {
+  id: string;
+  requestId: string;
+  title: string;
+  rating: number;
+  comment: string;
+  createdAt?: { seconds: number };
+}
+
 export default function FeedbackPage() {
   return (
     <AdvancedNotificationProvider>
@@ -146,10 +167,51 @@ function FeedbackPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Feedback completion state
-  const [selectedFeedback, setSelectedFeedback] = useState<any>(null);
+  const [selectedFeedback, setSelectedFeedback] = useState<RequestedFeedback | null>(null);
   const [feedbackRating, setFeedbackRating] = useState(0);
   const [feedbackComment, setFeedbackComment] = useState("");
   const [isCompletingFeedback, setIsCompletingFeedback] = useState(false);
+
+  // State for requested feedback
+  const [requestedFeedback, setRequestedFeedback] = useState<RequestedFeedback[]>([]);
+  const [givenFeedback, setGivenFeedback] = useState<GivenFeedback[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // Fetch requested feedback
+        const q = query(collection(db, "feedbackToAthlete"), where("athleteId", "==", user.uid));
+        getDocs(q).then(snapshot => {
+          setRequestedFeedback(snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              title: data.title || '',
+              message: data.message || '',
+              createdAt: data.createdAt,
+              videoUrl: data.videoUrl || '',
+            };
+          }));
+        });
+        // Fetch given feedback
+        const q2 = query(collection(db, "feedbackGiven"), where("athleteId", "==", user.uid));
+        getDocs(q2).then(snapshot => {
+          setGivenFeedback(snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              requestId: data.requestId,
+              title: data.title || '',
+              rating: data.rating || 0,
+              comment: data.comment || '',
+              createdAt: data.createdAt,
+            };
+          }));
+        });
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Helper function to extract YouTube video ID from URL
   const getYouTubeVideoId = (url: string) => {
@@ -254,17 +316,44 @@ function FeedbackPageContent() {
     alert("Platform feedback submitted successfully!");
   };
 
+  const handleOpenCompleteFeedback = (feedback: RequestedFeedback) => {
+    setSelectedFeedback(feedback);
+    setFeedbackRating(0);
+    setFeedbackComment("");
+  };
+
+  // Update handleCompleteFeedback to save to Firestore
   const handleCompleteFeedback = async () => {
-    if (!selectedFeedback || feedbackRating === 0) {
-      return;
-    }
+    if (!selectedFeedback || feedbackRating === 0) return;
     setIsCompletingFeedback(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const user = auth.currentUser;
+    if (!user) return;
+    // Save to feedbackGiven collection
+    const docRef = await addDoc(collection(db, "feedbackGiven"), {
+      athleteId: user.uid,
+      requestId: selectedFeedback.id,
+      title: selectedFeedback.title,
+      rating: feedbackRating,
+      comment: feedbackComment,
+      createdAt: serverTimestamp(),
+    });
+    // Update local state
+    setGivenFeedback(prev => [
+      {
+        id: docRef.id,
+        requestId: selectedFeedback.id,
+        title: selectedFeedback.title,
+        rating: feedbackRating,
+        comment: feedbackComment,
+        createdAt: { seconds: Math.floor(Date.now() / 1000) },
+      },
+      ...prev,
+    ]);
+    setRequestedFeedback(prev => prev.filter(req => req.id !== selectedFeedback.id));
     setSelectedFeedback(null);
     setFeedbackRating(0);
     setFeedbackComment("");
     setIsCompletingFeedback(false);
-    alert("Feedback completed successfully!");
   };
 
   const getStatusIcon = (status: string) => {
@@ -402,171 +491,157 @@ function FeedbackPageContent() {
         {/* Requested Feedback Tab */}
         <TabsContent value="requested" className="space-y-6">
           <div className="space-y-6">
-            {feedbackRequests.map((request) => {
-              const videoId = getYouTubeVideoId(request.videoUrl);
-              return (
+            {requestedFeedback.length > 0 ? (
+              requestedFeedback.map((request) => (
                 <Card key={request.id}>
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
                         <div className="flex items-center space-x-3 mb-2">
                           <h3 className="text-lg font-semibold text-gray-900">{request.title}</h3>
-                          {getRequestStatusBadge(request.status)}
-                          <Badge variant="outline" className="text-xs">
-                            {request.category}
-                          </Badge>
-                          {request.completed && (
-                            <Badge className="bg-green-100 text-green-700">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Completed
-                            </Badge>
-                          )}
+                          {/* Add status/category badges if you have them */}
                         </div>
-                        <p className="text-gray-600 mb-4">{request.subtitle}</p>
+                        <p className="text-gray-600 mb-4">{request.message}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm text-gray-500 mb-2">{request.createdAt}</p>
+                        <p className="text-sm text-gray-500 mb-2">{request.createdAt ? new Date(request.createdAt.seconds * 1000).toLocaleString() : ""}</p>
                       </div>
                     </div>
-                    {/* Embedded Video Player */}
-                    <div className="mb-6">
-                      <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                        {videoId ? (
-                          <iframe
-                            width="100%"
-                            height="100%"
-                            src={`https://www.youtube.com/embed/${videoId}`}
-                            title={request.title}
-                            frameBorder="0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                            className="w-full h-full"
-                          ></iframe>
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <div className="text-center">
-                              <Play className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                              <p className="text-gray-500">Video not available</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {/* Show completed feedback */}
-                    {request.completed && request.userRating && (
-                      <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                          <span className="text-sm font-medium text-green-800">Your Feedback</span>
+                    {/* Native video player for videoUrl */}
+                    {request.videoUrl && (
+                      <div className="mb-6">
+                        <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                          <video controls className="w-full h-full">
+                            <source src={request.videoUrl} type="video/mp4" />
+                            Your browser does not support the video tag.
+                          </video>
                         </div>
-                        <div className="flex items-center space-x-2 mb-2">
-                          <span className="text-sm text-gray-600">Rating:</span>
-                          <div className="flex items-center space-x-1">
-                            {[...Array(5)].map((_, i) => (
-                              <Star
-                                key={i}
-                                className={`h-4 w-4 ${i < request.userRating! ? "text-yellow-400 fill-current" : "text-gray-300"}`}
-                              />
-                            ))}
-                          </div>
-                          <span className="text-sm text-gray-600">({request.userRating}/5)</span>
-                        </div>
-                        {request.userComment && <p className="text-sm text-gray-700 mt-2">{request.userComment}</p>}
                       </div>
                     )}
                     <div className="flex items-center space-x-3">
-                      {!request.completed ? (
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                              onClick={() => setSelectedFeedback(request)}
-                            >
-                              <Star className="h-4 w-4 mr-2" />
-                              Complete Feedback
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-md">
-                            <DialogHeader>
-                              <DialogTitle>Complete Feedback</DialogTitle>
-                            </DialogHeader>
-                            <div className="space-y-6">
-                              <div>
-                                <h4 className="font-medium text-gray-900 mb-1">{selectedFeedback?.title}</h4>
-                                <p className="text-sm text-gray-600">{selectedFeedback?.subtitle}</p>
-                              </div>
-                              <div>
-                                <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                  Rate this content
-                                </Label>
-                                <div className="flex items-center space-x-1">
-                                  {[1, 2, 3, 4, 5].map((rating) => (
-                                    <button
-                                      key={rating}
-                                      onClick={() => setFeedbackRating(rating)}
-                                      className="p-1 hover:scale-110 transition-transform"
-                                    >
-                                      <Star
-                                        className={`h-6 w-6 ${rating <= feedbackRating ? "text-yellow-400 fill-current" : "text-gray-300 hover:text-yellow-200"}`}
-                                      />
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                              <div>
-                                <Label htmlFor="feedback-comment" className="text-sm font-medium text-gray-700 mb-2 block">
-                                  Additional Comments (Optional)
-                                </Label>
-                                <Textarea
-                                  id="feedback-comment"
-                                  value={feedbackComment}
-                                  onChange={(e) => setFeedbackComment(e.target.value)}
-                                  placeholder="Share your thoughts about this content..."
-                                  rows={4}
-                                />
-                              </div>
-                              <Button
-                                onClick={handleCompleteFeedback}
-                                disabled={feedbackRating === 0 || isCompletingFeedback}
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                              >
-                                {isCompletingFeedback ? (
-                                  <>
-                                    <Clock className="h-4 w-4 mr-2 animate-spin" />
-                                    Submitting...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Send className="h-4 w-4 mr-2" />
-                                    Submit Feedback
-                                  </>
-                                )}
-                              </Button>
+                      <Dialog open={selectedFeedback?.id === request.id} onOpenChange={(open) => !open && setSelectedFeedback(null)}>
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant="outline" onClick={() => handleOpenCompleteFeedback(request)}>
+                            Complete Feedback
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-md">
+                          <DialogHeader>
+                            <DialogTitle>Complete Feedback</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-6">
+                            <div>
+                              <h4 className="font-medium text-gray-900 mb-1">{selectedFeedback?.title}</h4>
+                              <p className="text-sm text-gray-600">{selectedFeedback?.message}</p>
                             </div>
-                          </DialogContent>
-                        </Dialog>
-                      ) : (
-                        <Button variant="outline" disabled>
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          Feedback Completed
-                        </Button>
-                      )}
+                            <div>
+                              <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                Rate this content
+                              </Label>
+                              <div className="flex items-center space-x-1">
+                                {[1, 2, 3, 4, 5].map((rating) => (
+                                  <button
+                                    key={rating}
+                                    onClick={() => setFeedbackRating(rating)}
+                                    className="p-1 hover:scale-110 transition-transform"
+                                  >
+                                    <Star
+                                      className={`h-6 w-6 ${rating <= feedbackRating ? "text-yellow-400 fill-current" : "text-gray-300 hover:text-yellow-200"}`}
+                                    />
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div>
+                              <Label htmlFor="feedback-comment" className="text-sm font-medium text-gray-700 mb-2 block">
+                                Additional Comments (Optional)
+                              </Label>
+                              <Textarea
+                                id="feedback-comment"
+                                value={feedbackComment}
+                                onChange={(e) => setFeedbackComment(e.target.value)}
+                                placeholder="Share your thoughts about this content..."
+                                rows={4}
+                              />
+                            </div>
+                            <Button
+                              onClick={handleCompleteFeedback}
+                              disabled={feedbackRating === 0 || isCompletingFeedback}
+                              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                              {isCompletingFeedback ? (
+                                <>
+                                  <Clock className="h-4 w-4 mr-2 animate-spin" />
+                                  Submitting...
+                                </>
+                              ) : (
+                                <>
+                                  <Send className="h-4 w-4 mr-2" />
+                                  Submit Feedback
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                     </div>
                   </CardContent>
                 </Card>
-              );
-            })}
+              ))
+            ) : (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Users className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback requested</h3>
+                  <p className="text-gray-600">
+                    Start requesting feedback from your subscribers to improve your content.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </TabsContent>
         {/* Given Feedback Tab */}
         <TabsContent value="given" className="space-y-6">
-          <Card>
-            <CardContent className="p-12 text-center">
-              <Star className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback given yet</h3>
-              <p className="text-gray-600">Feedback you've given to other creators will appear here.</p>
-            </CardContent>
-          </Card>
+          {givenFeedback.length > 0 ? (
+            givenFeedback.map((feedback) => (
+              <Card key={feedback.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-start space-x-4">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <h4 className="font-semibold text-gray-900">{feedback.title}</h4>
+                          <Badge className="bg-green-100 text-green-700">Given</Badge>
+                        </div>
+                        <div className="flex items-center space-x-2 text-sm text-gray-500">
+                          <span>{feedback.createdAt ? new Date(feedback.createdAt.seconds * 1000).toLocaleString() : ""}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-1 mb-3">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-4 w-4 ${i < feedback.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+                          />
+                        ))}
+                        <span className="text-sm text-gray-600 ml-2">({feedback.rating}/5)</span>
+                      </div>
+                      <p className="text-gray-700">{feedback.comment}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Star className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback given yet</h3>
+                <p className="text-gray-600">Feedback you've given to other creators will appear here.</p>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
         {/* Platform Feedback Tab */}
         <TabsContent value="platform" className="space-y-6">
