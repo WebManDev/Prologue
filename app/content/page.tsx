@@ -28,6 +28,10 @@ import {
   Camera,
   Upload,
   Loader2,
+  Home,
+  MessageSquare,
+  MessageCircle,
+  Bell,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -49,6 +53,9 @@ import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
 import "react-quill/dist/quill.snow.css"
+import { useNotifications } from "@/contexts/notification-context"
+import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import { LogoutNotification } from "@/components/ui/logout-notification"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -141,7 +148,9 @@ export default function ContentPage() {
 }
 
 function ContentPageContent() {
-  const { isMobile, isTablet } = useMobileDetection()
+  const { isMobile, isTablet } = useMobileDetection();
+  const { hasUnreadMessages } = useNotifications();
+  const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout();
   const auth = typeof window !== "undefined" ? getAuth() : null;
   const user = auth && auth.currentUser;
   const router = useRouter();
@@ -412,17 +421,47 @@ function ContentPageContent() {
     )
   }, [showSearchDropdown, handleSearchSelect])
 
-  // Memoized header component
+  // Memoized search component to prevent re-renders (adapted from athleteDashboard)
+  const SearchComponent = useMemo(
+    () => (
+      <div className="flex items-center space-x-1 relative" ref={searchRef}>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search content..."
+            value={searchQuery}
+            onChange={handleSearchChange}
+            onFocus={handleSearchFocus}
+            className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+          />
+          {searchQuery && (
+            <button
+              onClick={clearSearch}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        {SearchDropdown}
+      </div>
+    ),
+    [searchQuery, showSearchDropdown, handleSearchChange, handleSearchFocus, clearSearch, SearchDropdown]
+  );
+
+  // Full DesktopHeader from athleteDashboard
   const DesktopHeader = useMemo(
     () => (
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <header className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-8">
               <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
                 <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
                   <Image
-                    src="/prologue-main-logo.png"
+                    src="/prologue-logo.png"
                     alt="PROLOGUE"
                     width={32}
                     height={32}
@@ -433,39 +472,45 @@ function ContentPageContent() {
                   PROLOGUE
                 </span>
               </Link>
-
-              <div className="hidden md:flex items-center space-x-1 relative" ref={searchRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    placeholder="Search content..."
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    onFocus={handleSearchFocus}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={clearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                {SearchDropdown}
-              </div>
+              {SearchComponent}
             </div>
-
             <div className="flex items-center space-x-6">
-              <AthleteNav currentPath="/content" />
-
+              <nav className="flex items-center space-x-6">
+                <Link href="/home" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
+                  <Home className="h-5 w-5" />
+                  <span className="text-xs font-medium">Home</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </Link>
+                <Link href="/content" className="flex flex-col items-center space-y-1 text-blue-600 group">
+                  <FileText className="h-5 w-5" />
+                  <span className="text-xs font-medium">Content</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-100 transition-opacity"></div>
+                </Link>
+                <Link href="/feedback" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
+                  <MessageSquare className="h-5 w-5" />
+                  <span className="text-xs font-medium">Feedback</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </Link>
+                <Link href="/messaging" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
+                  <MessageCircle className="h-5 w-5" />
+                  <span className="text-xs font-medium">Messages</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </Link>
+                <Link href="/notifications" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group">
+                  <Bell className="h-5 w-5" />
+                  <span className="text-xs font-medium">Notifications</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
+                </Link>
+              </nav>
               <div className="flex items-center space-x-3">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center space-x-2 p-2">
+                    <Button
+                      variant="ghost"
+                      className="flex items-center space-x-2 p-2"
+                      disabled={loadingState.isLoading}
+                    >
                       <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
                         <User className="w-full h-full text-gray-500 p-1" />
                       </div>
@@ -486,18 +531,18 @@ function ContentPageContent() {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem>
-                      <Settings className="h-4 w-4 mr-2" />
-                      Settings
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Link href="/analytics" className="flex items-center w-full">
-                        <BarChart3 className="h-4 w-4 mr-2" />
-                        Analytics
+                      <Link href="/athlete-settings" className="flex items-center w-full">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Settings
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleLogout}>
+                    <DropdownMenuItem
+                      onClick={() => logout()}
+                      className="cursor-pointer"
+                      disabled={loadingState.isLoading}
+                    >
                       <LogOut className="h-4 w-4 mr-2" />
-                      Logout
+                      {loadingState.isLoading ? "Logging out..." : "Logout"}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -507,8 +552,8 @@ function ContentPageContent() {
         </div>
       </header>
     ),
-    [searchQuery, SearchDropdown, handleSearchChange, handleSearchFocus, clearSearch, handleLogout],
-  )
+    [SearchComponent, hasUnreadMessages, loadingState.isLoading, logout]
+  );
 
   // Memoized create content dialog
   const CreateContentDialog = useMemo(
@@ -1146,7 +1191,7 @@ function ContentPageContent() {
         userType="athlete"
         currentPath="/content"
         showBottomNav={true}
-        unreadNotifications={0}
+        unreadNotifications={hasUnreadMessages ? 1 : 0}
         unreadMessages={0}
         hasNewContent={false}
       >
@@ -1159,6 +1204,16 @@ function ContentPageContent() {
     <div className="min-h-screen bg-gray-50">
       {DesktopHeader}
       {MainContent}
+      <LogoutNotification
+        isVisible={loadingState.isVisible}
+        userType={loadingState.userType}
+        stage={loadingState.stage}
+        message={loadingState.message}
+        error={loadingState.error}
+        canRetry={loadingState.canRetry}
+        onRetry={retryLogout}
+        onCancel={cancelLogout}
+      />
     </div>
   )
 } 

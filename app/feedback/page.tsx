@@ -27,6 +27,10 @@ import {
   Plus,
   Play,
   Send,
+  Home,
+  FileText,
+  MessageCircle,
+  Bell,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -43,6 +47,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ThumbsDown } from "lucide-react"
+import { useNotifications } from "@/contexts/notification-context"
+import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import { LogoutNotification } from "@/components/ui/logout-notification"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -129,39 +136,8 @@ export default function FeedbackPage() {
 
 function FeedbackPageContent() {
   const { isMobile, isTablet } = useMobileDetection();
-
-  // DesktopHeader from the original code
-  const DesktopHeader = (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center space-x-8">
-            <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
-              <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
-                <Image
-                  src="/prologue-main-logo.png"
-                  alt="PROLOGUE"
-                  width={32}
-                  height={32}
-                  className="w-full h-full object-contain"
-                />
-              </div>
-              <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
-                PROLOGUE
-              </span>
-            </Link>
-            <div className="hidden md:flex items-center space-x-1 relative">
-              {/* Search bar and dropdown can be added here if needed */}
-            </div>
-          </div>
-          <div className="flex items-center space-x-6">
-            {/* Navigation and user dropdown */}
-            {/* You can add AthleteNav and DropdownMenu here as in the original header */}
-          </div>
-        </div>
-      </div>
-    </header>
-  );
+  const { hasUnreadMessages } = useNotifications();
+  const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout();
 
   // Platform feedback form state
   const [platformFeedbackType, setPlatformFeedbackType] = useState("");
@@ -759,7 +735,7 @@ function FeedbackPageContent() {
         userType="athlete"
         currentPath="/feedback"
         showBottomNav={true}
-        unreadNotifications={0}
+        unreadNotifications={hasUnreadMessages ? 1 : 0}
         unreadMessages={0}
         hasNewContent={false}
       >
@@ -770,8 +746,141 @@ function FeedbackPageContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {DesktopHeader}
+      {/* DesktopHeader from athleteDashboard/content page */}
+      <header className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-8">
+              <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
+                <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
+                  <Image
+                    src="/prologue-logo.png"
+                    alt="PROLOGUE"
+                    width={32}
+                    height={32}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
+                  PROLOGUE
+                </span>
+              </Link>
+              {/* Memoized search component to prevent re-renders (adapted from athleteDashboard) */}
+              {/* This part of the code was not provided in the edit_specification,
+                  so it's kept as is, but the searchRef and searchInputRef are removed
+                  as they are not defined in the new_code. */}
+              {/* <div className="flex items-center space-x-1 relative" ref={searchRef}>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Search feedback..."
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    onFocus={handleSearchFocus}
+                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={clearSearch}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {SearchDropdown}
+              </div> */}
+            </div>
+            <div className="flex items-center space-x-6">
+              <nav className="flex items-center space-x-6">
+                <Link href="/home" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
+                  <Home className="h-5 w-5" />
+                  <span className="text-xs font-medium">Home</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </Link>
+                <Link href="/content" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
+                  <FileText className="h-5 w-5" />
+                  <span className="text-xs font-medium">Content</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </Link>
+                <Link href="/feedback" className="flex flex-col items-center space-y-1 text-blue-600 group">
+                  <MessageSquare className="h-5 w-5" />
+                  <span className="text-xs font-medium">Feedback</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-100 transition-opacity"></div>
+                </Link>
+                <Link href="/messaging" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
+                  <MessageCircle className="h-5 w-5" />
+                  <span className="text-xs font-medium">Messages</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </Link>
+                <Link href="/notifications" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group">
+                  <Bell className="h-5 w-5" />
+                  <span className="text-xs font-medium">Notifications</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
+                </Link>
+              </nav>
+              <div className="flex items-center space-x-3">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="flex items-center space-x-2 p-2"
+                      disabled={loadingState.isLoading}
+                    >
+                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
+                        <User className="w-full h-full text-gray-500 p-1" />
+                      </div>
+                      <ChevronDown className="h-4 w-4 text-gray-500" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem>
+                      <Link href="/athleteDashboard" className="flex items-center w-full">
+                        <LayoutDashboard className="h-4 w-4 mr-2" />
+                        Profile
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Link href="/promote" className="flex items-center w-full">
+                        <TrendingUp className="h-4 w-4 mr-2" />
+                        Promote
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Link href="/athlete-settings" className="flex items-center w-full">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Settings
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => logout()}
+                      className="cursor-pointer"
+                      disabled={loadingState.isLoading}
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      {loadingState.isLoading ? "Logging out..." : "Logout"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
       {mainContent}
+      <LogoutNotification
+        isVisible={loadingState.isVisible}
+        userType={loadingState.userType}
+        stage={loadingState.stage}
+        message={loadingState.message}
+        error={loadingState.error}
+        canRetry={loadingState.canRetry}
+        onRetry={retryLogout}
+        onCancel={cancelLogout}
+      />
     </div>
   );
 } 
