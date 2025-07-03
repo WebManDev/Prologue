@@ -36,11 +36,14 @@ import MemberMobileNavigation from "@/components/mobile/member-mobile-navigation
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { auth, sendMessage, listenForMessages, getChatId } from "@/lib/firebase"
 import { getFirestore, doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
+import { MemberHeader } from "@/components/navigation/member-header"
+import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 
 export default function MemberMessagingPage() {
   const { unreadMessagesCount, unreadNotificationsCount, markMessagesAsRead, hasNewTrainingContent } =
     useMemberNotifications()
   const { isMobile, isTablet } = useMobileDetection()
+  const { logout } = useUnifiedLogout()
 
   // Search dropdown state
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
@@ -336,193 +339,35 @@ export default function MemberMessagingPage() {
     )
   }, [searchQuery, searchResults, quickSearches, handleSearchSelect, isMobile, isTablet])
 
+  // Get profile image and data for header
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
+  const [profileData, setProfileData] = useState<any>(null)
+  useEffect(() => {
+    if (!currentUser) return
+    const fetchProfile = async () => {
+      const memberDoc = await getDoc(doc(db, "members", currentUser.uid))
+      if (memberDoc.exists()) {
+        const data = memberDoc.data()
+        setProfileImageUrl(data.profilePic || null)
+        setProfileData({ firstName: data.firstName || "", lastName: data.lastName || "" })
+      }
+    }
+    fetchProfile()
+  }, [currentUser, db])
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/member-home" className="flex items-center space-x-3 group cursor-pointer">
-                <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
-                  <Image
-                    src="/Prologue LOGO-1.png"
-                    alt="PROLOGUE"
-                    width={32}
-                    height={32}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                {!isMobile && (
-                  <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-prologue-electric transition-colors tracking-wider">
-                    PROLOGUE
-                  </span>
-                )}
-              </Link>
-
-              <div className="hidden md:flex items-center space-x-1 relative" ref={searchRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search conversations..."
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-prologue-electric/20 transition-all"
-                    onFocus={handleSearchFocus}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={clearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-
-                {showSearchDropdown && searchDropdownContent}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-6">
-              <nav className="hidden lg:flex items-center space-x-6">
-                <Link
-                  href="/member-home"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
-                >
-                  <Home className="h-5 w-5" />
-                  <span className="text-xs font-medium">Home</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/member-training"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group relative"
-                >
-                  <BookOpen className="h-5 w-5" />
-                  <span className="text-xs font-medium">Training</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {hasNewTrainingContent && (
-                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-                  )}
-                </Link>
-                <Link
-                  href="/member-feedback"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
-                >
-                  <MessageSquare className="h-5 w-5" />
-                  <span className="text-xs font-medium">Feedback</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link href="/member-messaging" className="flex flex-col items-center space-y-1 text-prologue-electric">
-                  <MessageCircle className="h-5 w-5" />
-                  <span className="text-xs font-medium">Messages</span>
-                  <div className="w-full h-0.5 bg-prologue-electric"></div>
-                </Link>
-                <Link
-                  href="/member-notifications"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors relative group"
-                >
-                  <Bell className="h-5 w-5" />
-                  <span className="text-xs font-medium">Notifications</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {unreadNotificationsCount > 0 && (
-                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-                  )}
-                </Link>
-              </nav>
-
-              {/* Mobile/Tablet Navigation - Search and Bell */}
-              {(isMobile || isTablet) && (
-                <div className="flex items-center space-x-2">
-                  {/* Search Button */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowSearchDropdown(!showSearchDropdown)}
-                    className="p-2 touch-target"
-                  >
-                    <Search className="h-5 w-5 text-gray-600" />
-                  </Button>
-
-                  {/* Notification Bell */}
-                  <Link href="/member-notifications" className="relative">
-                    <Button variant="ghost" size="sm" className="p-2 touch-target relative">
-                      <Bell className="h-5 w-5 text-gray-600" />
-                      {unreadNotificationsCount > 0 && (
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
-                          <span className="text-xs text-white font-bold leading-none">
-                            {unreadNotificationsCount > 9 ? "9+" : unreadNotificationsCount}
-                          </span>
-                        </div>
-                      )}
-                    </Button>
-                  </Link>
-                </div>
-              )}
-
-              <div className="flex items-center space-x-3">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center space-x-2 p-2">
-                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                        <User className="w-full h-full text-gray-500 p-1" />
-                      </div>
-                      {!isMobile && <ChevronDown className="h-4 w-4 text-gray-500" />}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem>
-                      <Link href="/member-dashboard" className="flex items-center w-full">
-                        <LayoutDashboard className="h-4 w-4 mr-2" />
-                        Profile
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Link href="/member-settings" className="flex items-center w-full">
-                        <Settings className="h-4 w-4 mr-2" />
-                        Settings
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Logout
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-
-          {/* Mobile Search Dropdown */}
-          {(isMobile || isTablet) && showSearchDropdown && (
-            <div className="border-t border-gray-200 bg-white">
-              <div className="px-4 py-4" ref={searchRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search conversations..."
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="w-full pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
-                    onFocus={handleSearchFocus}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={clearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                {searchDropdownContent}
-              </div>
-            </div>
-          )}
-        </div>
-      </header>
+      <MemberHeader
+        currentPath="/member-messaging"
+        onLogout={logout}
+        showSearch={true}
+        unreadNotifications={unreadNotificationsCount}
+        unreadMessages={unreadMessagesCount}
+        hasNewContent={hasNewTrainingContent}
+        profileImageUrl={profileImageUrl}
+        profileData={profileData}
+      />
 
       {/* Main Content */}
       <main className={`max-w-7xl mx-auto px-6 py-8 ${isMobile || isTablet ? "pb-20" : ""}`}>
