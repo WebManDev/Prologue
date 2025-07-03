@@ -56,6 +56,7 @@ import "react-quill/dist/quill.snow.css"
 import { useNotifications } from "@/contexts/notification-context"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutNotification } from "@/components/ui/logout-notification"
+import { ExactCourseCreationForm } from "@/components/ExactCourseCreationForm";
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -184,6 +185,8 @@ function ContentPageContent() {
   const [subscriberCount, setSubscriberCount] = useState<number | null>(null)
   const [firebaseArticles, setFirebaseArticles] = useState<any[]>([])
   const [firebaseVideos, setFirebaseVideos] = useState<any[]>([])
+  const [firebaseCourses, setFirebaseCourses] = useState<any[]>([]);
+  const [isCreatingCourse, setIsCreatingCourse] = useState(false);
 
   useEffect(() => {
     async function fetchCounts() {
@@ -239,6 +242,22 @@ function ContentPageContent() {
     }
     fetchVideos()
   }, [user])
+
+  // Fetch courses from Firebase
+  useEffect(() => {
+    async function fetchCourses() {
+      try {
+        if (!user) return;
+        const q = query(collection(db, "courses"), where("createdBy", "==", user.uid));
+        const snap = await getDocs(q);
+        const courses = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setFirebaseCourses(courses);
+      } catch (e) {
+        setFirebaseCourses([]);
+      }
+    }
+    fetchCourses();
+  }, [user]);
 
   // Handle clicks outside search dropdown
   useEffect(() => {
@@ -389,6 +408,82 @@ function ContentPageContent() {
       setIsCreatingContent(false);
     }
   }, [contentType, contentTitle, contentDescription, contentCategory, coverImageFile, videoFile, user])
+
+  // Save new course to Firebase (with file uploads for lessons)
+  const handleCreateCourse = useCallback(async (courseData: any) => {
+    if (!user) {
+      window.alert("You must be logged in to create a course.");
+      return;
+    }
+    setIsCreatingCourse(true);
+    try {
+      // Upload lesson files if present
+      const storage = getStorage();
+      const lessonsWithUrls = await Promise.all(
+        (courseData.lessons || []).map(async (lesson: any) => {
+          let videoUrl = "";
+          let coverImageUrl = "";
+          if (lesson.videoFile) {
+            const storageRef = ref(storage, `course-videos/${Date.now()}-${lesson.videoFile.name}`);
+            await uploadBytes(storageRef, lesson.videoFile);
+            videoUrl = await getDownloadURL(storageRef);
+          }
+          if (lesson.coverImage) {
+            const storageRef = ref(storage, `course-covers/${Date.now()}-${lesson.coverImage.name}`);
+            await uploadBytes(storageRef, lesson.coverImage);
+            coverImageUrl = await getDownloadURL(storageRef);
+          }
+          // Remove File objects
+          const { videoFile, coverImage, ...rest } = lesson;
+          const sanitizedLesson = {
+            ...rest,
+            videoUrl,
+            coverImageUrl,
+          };
+          Object.keys(sanitizedLesson).forEach((key) => {
+            if (sanitizedLesson[key] === undefined) {
+              delete sanitizedLesson[key];
+            }
+          });
+          return sanitizedLesson;
+        })
+      );
+      const courseToSave: any = {
+        title: courseData.title,
+        description: courseData.description,
+        category: courseData.category,
+        lessons: lessonsWithUrls,
+        createdAt: Timestamp.now(),
+        createdBy: user.uid,
+        views: 0,
+        rating: 0,
+      };
+      // Remove undefined fields from course
+      Object.keys(courseToSave).forEach((key) => {
+        if (courseToSave[key] === undefined) {
+          delete courseToSave[key];
+        }
+      });
+      console.log("Saving course to Firestore", courseToSave);
+      await addDoc(collection(db, "courses"), courseToSave);
+      console.log("Course saved!");
+      // Re-fetch courses after creation
+      const q = query(collection(db, "courses"), where("createdBy", "==", user.uid));
+      const snap = await getDocs(q);
+      const courses = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setFirebaseCourses(courses);
+      setShowCreateDialog(false);
+    } catch (e) {
+      window.alert("Failed to create course. Please try again or check the console for details.");
+      console.error("Failed to create course:", e);
+    } finally {
+      setIsCreatingCourse(false);
+    }
+  }, [user]);
+
+  const handleCategoryChange = useCallback((category: string) => {
+    setContentCategory(category);
+  }, []);
 
   const handleLogout = async () => {
     if (auth) {
@@ -568,7 +663,9 @@ function ContentPageContent() {
             {isMobile ? "Create" : "Create Content"}
           </Button>
         </DialogTrigger>
-        <DialogContent className={`${isMobile ? "w-[95vw] max-w-[95vw]" : "max-w-2xl"}`}>
+        <DialogContent
+          className={`${isMobile ? "w-[95vw] max-w-[95vw] max-h-[90vh]" : "max-w-4xl max-h-[90vh]"} overflow-y-auto`}
+        >
           <DialogHeader>
             <DialogTitle>Create New Content</DialogTitle>
           </DialogHeader>
@@ -588,138 +685,100 @@ function ContentPageContent() {
               </Select>
             </div>
 
-            {/* Title */}
-            <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
-              <Input
-                ref={titleInputRef}
-                id="title"
-                placeholder="Enter content title..."
-                value={contentTitle}
-                onChange={handleTitleChange}
-              />
-            </div>
-
-            {/* Category */}
-            <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Select value={contentCategory} onValueChange={setContentCategory}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mental-performance">Mental Performance</SelectItem>
-                  <SelectItem value="nutrition">Nutrition</SelectItem>
-                  <SelectItem value="nil">NIL</SelectItem>
-                  <SelectItem value="recruitment">Recruitment</SelectItem>
-                  <SelectItem value="training">Training</SelectItem>
-                  <SelectItem value="injury-prevention">Injury Prevention</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Description */}
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <div className="bg-white rounded border border-input focus-within:ring-2 focus-within:ring-blue-500/20">
-                <LexicalRichTextEditor value={contentDescription} onChange={setContentDescription} />
-              </div>
-            </div>
-
-            {/* File Upload Area */}
-            <div className="space-y-2">
-              <Label>
-                {contentType === "video"
-                  ? "Video File"
-                  : contentType === "article"
-                    ? "Cover Image"
-                    : "Course Materials"}
-              </Label>
-              {contentType === "video" && (
-                <div className="flex flex-col items-center space-y-2">
-                  {videoPreview && (
-                    <video src={videoPreview} controls className="w-full max-w-xs rounded mb-2" />
-                  )}
-                  <input
-                    type="file"
-                    accept="video/mp4,video/quicktime"
-                    onChange={handleVideoChange}
-                    className="hidden"
-                    id="video-upload"
+            {/* If Training Course, show ExactCourseCreationForm */}
+            {contentType === "course" ? (
+              <ExactCourseCreationForm onSubmit={handleCreateCourse} onSuccess={() => setShowCreateDialog(false)} />
+            ) : (
+              <>
+                {/* Title */}
+                <div className="space-y-2">
+                  <Label htmlFor="title">Title</Label>
+                  <Input
+                    ref={titleInputRef}
+                    id="title"
+                    placeholder="Enter content title..."
+                    value={contentTitle}
+                    onChange={handleTitleChange}
                   />
-                  <label htmlFor="video-upload" className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer w-full max-w-xs">
-                    <Camera className="h-8 w-8 text-gray-400 mx-auto" />
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium text-blue-600 hover:text-blue-500 cursor-pointer">
-                        Click to upload
-                      </span>{" "}
-                      or drag and drop
-                    </div>
-                    <p className="text-xs text-gray-500">MP4, MOV up to 500MB</p>
-                  </label>
                 </div>
-              )}
-              {contentType === "article" && (
-                <div className="flex flex-col items-center space-y-2">
-                  {coverImagePreview && (
-                    <img src={coverImagePreview} alt="Cover Preview" className="w-full max-w-xs rounded mb-2" />
-                  )}
-                  <input
-                    type="file"
-                    accept="image/png, image/jpeg"
-                    onChange={handleCoverImageChange}
-                    className="hidden"
-                    id="cover-image-upload"
-                  />
-                  <label htmlFor="cover-image-upload" className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer w-full max-w-xs">
-                    <Upload className="h-8 w-8 text-gray-400 mx-auto" />
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium text-blue-600 hover:text-blue-500 cursor-pointer">
-                        Click to upload
-                      </span>{" "}
-                      or drag and drop
-                    </div>
-                    <p className="text-xs text-gray-500">PNG, JPG up to 10MB</p>
-                  </label>
+                {/* Category */}
+                <div className="space-y-2">
+                  <Label htmlFor="category">Category</Label>
+                  <Select
+                    value={contentCategory}
+                    onValueChange={handleCategoryChange}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mental-performance">Mental Performance</SelectItem>
+                      <SelectItem value="nutrition">Nutrition</SelectItem>
+                      <SelectItem value="nil">NIL</SelectItem>
+                      <SelectItem value="recruitment">Recruitment</SelectItem>
+                      <SelectItem value="training">Training</SelectItem>
+                      <SelectItem value="injury-prevention">Injury Prevention</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
-              {contentType === "course" && (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer">
-                  <div className="flex flex-col items-center space-y-2">
-                    <Upload className="h-8 w-8 text-gray-400" />
-                    <div className="text-sm text-gray-600">
-                      <span className="font-medium text-blue-600 hover:text-blue-500 cursor-pointer">
-                        Click to upload
-                      </span>{" "}
-                      or drag and drop
-                    </div>
-                    <p className="text-xs text-gray-500">PDF, DOC up to 50MB</p>
+                {/* Description */}
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <div className="bg-white rounded border border-input focus-within:ring-2 focus-within:ring-blue-500/20">
+                    <LexicalRichTextEditor value={contentDescription} onChange={setContentDescription} />
                   </div>
                 </div>
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-end space-x-3 pt-4">
-              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                Cancel
-              </Button>
-              <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleCreateContent} disabled={isCreatingContent}>
-                {isCreatingContent ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>Create Content</>
-                )}
-              </Button>
-            </div>
+                {/* File Upload Area for non-course content */}
+                <div className="space-y-2">
+                  <Label>
+                    {contentType === "video"
+                      ? "Video File"
+                      : contentType === "article"
+                        ? "Cover Image"
+                        : "Course Materials"}
+                  </Label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer">
+                    <div className="flex flex-col items-center space-y-2">
+                      {contentType === "video" ? (
+                        <Camera className="h-8 w-8 text-gray-400" />
+                      ) : (
+                        <Upload className="h-8 w-8 text-gray-400" />
+                      )}
+                      <div className="text-sm text-gray-600">
+                        <span className="font-medium text-blue-600 hover:text-blue-500 cursor-pointer">
+                          Click to upload
+                        </span>{" "}
+                        or drag and drop
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {contentType === "video"
+                          ? "MP4, MOV up to 500MB"
+                          : contentType === "article"
+                            ? "PNG, JPG up to 10MB"
+                            : "PDF, DOC up to 50MB"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                {/* Action Buttons */}
+                <div className="flex justify-end space-x-3 pt-4">
+                  <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700"
+                    onClick={handleCreateContent}
+                    disabled={!contentTitle}
+                  >
+                    Create Content
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
-    ),
-    [
+    ), [
       showCreateDialog,
       isMobile,
       contentType,
@@ -728,26 +787,25 @@ function ContentPageContent() {
       contentCategory,
       handleTitleChange,
       handleDescriptionChange,
+      handleCategoryChange,
       handleCreateContent,
-      coverImageFile,
-      coverImagePreview,
-      handleCoverImageChange,
-      videoFile,
-      videoPreview,
-      handleVideoChange,
-      isCreatingContent,
-    ],
-  )
+      titleInputRef,
+      descriptionInputRef,
+      setShowCreateDialog,
+    ]);
 
   // Merge Firebase and static articles for display
   const allArticles = [...firebaseArticles, ...CONTENT_DATA.articles]
   // Merge Firebase and static videos for display
   const allVideos = [...firebaseVideos, ...CONTENT_DATA.videos]
+  // Merge Firebase and static courses for display
+  const allCourses = [...firebaseCourses, ...CONTENT_DATA.courses];
 
   // Helper to merge and sort latest content
   const latestContent = [
     ...firebaseVideos.map(v => ({ ...v, type: 'video' })),
-    ...firebaseArticles.map(a => ({ ...a, type: 'article' }))
+    ...firebaseArticles.map(a => ({ ...a, type: 'article' })),
+    ...firebaseCourses.map(c => ({ ...c, type: 'course' }))
   ]
     .filter(item => item.createdAt)
     .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
@@ -1068,7 +1126,7 @@ function ContentPageContent() {
             <div
               className={`grid ${isMobile ? "grid-cols-1 gap-4" : isTablet ? "grid-cols-1 gap-4" : "md:grid-cols-2 gap-6"}`}
             >
-              {CONTENT_DATA.courses.map((course) => (
+              {allCourses.map((course) => (
                 <Card key={course.id} className="hover:shadow-lg transition-shadow cursor-pointer">
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-3">
@@ -1080,19 +1138,38 @@ function ContentPageContent() {
                         <span>{course.rating}</span>
                       </div>
                     </div>
-                    <h4 className={`${isMobile ? "text-base" : "text-lg"} font-semibold mb-2`}>{course.title}</h4>
+                    <h4 className={`${isMobile ? "text-base" : "text-lg"} font-semibold mb-3`}>{course.title}</h4>
+                    {/* Course Lessons Preview */}
+                    <div className="mb-4">
+                      <p className="text-sm text-gray-600 mb-2">
+                        {course.lessons?.length || course.sessions} lessons:
+                      </p>
+                      <div className="space-y-1">
+                        {course.lessons?.slice(0, 3).map((lesson: any, index: number) => (
+                          <div key={lesson.id || index} className="flex items-center space-x-2 text-xs text-gray-500">
+                            {lesson.type === "video" ? (
+                              <Video className="h-3 w-3 text-blue-500" />
+                            ) : (
+                              <FileText className="h-3 w-3 text-green-500" />
+                            )}
+                            <span className="truncate">{lesson.title}</span>
+                            <span className="text-gray-400">•</span>
+                            <span>{lesson.duration}</span>
+                          </div>
+                        ))}
+                        {course.lessons && course.lessons.length > 3 && (
+                          <p className="text-xs text-gray-400 pl-5">+{course.lessons.length - 3} more lessons</p>
+                        )}
+                      </div>
+                    </div>
                     <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
                       <div className="flex items-center space-x-2">
-                        <BookOpen className="h-4 w-4" />
-                        <span>{course.sessions} sessions</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
                         <Clock className="h-4 w-4" />
-                        <span>{course.duration}</span>
+                        <span>{course.duration || ""}</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Users className="h-4 w-4" />
-                        <span>{course.participants} enrolled</span>
+                        <span>{course.participants || 0} enrolled</span>
                       </div>
                     </div>
                   </CardContent>
