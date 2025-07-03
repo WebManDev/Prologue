@@ -134,6 +134,7 @@ interface RequestedFeedback {
   message: string;
   createdAt?: { seconds: number };
   videoUrl?: string;
+  memberId?: string; // Added memberId
   // Add other fields as needed
 }
 
@@ -190,6 +191,7 @@ function FeedbackPageContent() {
               message: data.message || '',
               createdAt: data.createdAt,
               videoUrl: data.videoUrl || '',
+              memberId: data.memberId || null, // Assuming memberId is stored in feedbackToAthlete
             };
           }));
         });
@@ -336,6 +338,7 @@ function FeedbackPageContent() {
       rating: feedbackRating,
       comment: feedbackComment,
       createdAt: serverTimestamp(),
+      memberId: selectedFeedback.memberId || null, // <-- add memberId
     });
     // Update local state
     setGivenFeedback(prev => [

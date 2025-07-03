@@ -47,9 +47,21 @@ import { auth } from "@/lib/firebase"
 import { getMemberProfile } from "@/lib/firebase"
 import { getAthletesByIds } from "@/lib/firebase"
 import { db } from "@/lib/firebase"
-import { addDoc, collection, Timestamp, getDocs, query, orderBy } from "firebase/firestore"
+import { addDoc, collection, Timestamp, getDocs, query, orderBy, where } from "firebase/firestore"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { onAuthStateChanged } from "firebase/auth"
+
+// Add a type for received feedback
+interface ReceivedFeedback {
+  id: string;
+  requestId: string;
+  title: string;
+  rating: number;
+  comment: string;
+  createdAt?: { seconds: number };
+  athleteId?: string;
+  // Add other fields as needed
+}
 
 export default function MemberFeedbackPage() {
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
@@ -168,7 +180,7 @@ export default function MemberFeedbackPage() {
     return () => unsubscribe();
   }, []);
 
-  async function fetchSubscribedAthletes(uid) {
+  async function fetchSubscribedAthletes(uid: string) {
     setLoadingSubscribed(true);
     const profileData = await getMemberProfile(uid);
     const subscriptionsArr = profileData?.subscriptions || [];
@@ -196,6 +208,33 @@ export default function MemberFeedbackPage() {
       })
       .finally(() => setLoadingFeedbackHistory(false))
   }, [])
+
+  const [receivedFeedback, setReceivedFeedback] = useState<ReceivedFeedback[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        const q = query(collection(db, "feedbackGiven"), where("memberId", "==", user.uid));
+        getDocs(q).then(snapshot => {
+          setReceivedFeedback(snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              requestId: data.requestId || '',
+              title: data.title || '',
+              rating: data.rating || 0,
+              comment: data.comment || '',
+              createdAt: data.createdAt,
+              athleteId: data.athleteId || '',
+            };
+          }));
+        });
+      } else {
+        setReceivedFeedback([]);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Handle clicks outside search dropdown
   useEffect(() => {
@@ -353,9 +392,9 @@ export default function MemberFeedbackPage() {
 
   // Memoized search dropdown content
   const searchDropdownContent = React.useMemo(() => {
-    const displayItems = searchQuery ? searchResults : quickSearches.slice(0, 8)
-    const isShowingResults = searchQuery && searchResults.length > 0
-    const isShowingQuickSearches = !searchQuery
+    const displayItems = searchQuery ? searchResults : quickSearches.slice(0, 8);
+    const isShowingResults = searchQuery && searchResults.length > 0;
+    const isShowingQuickSearches = !searchQuery;
 
     return (
       <div
@@ -367,7 +406,7 @@ export default function MemberFeedbackPage() {
           </h4>
           <div className="space-y-1">
             {isShowingQuickSearches &&
-              displayItems.map((search, index) => (
+              quickSearches.slice(0, 8).map((search, index) => (
                 <button
                   key={index}
                   className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-prologue-electric rounded transition-colors"
@@ -378,11 +417,11 @@ export default function MemberFeedbackPage() {
               ))}
 
             {isShowingResults &&
-              displayItems.map((result, index) => (
+              searchResults.map((result, index) => (
                 <div
                   key={index}
                   className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                  onClick={() => handleSearchSelect(result.name || result.title)}
+                  onClick={() => handleSearchSelect(result.name || result.title || "")}
                 >
                   <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
                     <User className="h-4 w-4 text-gray-500" />
@@ -905,6 +944,42 @@ export default function MemberFeedbackPage() {
           {/* Feedback History Tab */}
           <TabsContent value="history">
             <div className="space-y-4">
+              {/* Feedback received from athletes */}
+              {receivedFeedback.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                      <Star className="h-5 w-5" />
+                      <span>Feedback Received from Athletes</span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {receivedFeedback.map((feedback) => (
+                        <div key={feedback.id} className="p-4 bg-gray-50 rounded-lg">
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="font-medium text-gray-900">{feedback.title}</h4>
+                            <Badge variant="secondary" className="bg-green-100 text-green-700">
+                              Received
+                            </Badge>
+                          </div>
+                          <div className="flex items-center space-x-1 mb-2">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-4 w-4 ${i < feedback.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+                              />
+                            ))}
+                            <span className="text-sm text-gray-600 ml-2">({feedback.rating}/5)</span>
+                          </div>
+                          <p className="text-gray-700 mb-1">{feedback.comment}</p>
+                          <div className="text-xs text-gray-500">{feedback.createdAt?.seconds ? new Date(feedback.createdAt.seconds * 1000).toLocaleString() : ""}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
               {loadingFeedbackHistory ? (
                 <div className="text-gray-500 text-center py-8">Loading feedback history...</div>
               ) : platformFeedbackHistory.length === 0 ? (
