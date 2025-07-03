@@ -964,7 +964,7 @@ export default function MemberDashboardPage() {
 
   const memberStats = useMemo(
     () => ({
-      activeCoaches: Math.max(subscribedCreators.length, 0),
+      activeCoaches: Array.isArray(subscribedCreators) ? subscribedCreators.length : 0,
       totalSessions: 18,
       thisWeek: 3,
       thisMonth: 12,
