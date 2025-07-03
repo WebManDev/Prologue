@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -27,71 +27,57 @@ import Link from "next/link"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
+import { useParams, useRouter } from "next/navigation"
+import { doc, getDoc } from "firebase/firestore"
+import { db, auth } from "@/lib/firebase"
+import { SubscriptionCheckout } from "@/components/subscription-checkout"
 
 const subscriptionPlans = [
   {
-    id: "starter",
-    name: "Starter",
-    price: 19.99,
-    originalPrice: 29.99,
-    description: "Perfect for beginners getting started",
-    popular: false,
+    id: "basic",
+    name: "Basic",
+    price: 9.99,
+    description: "Perfect for getting started with creator content.",
     features: [
-      "Access to basic training content",
-      "Community forum access",
-      "Monthly group sessions",
-      "Basic progress tracking",
+      "Access to free content",
+      "Limited community access",
       "Email support",
-      "Mobile app access",
+      "Monthly newsletter",
     ],
-    limitations: ["Limited to 5 creators", "No premium content", "Standard support only"],
     color: "blue",
+    popular: false,
   },
   {
     id: "pro",
     name: "Pro",
-    price: 39.99,
-    originalPrice: 59.99,
-    description: "Most popular choice for serious athletes",
-    popular: true,
+    price: 29.99,
+    description: "Unlock full access to exclusive content and direct interaction.",
     features: [
-      "Everything in Starter",
-      "Access to premium content",
-      "Unlimited creator subscriptions",
-      "1-on-1 coaching sessions (2/month)",
-      "Advanced analytics & insights",
-      "Priority support",
-      "Video analysis tools",
-      "Custom training plans",
-      "Live Q&A sessions",
-      "Offline content download",
+      "All Basic features",
+      "Access to all premium content",
+      "Direct messaging with creator",
+      "Personalized training plans (limited)",
+      "Priority email support",
+      "Exclusive community forums",
+      "Early access to new content",
     ],
-    limitations: [],
     color: "purple",
+    popular: true,
   },
   {
-    id: "elite",
-    name: "Elite",
-    price: 79.99,
-    originalPrice: 99.99,
-    description: "For professional athletes and coaches",
-    popular: false,
+    id: "premium",
+    name: "Premium",
+    price: 49.99,
+    description: "The ultimate experience with personalized coaching and exclusive benefits.",
     features: [
-      "Everything in Pro",
-      "Unlimited 1-on-1 sessions",
-      "Personal performance coach",
-      "Advanced video analysis",
-      "Custom nutrition plans",
-      "Recovery & wellness tracking",
-      "Competition preparation",
-      "Exclusive masterclasses",
-      "Direct creator messaging",
-      "White-label coaching tools",
-      "API access for integrations",
-      "Dedicated account manager",
+      "All Pro features",
+      "Personalized training plans (full)",
+      "24/7 chat support",
+      "Monthly Q&A sessions",
+      "1-on-1 video call (1/month)",
     ],
-    limitations: [],
     color: "gold",
+    popular: false,
   },
 ]
 
@@ -162,6 +148,69 @@ export default function SubscribePage() {
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null)
   const [promoCode, setPromoCode] = useState("")
   const [promoApplied, setPromoApplied] = useState(false)
+  const [athlete, setAthlete] = useState<any>(null)
+  const [member, setMember] = useState<any>(null)
+  const [loadingAthlete, setLoadingAthlete] = useState(true)
+  const [memberEmail, setMemberEmail] = useState("")
+  const [memberName, setMemberName] = useState("")
+  const [isSubscribed, setIsSubscribed] = useState(false)
+
+  const params = useParams()
+  const router = useRouter()
+  const athleteId = Array.isArray(params?.id) ? params.id[0] : params?.id
+
+  useEffect(() => {
+    async function fetchAthlete() {
+      if (!athleteId) return
+      setLoadingAthlete(true)
+      try {
+        const athleteRef = doc(db, "athletes", athleteId)
+        const athleteSnap = await getDoc(athleteRef)
+        if (athleteSnap.exists()) {
+          setAthlete({ id: athleteId, ...athleteSnap.data() })
+        } else {
+          setAthlete({ id: athleteId }) // fallback
+        }
+      } catch (e) {
+        setAthlete({ id: athleteId })
+      }
+      setLoadingAthlete(false)
+    }
+    fetchAthlete()
+  }, [athleteId])
+
+  useEffect(() => {
+    async function fetchMember() {
+      if (auth.currentUser) {
+        const memberRef = doc(db, "members", auth.currentUser.uid);
+        const memberSnap = await getDoc(memberRef);
+        if (memberSnap.exists()) {
+          const data = memberSnap.data();
+          const memberData = {
+            id: auth.currentUser.uid,
+            name: data.firstName || data.name || "",
+            email: data.email || "",
+            subscriptions: data.subscriptions || {}
+          };
+          setMember(memberData);
+          
+          // Check if already subscribed to this athlete
+          const subscribedToAthlete = athleteId && memberData.subscriptions && 
+            memberData.subscriptions[athleteId] && 
+            memberData.subscriptions[athleteId].status === "active";
+          setIsSubscribed(!!subscribedToAthlete);
+        }
+      }
+    }
+    fetchMember();
+  }, [auth.currentUser, athleteId]);
+
+  useEffect(() => {
+    if (auth.currentUser) {
+      setMemberEmail(auth.currentUser.email || "")
+      setMemberName(auth.currentUser.displayName || "")
+    }
+  }, [auth.currentUser])
 
   const selectedPlanData = subscriptionPlans.find((plan) => plan.id === selectedPlan)
   const yearlyDiscount = 0.2 // 20% discount for yearly billing
@@ -294,14 +343,11 @@ export default function SubscribePage() {
                 <div className="mb-4">
                   <div
                     className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center ${
-                      plan.color === "blue"
-                        ? "bg-blue-100"
-                        : plan.color === "purple"
-                          ? "bg-purple-100"
-                          : "bg-yellow-100"
+                      plan.color === "purple"
+                        ? "bg-purple-100"
+                        : "bg-yellow-100"
                     }`}
                   >
-                    {plan.color === "blue" && <Zap className="h-8 w-8 text-blue-600" />}
                     {plan.color === "purple" && <Crown className="h-8 w-8 text-purple-600" />}
                     {plan.color === "gold" && <Trophy className="h-8 w-8 text-yellow-600" />}
                   </div>
@@ -340,19 +386,6 @@ export default function SubscribePage() {
                   ))}
                 </div>
 
-                {/* Limitations */}
-                {plan.limitations.length > 0 && (
-                  <div className="space-y-2 pt-4 border-t border-gray-100">
-                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Limitations</div>
-                    {plan.limitations.map((limitation, index) => (
-                      <div key={index} className="flex items-start space-x-3">
-                        <X className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
-                        <span className="text-sm text-gray-500">{limitation}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
                 <Button
                   onClick={() => {
                     setSelectedPlan(plan.id)
@@ -363,8 +396,14 @@ export default function SubscribePage() {
                       ? "bg-prologue-electric hover:bg-prologue-blue text-white"
                       : "bg-gray-900 hover:bg-gray-800 text-white"
                   }`}
+                  disabled={isSubscribed}
                 >
-                  {plan.popular ? (
+                  {isSubscribed ? (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Already Subscribed
+                    </>
+                  ) : plan.popular ? (
                     <>
                       <Crown className="h-4 w-4 mr-2" />
                       Start Free Trial
@@ -397,13 +436,7 @@ export default function SubscribePage() {
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-4 px-4 font-medium text-gray-900">Features</th>
-                    <th className="text-center py-4 px-4 font-medium text-gray-900">Starter</th>
-                    <th className="text-center py-4 px-4 font-medium text-gray-900">
-                      <div className="flex items-center justify-center space-x-2">
-                        <span>Pro</span>
-                        <Badge className="bg-prologue-electric text-white text-xs">Popular</Badge>
-                      </div>
-                    </th>
+                    <th className="text-center py-4 px-4 font-medium text-gray-900">Pro</th>
                     <th className="text-center py-4 px-4 font-medium text-gray-900">Elite</th>
                   </tr>
                 </thead>
@@ -416,15 +449,9 @@ export default function SubscribePage() {
                     <td className="py-4 px-4 text-center">
                       <CheckCircle className="h-5 w-5 text-green-500 mx-auto" />
                     </td>
-                    <td className="py-4 px-4 text-center">
-                      <CheckCircle className="h-5 w-5 text-green-500 mx-auto" />
-                    </td>
                   </tr>
                   <tr>
                     <td className="py-4 px-4 text-gray-700">Premium content access</td>
-                    <td className="py-4 px-4 text-center">
-                      <X className="h-5 w-5 text-gray-400 mx-auto" />
-                    </td>
                     <td className="py-4 px-4 text-center">
                       <CheckCircle className="h-5 w-5 text-green-500 mx-auto" />
                     </td>
@@ -434,15 +461,11 @@ export default function SubscribePage() {
                   </tr>
                   <tr>
                     <td className="py-4 px-4 text-gray-700">1-on-1 coaching sessions</td>
-                    <td className="py-4 px-4 text-center text-gray-500">None</td>
                     <td className="py-4 px-4 text-center text-gray-700">2/month</td>
                     <td className="py-4 px-4 text-center text-gray-700">Unlimited</td>
                   </tr>
                   <tr>
                     <td className="py-4 px-4 text-gray-700">Video analysis tools</td>
-                    <td className="py-4 px-4 text-center">
-                      <X className="h-5 w-5 text-gray-400 mx-auto" />
-                    </td>
                     <td className="py-4 px-4 text-center">
                       <CheckCircle className="h-5 w-5 text-green-500 mx-auto" />
                     </td>
@@ -453,10 +476,7 @@ export default function SubscribePage() {
                   <tr>
                     <td className="py-4 px-4 text-gray-700">Personal performance coach</td>
                     <td className="py-4 px-4 text-center">
-                      <X className="h-5 w-5 text-gray-400 mx-auto" />
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <X className="h-5 w-5 text-gray-400 mx-auto" />
+                      <CheckCircle className="h-5 w-5 text-green-500 mx-auto" />
                     </td>
                     <td className="py-4 px-4 text-center">
                       <CheckCircle className="h-5 w-5 text-green-500 mx-auto" />
@@ -465,10 +485,7 @@ export default function SubscribePage() {
                   <tr>
                     <td className="py-4 px-4 text-gray-700">API access</td>
                     <td className="py-4 px-4 text-center">
-                      <X className="h-5 w-5 text-gray-400 mx-auto" />
-                    </td>
-                    <td className="py-4 px-4 text-center">
-                      <X className="h-5 w-5 text-gray-400 mx-auto" />
+                      <CheckCircle className="h-5 w-5 text-green-500 mx-auto" />
                     </td>
                     <td className="py-4 px-4 text-center">
                       <CheckCircle className="h-5 w-5 text-green-500 mx-auto" />
@@ -591,156 +608,21 @@ export default function SubscribePage() {
             <DialogTitle className="text-center">Complete Your Subscription</DialogTitle>
           </DialogHeader>
 
-          {selectedPlanData && (
-            <div className="space-y-6">
-              {/* Plan Summary */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-semibold text-gray-900">{selectedPlanData.name} Plan</h3>
-                  <Badge
-                    className={`${
-                      selectedPlanData.popular ? "bg-prologue-electric text-white" : "bg-gray-200 text-gray-700"
-                    }`}
-                  >
-                    {billingCycle === "yearly" ? "Yearly" : "Monthly"}
-                  </Badge>
-                </div>
-                <p className="text-sm text-gray-600 mb-3">{selectedPlanData.description}</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-2xl font-bold text-gray-900">
-                    ${calculateMonthlyPrice(selectedPlanData.price)}/month
-                  </span>
-                  {billingCycle === "yearly" && (
-                    <span className="text-sm text-green-600 font-medium">Save 20% yearly</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Promo Code */}
-              <div className="space-y-3">
-                <Label htmlFor="promo">Promo Code (Optional)</Label>
-                <div className="flex space-x-2">
-                  <Input
-                    id="promo"
-                    placeholder="Enter promo code"
-                    value={promoCode}
-                    onChange={(e) => setPromoCode(e.target.value)}
-                    className="flex-1"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={handlePromoCode}
-                    disabled={promoApplied}
-                    className="bg-transparent"
-                  >
-                    {promoApplied ? "Applied" : "Apply"}
-                  </Button>
-                </div>
-                {promoApplied && (
-                  <div className="flex items-center space-x-2 text-green-600 text-sm">
-                    <CheckCircle className="h-4 w-4" />
-                    <span>20% discount applied!</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Payment Form */}
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="firstName">First Name</Label>
-                    <Input id="firstName" placeholder="John" />
-                  </div>
-                  <div>
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input id="lastName" placeholder="Doe" />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" placeholder="john@example.com" />
-                </div>
-
-                <div>
-                  <Label htmlFor="cardNumber">Card Number</Label>
-                  <Input id="cardNumber" placeholder="1234 5678 9012 3456" />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="expiry">Expiry Date</Label>
-                    <Input id="expiry" placeholder="MM/YY" />
-                  </div>
-                  <div>
-                    <Label htmlFor="cvc">CVC</Label>
-                    <Input id="cvc" placeholder="123" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Order Summary */}
-              <div className="border-t border-gray-200 pt-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Subtotal</span>
-                    <span>${calculateMonthlyPrice(selectedPlanData.price)}/month</span>
-                  </div>
-                  {promoApplied && (
-                    <div className="flex justify-between text-sm text-green-600">
-                      <span>Discount (20%)</span>
-                      <span>
-                        -${(Number.parseFloat(calculateMonthlyPrice(selectedPlanData.price)) * 0.2).toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-semibold text-lg border-t border-gray-200 pt-2">
-                    <span>Total</span>
-                    <span>
-                      $
-                      {promoApplied
-                        ? (Number.parseFloat(calculateMonthlyPrice(selectedPlanData.price)) * 0.8).toFixed(2)
-                        : calculateMonthlyPrice(selectedPlanData.price)}
-                      /month
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Terms */}
-              <div className="flex items-start space-x-2">
-                <input type="checkbox" id="terms" className="mt-1" />
-                <label htmlFor="terms" className="text-sm text-gray-600">
-                  I agree to the{" "}
-                  <Link href="/terms" className="text-prologue-electric hover:underline">
-                    Terms of Service
-                  </Link>{" "}
-                  and{" "}
-                  <Link href="/privacy" className="text-prologue-electric hover:underline">
-                    Privacy Policy
-                  </Link>
-                </label>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex space-x-3">
-                <Button variant="outline" onClick={() => setCheckoutOpen(false)} className="flex-1 bg-transparent">
-                  Cancel
-                </Button>
-                <Button className="flex-1 bg-prologue-electric hover:bg-prologue-blue text-white">
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Start Free Trial
-                </Button>
-              </div>
-
-              <div className="text-center text-xs text-gray-500">
-                <div className="flex items-center justify-center space-x-2 mb-2">
-                  <Lock className="h-3 w-3" />
-                  <span>Secure checkout powered by Stripe</span>
-                </div>
-                <p>Your trial starts today. Cancel anytime during the 14-day trial period.</p>
-              </div>
-            </div>
+          {loadingAthlete ? (
+            <div className="text-center py-8">Loading athlete info...</div>
+          ) : athlete && member ? (
+            <SubscriptionCheckout
+              athlete={athlete}
+              members={member}
+              onSuccess={() => { 
+                setCheckoutOpen(false)
+                router.push("/member-dashboard")
+              }}
+              onCancel={() => setCheckoutOpen(false)}
+              selectedPlan={selectedPlan as 'basic' | 'pro' | 'premium'}
+            />
+          ) : (
+            <div className="text-center py-8 text-red-500">Unable to load athlete or user info.</div>
           )}
         </DialogContent>
       </Dialog>

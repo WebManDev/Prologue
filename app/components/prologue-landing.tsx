@@ -203,7 +203,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
             VIEW MENTORS
           </Link>
           <Link
-            href="#for-creators"
+            href="/for-creators"
             className="text-sm font-athletic font-medium text-gray-300 hover:text-prologue-electric transition-all duration-300 hover:scale-105 tracking-wide"
           >
             FOR CREATORS
@@ -672,7 +672,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
                     VIEW MENTORS
                   </Link>
                   <Link
-                    href="#for-creators"
+                    href="/for-creators"
                     className="text-gray-300 hover:text-white text-sm font-athletic font-medium tracking-wide transition-all duration-300 hover:scale-105"
                   >
                     FOR CREATORS

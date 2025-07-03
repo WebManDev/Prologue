@@ -6,7 +6,9 @@ import { Elements, CardElement, useStripe, useElements } from "@stripe/react-str
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SubscriptionPlans } from "@/components/subscription-plans"
-import { addSubscriptionForMember, auth } from "@/lib/firebase"
+import { addSubscriptionForMember, auth, db } from "@/lib/firebase"
+import { useRouter } from "next/navigation"
+import { doc, updateDoc, arrayUnion, setDoc } from "firebase/firestore"
 
 // Initialize Stripe with publishable key
 const stripePromise = loadStripe("pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu")
@@ -14,33 +16,26 @@ const stripePromise = loadStripe("pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZ
 interface SubscriptionCheckoutProps {
   athlete: {
     id: string
-    name: string
-    sport: string
-    bio: string
-    profilePic: string
-    subscribers: number
-    posts: number
-    rating: number
-    stripeAccountId?: string // Optional for test mode
-    pricing: {
-      basic: number
-      pro: number
-      premium: number
-    }
+    name?: string
+    email?: string
   }
-  memberEmail: string
-  memberName: string
+  members: {
+    id: string
+    name?: string
+    email?: string
+  }
   onSuccess: () => void
   onCancel: () => void
   selectedPlan: 'basic' | 'pro' | 'premium'
 }
 
-function CheckoutForm({ athlete, memberEmail, memberName, onSuccess, onCancel, selectedPlan }: SubscriptionCheckoutProps) {
+function CheckoutForm({ athlete, members, onSuccess, onCancel, selectedPlan }: SubscriptionCheckoutProps) {
   const stripe = useStripe()
   const elements = useElements()
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [subscriptionSucceeded, setSubscriptionSucceeded] = useState(false)
+  const router = useRouter();
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -58,8 +53,8 @@ function CheckoutForm({ athlete, memberEmail, memberName, onSuccess, onCancel, s
         type: "card",
         card: elements.getElement(CardElement)!,
         billing_details: {
-          name: memberName,
-          email: memberEmail,
+          name: members.name || "",
+          email: members.email || "",
         },
       })
 
@@ -75,18 +70,28 @@ function CheckoutForm({ athlete, memberEmail, memberName, onSuccess, onCancel, s
         return
       }
 
-      // Create subscription (pass athleteId and plan)
+      // Debug: Log which fields are present before making the request
+      console.log('DEBUG: Subscription request fields:', {
+        memberId: members.id,
+        name: members.name,
+        email: members.email,
+        athleteId: athlete.id,
+        paymentMethodId: paymentMethod.id,
+        plan: selectedPlan,
+      });
+      // Create subscription (pass athleteId, plan, and paymentMethodId)
       const response = await fetch("/api/stripe/create-subscription", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          memberEmail,
-          memberName,
+          memberId: members.id,
+          name: members.name,
+          email: members.email,
           athleteId: athlete.id,
           paymentMethodId: paymentMethod.id,
-          plan: selectedPlan
+          plan: selectedPlan,
         }),
       })
 
@@ -99,12 +104,15 @@ function CheckoutForm({ athlete, memberEmail, memberName, onSuccess, onCancel, s
       }
 
       // Add athlete to member's subscriptions in Firestore
-      if (auth.currentUser) {
-        await addSubscriptionForMember(auth.currentUser.uid, athlete.id, selectedPlan)
+      if (members.id) {
+        const userRef = doc(db, "members", members.id)
+        await updateDoc(userRef, {
+          subscriptions: arrayUnion(athlete.id)
+        })
       }
       setSubscriptionSucceeded(true)
       setTimeout(() => {
-        onSuccess()
+        onSuccess();
       }, 2000)
     } catch (error) {
       console.error("Subscription error:", error)
@@ -131,19 +139,8 @@ function CheckoutForm({ athlete, memberEmail, memberName, onSuccess, onCancel, s
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Selected Plan</h3>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl capitalize">{selectedPlan} Plan</CardTitle>
-            <div className="mt-2 text-3xl font-bold">
-              ${athlete.pricing[selectedPlan]}
-              <span className="text-gray-500 text-lg">/month</span>
-            </div>
-          </CardHeader>
-        </Card>
-      </div>
-      <div className="space-y-4">
         <h3 className="text-lg font-semibold">Payment Details</h3>
+        <div className="mb-2 text-2xl font-bold">$4.99<span className="text-gray-500 text-lg">/month</span></div>
         <Card>
           <CardContent className="p-6">
             <CardElement

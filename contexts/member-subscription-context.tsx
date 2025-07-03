@@ -2,6 +2,8 @@
 
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
+import { doc, onSnapshot, collection, query, where } from "firebase/firestore"
+import { db, auth } from "@/lib/firebase"
 
 interface Creator {
   id: string
@@ -82,21 +84,56 @@ export function MemberSubscriptionProvider({ children }: { children: React.React
     }
   }, [])
 
-  // Save to localStorage whenever state changes
+  // Real-time listeners for subscription updates
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    // Listen for member subscription changes
+    const memberRef = doc(db, "members", auth.currentUser.uid);
+    const unsubscribeMember = onSnapshot(memberRef, (doc) => {
+      if (doc.exists()) {
+        const memberData = doc.data();
+        const memberSubscriptions = memberData.subscriptions || {};
+        const subscriptionIds = Object.keys(memberSubscriptions).filter(
+          key => memberSubscriptions[key]?.status === "active"
+        );
+        setSubscribedCreators(subscriptionIds);
+        
+        // Update localStorage
+        localStorage.setItem("member-subscribed-creators", JSON.stringify(subscriptionIds));
+      }
+    });
+
+    // Listen for user document changes (fallback)
+    const userRef = doc(db, "users", auth.currentUser.uid);
+    const unsubscribeUser = onSnapshot(userRef, (doc) => {
+      if (doc.exists()) {
+        const userData = doc.data();
+        const userSubscriptions = userData.subscriptions || [];
+        setSubscribedCreators(userSubscriptions);
+        
+        // Update localStorage
+        localStorage.setItem("member-subscribed-creators", JSON.stringify(userSubscriptions));
+      }
+    });
+
+    return () => {
+      unsubscribeMember();
+      unsubscribeUser();
+    };
+  }, [auth.currentUser]);
+
+  // Save to localStorage whenever state changes (for following)
   useEffect(() => {
     localStorage.setItem("member-following-creators", JSON.stringify(followingCreators))
   }, [followingCreators])
-
-  useEffect(() => {
-    localStorage.setItem("member-subscribed-creators", JSON.stringify(subscribedCreators))
-  }, [subscribedCreators])
 
   const isFollowing = (creatorId: string): boolean => {
     return followingCreators.includes(creatorId)
   }
 
   const followCreator = (creator: Creator) => {
-    setFollowingCreators((prev) => {
+    setFollowingCreators((prev: string[]) => {
       if (!prev.includes(creator.id)) {
         return [...prev, creator.id]
       }
@@ -108,7 +145,7 @@ export function MemberSubscriptionProvider({ children }: { children: React.React
   }
 
   const unfollowCreator = (creatorId: string) => {
-    setFollowingCreators((prev) => prev.filter((id) => id !== creatorId))
+    setFollowingCreators((prev: string[]) => prev.filter((id: string) => id !== creatorId))
     
     // Simulate API call
     console.log(`Unfollowing creator: ${creatorId}`)
@@ -119,7 +156,7 @@ export function MemberSubscriptionProvider({ children }: { children: React.React
   }
 
   const subscribeToCreator = (creator: Creator) => {
-    setSubscribedCreators((prev) => {
+    setSubscribedCreators((prev: string[]) => {
       if (!prev.includes(creator.id)) {
         return [...prev, creator.id]
       }
@@ -134,7 +171,7 @@ export function MemberSubscriptionProvider({ children }: { children: React.React
   }
 
   const unsubscribeFromCreator = (creatorId: string) => {
-    setSubscribedCreators((prev) => prev.filter((id) => id !== creatorId))
+    setSubscribedCreators((prev: string[]) => prev.filter((id: string) => id !== creatorId))
     
     // Simulate API call
     console.log(`Unsubscribing from creator: ${creatorId}`)
@@ -143,7 +180,7 @@ export function MemberSubscriptionProvider({ children }: { children: React.React
   // Content methods
   const getCreatorContent = (): any[] => {
     // Mock content from followed creators
-    return followingCreators.map((creatorId, index) => ({
+    return followingCreators.map((creatorId: string, index: number) => ({
       id: `content-${creatorId}-${index}`,
       creatorId,
       creatorName: `Creator ${index + 1}`,
@@ -165,7 +202,7 @@ export function MemberSubscriptionProvider({ children }: { children: React.React
 
   const getSubscribedContent = (): any[] => {
     // Mock premium content from subscribed creators
-    return subscribedCreators.map((creatorId, index) => ({
+    return subscribedCreators.map((creatorId: string, index: number) => ({
       id: `premium-${creatorId}-${index}`,
       creatorId,
       creatorName: `Premium Creator ${index + 1}`,

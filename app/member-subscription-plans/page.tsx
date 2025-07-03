@@ -16,7 +16,7 @@ import { db } from "@/lib/firebase"
 const subscriptionTiers = [
   {
     name: "Basic",
-    price: 9.99,
+    price: 4.99,
     features: ["Access to free content", "Limited community access", "Email support", "Monthly newsletter"],
     buttonText: "Choose Basic",
     description: "Perfect for getting started with creator content.",
@@ -140,7 +140,8 @@ export default function MemberSubscriptionPlansPage() {
             <Button variant="outline" className="mb-6" onClick={handleBackToPlans}>
               &larr; Back to plans
             </Button>
-            {/* Show only the selected plan's card */}
+            {/* Add selected plan text above the plan card */}
+            <div className="text-center font-semibold text-lg mb-4">Selected Plan: {selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)}</div>
             {(() => {
               const tier = subscriptionTiers.find(t => t.name.toLowerCase() === selectedPlan)
               if (!tier) return null
@@ -171,7 +172,7 @@ export default function MemberSubscriptionPlansPage() {
               athlete={{
                 ...athlete,
                 pricing: athlete.pricing || {
-                  basic: 9.99,
+                  basic: 4.99,
                   pro: 29.99,
                   premium: 49.99,
                 },

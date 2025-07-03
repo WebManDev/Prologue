@@ -9,11 +9,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { memberEmail, memberName, plan, paymentMethodId, userId, athleteId } = req.body
+    const { email, name, plan, paymentMethodId, userId, athleteId } = req.body
 
     // Validate required fields
-    if (!memberEmail || !memberName || !plan || !paymentMethodId || !athleteId) {
-      console.error('Missing required fields:', { memberEmail, memberName, plan, paymentMethodId, athleteId })
+    if (!email || !name || !plan || !paymentMethodId || !athleteId) {
+      console.error('Missing required fields:', { email, name, plan, paymentMethodId, athleteId })
       return res.status(400).json({ error: 'Missing required fields' })
     }
 
@@ -33,7 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Create or get customer
     let customer
     const customers = await stripe.customers.list({
-      email: memberEmail,
+      email: email,
       limit: 1
     })
 
@@ -41,8 +41,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       customer = customers.data[0]
     } else {
       customer = await stripe.customers.create({
-        email: memberEmail,
-        name: memberName
+        email: email,
+        name: name
       })
     }
 
@@ -54,8 +54,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         await memberRef.update({ stripeCustomerId: customer.id });
       } else {
         await memberRef.set({
-          name: memberName,
-          email: memberEmail,
+          name: name,
+          email: email,
           stripeCustomerId: customer.id,
           createdAt: new Date().toISOString(),
         }, { merge: true });
@@ -102,7 +102,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .collection('notifications')
       .add({
         type: 'subscription',
-        message: `${memberName} has subscribed to you!`,
+        message: `${name} has subscribed to you!`,
         createdAt: new Date(),
         read: false,
       });
