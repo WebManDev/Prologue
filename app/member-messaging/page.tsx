@@ -34,6 +34,8 @@ import Image from "next/image"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import MemberMobileNavigation from "@/components/mobile/member-mobile-navigation"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
+import { auth, sendMessage, listenForMessages, getChatId } from "@/lib/firebase"
+import { getFirestore, doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
 
 export default function MemberMessagingPage() {
   const { unreadMessagesCount, unreadNotificationsCount, markMessagesAsRead, hasNewTrainingContent } =
@@ -46,8 +48,15 @@ export default function MemberMessagingPage() {
   const [searchQuery, setSearchQuery] = useState("")
 
   // Messaging state
-  const [selectedConversation, setSelectedConversation] = useState(1)
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   const [messageInput, setMessageInput] = useState("")
+
+  // Firestore state
+  const [conversations, setConversations] = useState<any[]>([])
+  const [messages, setMessages] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const db = getFirestore()
 
   // Quick search suggestions
   const quickSearches = [
@@ -60,6 +69,78 @@ export default function MemberMessagingPage() {
     "Sports Psychology",
     "Athletic Scholarships",
   ]
+
+  // Fetch current user and subscribed athletes
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        setCurrentUser(user)
+        try {
+          // Get member profile to find subscribed athletes
+          const memberDoc = await getDoc(doc(db, "members", user.uid))
+          if (memberDoc.exists()) {
+            const memberData = memberDoc.data()
+            const subscribedAthleteIds = memberData.subscriptions || []
+            
+            if (subscribedAthleteIds.length > 0) {
+              // Fetch athlete profiles for subscribed athletes
+              const athletePromises = subscribedAthleteIds.map(async (athleteId: string) => {
+                const athleteDoc = await getDoc(doc(db, "athletes", athleteId))
+                if (athleteDoc.exists()) {
+                  const athleteData = athleteDoc.data()
+                  return {
+                    id: athleteId,
+                    name: athleteData.name || "Athlete",
+                    avatar: athleteData.profilePic || "/placeholder.svg",
+                    lastMessage: "Click to start a conversation",
+                    timestamp: "Just now",
+                    unread: 0,
+                    online: false,
+                    isCoach: true,
+                    role: `${athleteData.sport || "Sport"} Coach`,
+                    email: athleteData.email,
+                    sport: athleteData.sport || "Sport"
+                  }
+                }
+                return null
+              })
+              
+              const athleteResults = await Promise.all(athletePromises)
+              const validAthletes = athleteResults.filter(athlete => athlete !== null)
+              setConversations(validAthletes)
+            } else {
+              setConversations([])
+            }
+          }
+          setLoading(false)
+        } catch (error) {
+          console.error("Error fetching subscribed athletes:", error)
+          setLoading(false)
+        }
+      } else {
+        setCurrentUser(null)
+        setConversations([])
+        setLoading(false)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [db])
+
+  // Listen for messages when conversation is selected
+  useEffect(() => {
+    if (!selectedConversation || !currentUser) return
+
+    const unsubscribe = listenForMessages({
+      memberId: currentUser.uid,
+      athleteId: selectedConversation,
+      callback: (msgs) => {
+        setMessages(msgs)
+      },
+    })
+
+    return () => unsubscribe && unsubscribe()
+  }, [selectedConversation, currentUser])
 
   // Mock search results based on query
   const searchResults = React.useMemo(() => {
@@ -129,90 +210,6 @@ export default function MemberMessagingPage() {
     setShowSearchDropdown(false)
   }, [])
 
-  // Mock conversations data
-  const conversations = [
-    {
-      id: 1,
-      name: "Coach Sarah Martinez",
-      role: "Tennis Coach",
-      avatar: "/placeholder.svg?height=40&width=40",
-      lastMessage: "Great progress on your backhand! Let's work on your serve next.",
-      timestamp: "2 min ago",
-      unread: 2,
-      online: true,
-      isCoach: true,
-    },
-    {
-      id: 2,
-      name: "Elite Tennis Academy",
-      role: "Training Academy",
-      avatar: "/placeholder.svg?height=40&width=40",
-      lastMessage: "New mental toughness program available. Check it out!",
-      timestamp: "1 hour ago",
-      unread: 0,
-      online: false,
-      isCoach: true,
-    },
-    {
-      id: 3,
-      name: "Sports Nutritionist Pro",
-      role: "Nutrition Expert",
-      avatar: "/placeholder.svg?height=40&width=40",
-      lastMessage: "Your meal plan has been updated for this week.",
-      timestamp: "3 hours ago",
-      unread: 1,
-      online: true,
-      isCoach: true,
-    },
-    {
-      id: 4,
-      name: "Alex Johnson",
-      role: "Fellow Member",
-      avatar: "/placeholder.svg?height=40&width=40",
-      lastMessage: "Thanks for the training tips!",
-      timestamp: "1 day ago",
-      unread: 0,
-      online: false,
-      isCoach: false,
-    },
-  ]
-
-  // Mock messages for selected conversation
-  const messages = [
-    {
-      id: 1,
-      senderId: 1,
-      senderName: "Coach Sarah Martinez",
-      content: "Hi Alex! I reviewed your latest training video. Your backhand technique has improved significantly!",
-      timestamp: "10:30 AM",
-      isMe: false,
-    },
-    {
-      id: 2,
-      senderId: "me",
-      senderName: "You",
-      content: "Thank you! I've been practicing the drills you recommended. Should I focus on anything specific next?",
-      timestamp: "10:32 AM",
-      isMe: true,
-    },
-    {
-      id: 3,
-      senderId: 1,
-      senderName: "Coach Sarah Martinez",
-      content: "Let's work on your serve technique next. I'll send you a new training program focused on power serves.",
-      timestamp: "10:35 AM",
-      isMe: false,
-    },
-    {
-      id: 4,
-      senderId: 1,
-      senderName: "Coach Sarah Martinez",
-      content: "Great progress on your backhand! Let's work on your serve next.",
-      timestamp: "10:38 AM",
-      isMe: false,
-    },
-  ]
-
   // Handle clicks outside search dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -239,11 +236,20 @@ export default function MemberMessagingPage() {
     }
   }, [unreadMessagesCount, markMessagesAsRead])
 
-  const handleSendMessage = () => {
-    if (messageInput.trim()) {
-      // Send message logic here
-      console.log("Sending message:", messageInput)
+  const handleSendMessage = async () => {
+    if (!messageInput.trim() || !selectedConversation || !currentUser) return
+    
+    try {
+      await sendMessage({
+        memberId: currentUser.uid,
+        athleteId: selectedConversation,
+        senderId: currentUser.uid,
+        senderRole: "member",
+        content: messageInput.trim(),
+      })
       setMessageInput("")
+    } catch (error) {
+      console.error("Error sending message:", error)
     }
   }
 
@@ -261,6 +267,16 @@ export default function MemberMessagingPage() {
   }
 
   const selectedConv = conversations.find((conv) => conv.id === selectedConversation)
+
+  // Filter conversations based on search
+  const filteredConversations = React.useMemo(() => {
+    if (!searchQuery.trim()) return conversations
+    return conversations.filter(conv => 
+      conv.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.sport?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  }, [conversations, searchQuery])
 
   // Memoized search dropdown content
   const searchDropdownContent = React.useMemo(() => {
@@ -524,54 +540,62 @@ export default function MemberMessagingPage() {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="space-y-1">
-                  {conversations.map((conversation) => (
-                    <button
-                      key={conversation.id}
-                      onClick={() => setSelectedConversation(conversation.id)}
-                      className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-l-4 ${
-                        selectedConversation === conversation.id
-                          ? "bg-prologue-electric/10 border-prologue-electric"
-                          : "border-transparent"
-                      }`}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <div className="relative">
-                          <Image
-                            src={conversation.avatar || "/placeholder.svg"}
-                            alt={conversation.name}
-                            width={40}
-                            height={40}
-                            className="w-10 h-10 rounded-full object-cover"
-                          />
-                          {conversation.online && (
-                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <h4 className="font-medium text-gray-900 truncate">{conversation.name}</h4>
-                            <span className="text-xs text-gray-500">{conversation.timestamp}</span>
+                  {loading ? (
+                    <div className="p-4 text-center text-gray-500">Loading conversations...</div>
+                  ) : filteredConversations.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500">
+                      {searchQuery ? "No conversations found" : "No subscribed athletes to message yet"}
+                    </div>
+                  ) : (
+                    filteredConversations.map((conversation) => (
+                      <button
+                        key={conversation.id}
+                        onClick={() => setSelectedConversation(conversation.id)}
+                        className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-l-4 ${
+                          selectedConversation === conversation.id
+                            ? "bg-prologue-electric/10 border-prologue-electric"
+                            : "border-transparent"
+                        }`}
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className="relative">
+                            <Image
+                              src={conversation.avatar || "/placeholder.svg"}
+                              alt={conversation.name}
+                              width={40}
+                              height={40}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                            {conversation.online && (
+                              <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                            )}
                           </div>
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm text-gray-600 truncate">{conversation.lastMessage}</p>
-                            {conversation.unread > 0 && (
-                              <Badge className="bg-prologue-electric text-white text-xs ml-2">
-                                {conversation.unread}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <h4 className="font-medium text-gray-900 truncate">{conversation.name}</h4>
+                              <span className="text-xs text-gray-500">{conversation.timestamp}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm text-gray-600 truncate">{conversation.lastMessage}</p>
+                              {conversation.unread > 0 && (
+                                <Badge className="bg-prologue-electric text-white text-xs ml-2">
+                                  {conversation.unread}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center mt-1">
+                              <Badge variant="secondary" className="text-xs">
+                                {conversation.role}
                               </Badge>
-                            )}
-                          </div>
-                          <div className="flex items-center mt-1">
-                            <Badge variant="secondary" className="text-xs">
-                              {conversation.role}
-                            </Badge>
-                            {conversation.isCoach && (
-                              <Star className="h-3 w-3 text-yellow-500 ml-1" fill="currentColor" />
-                            )}
+                              {conversation.isCoach && (
+                                <Star className="h-3 w-3 text-yellow-500 ml-1" fill="currentColor" />
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -633,15 +657,15 @@ export default function MemberMessagingPage() {
               <CardContent className="flex-1 p-4 overflow-y-auto">
                 <div className="space-y-4">
                   {messages.map((message) => (
-                    <div key={message.id} className={`flex ${message.isMe ? "justify-end" : "justify-start"}`}>
+                    <div key={message.id} className={`flex ${message.senderId === currentUser?.uid ? "justify-end" : "justify-start"}`}>
                       <div
                         className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                          message.isMe ? "bg-prologue-electric text-white" : "bg-gray-100 text-gray-900"
+                          message.senderId === currentUser?.uid ? "bg-prologue-electric text-white" : "bg-gray-100 text-gray-900"
                         }`}
                       >
                         <p className="text-sm">{message.content}</p>
-                        <p className={`text-xs mt-1 ${message.isMe ? "text-blue-100" : "text-gray-500"}`}>
-                          {message.timestamp}
+                        <p className={`text-xs mt-1 ${message.senderId === currentUser?.uid ? "text-blue-100" : "text-gray-500"}`}>
+                          {message.time || "Just now"}
                         </p>
                       </div>
                     </div>

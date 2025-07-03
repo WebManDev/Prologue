@@ -33,6 +33,8 @@ import { AthleteNav } from "@/components/navigation/athlete-nav"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { AdvancedNotificationProvider } from "@/contexts/advanced-notification-context"
+import { auth, getSubscribersForAthlete, sendMessage, listenForMessages, getChatId } from "@/lib/firebase"
+import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -46,87 +48,6 @@ const QUICK_SEARCHES = [
   "Athletic Scholarships",
 ]
 
-const CONVERSATIONS = [
-  {
-    id: 1,
-    name: "Sarah Johnson",
-    avatar: "/placeholder.svg?height=40&width=40",
-    lastMessage: "Thanks for the nutrition advice! It really helped.",
-    timestamp: "2m ago",
-    unread: 2,
-    online: true,
-    type: "subscriber",
-  },
-  {
-    id: 2,
-    name: "Mike Chen",
-    avatar: "/placeholder.svg?height=40&width=40",
-    lastMessage: "When is your next live session?",
-    timestamp: "1h ago",
-    unread: 0,
-    online: false,
-    type: "subscriber",
-  },
-  {
-    id: 3,
-    name: "Emma Davis",
-    avatar: "/placeholder.svg?height=40&width=40",
-    lastMessage: "The mental performance content was amazing!",
-    timestamp: "3h ago",
-    unread: 1,
-    online: true,
-    type: "premium",
-  },
-  {
-    id: 4,
-    name: "Alex Rodriguez",
-    avatar: "/placeholder.svg?height=40&width=40",
-    lastMessage: "Let's collaborate on that NIL content",
-    timestamp: "1d ago",
-    unread: 0,
-    online: false,
-    type: "athlete",
-  },
-]
-
-const MESSAGES = [
-  {
-    id: 1,
-    sender: "Sarah Johnson",
-    content: "Hi! I watched your nutrition video and it was really helpful.",
-    timestamp: "10:30 AM",
-    isOwn: false,
-  },
-  {
-    id: 2,
-    sender: "You",
-    content: "I'm so glad it helped! What specific part resonated with you?",
-    timestamp: "10:32 AM",
-    isOwn: true,
-  },
-  {
-    id: 3,
-    sender: "Sarah Johnson",
-    content: "The meal prep section. I never thought about preparing protein in advance like that.",
-    timestamp: "10:35 AM",
-    isOwn: false,
-  },
-  {
-    id: 4,
-    sender: "You",
-    content: "That's one of my favorite tips! It saves so much time during the week. Are you planning to try it?",
-    timestamp: "10:37 AM",
-    isOwn: true,
-  },
-  {
-    id: 5,
-    sender: "Sarah Johnson",
-    content: "Thanks for the nutrition advice! It really helped.",
-    timestamp: "10:40 AM",
-    isOwn: false,
-  },
-]
-
 export default function MessagingPage() {
   return (
     <AdvancedNotificationProvider>
@@ -137,16 +58,80 @@ export default function MessagingPage() {
 
 function MessagingPageContent() {
   const { isMobile, isTablet } = useMobileDetection()
-  const [selectedConversation, setSelectedConversation] = useState<number | null>(1)
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   const [newMessage, setNewMessage] = useState("")
   const [headerSearchQuery, setHeaderSearchQuery] = useState("")
   const [showHeaderSearchDropdown, setShowHeaderSearchDropdown] = useState(false)
   const [conversationSearchQuery, setConversationSearchQuery] = useState("")
+  
+  // Firestore state
+  const [subscribers, setSubscribers] = useState<any[]>([])
+  const [conversations, setConversations] = useState<any[]>([])
+  const [messages, setMessages] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const db = getFirestore()
 
   const headerSearchRef = useRef<HTMLDivElement>(null)
   const headerSearchInputRef = useRef<HTMLInputElement>(null)
   const conversationSearchInputRef = useRef<HTMLInputElement>(null)
   const messageInputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Fetch current user and subscribers
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        setCurrentUser(user)
+        try {
+          // Fetch subscribers for this athlete
+          const subscribersList = await getSubscribersForAthlete(user.uid)
+          setSubscribers(subscribersList)
+          
+          // Create conversations from subscribers
+          const conversationsData = subscribersList.map((subscriber: any) => ({
+            id: subscriber.id,
+            name: subscriber.name || "Member",
+            avatar: subscriber.profilePic || "/placeholder.svg",
+            lastMessage: "Click to start a conversation",
+            timestamp: "Just now",
+            unread: 0,
+            online: false,
+            type: "subscriber",
+            email: subscriber.email,
+            sport: subscriber.sport || "Sport"
+          }))
+          setConversations(conversationsData)
+          setLoading(false)
+        } catch (error) {
+          console.error("Error fetching subscribers:", error)
+          setLoading(false)
+        }
+      } else {
+        setCurrentUser(null)
+        setSubscribers([])
+        setConversations([])
+        setLoading(false)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
+
+  // Listen for messages when conversation is selected
+  useEffect(() => {
+    if (!selectedConversation || !currentUser) return
+
+    const chatId = getChatId(selectedConversation, currentUser.uid)
+    const unsubscribe = listenForMessages({
+      memberId: selectedConversation,
+      athleteId: currentUser.uid,
+      callback: (msgs) => {
+        setMessages(msgs)
+      },
+    })
+
+    return () => unsubscribe && unsubscribe()
+  }, [selectedConversation, currentUser])
 
   // Handle clicks outside header search dropdown
   useEffect(() => {
@@ -195,15 +180,25 @@ function MessagingPageContent() {
     setNewMessage(e.target.value)
   }, [])
 
-  const handleSendMessage = useCallback(() => {
-    if (newMessage.trim()) {
-      console.log("Sending message:", newMessage)
+  const handleSendMessage = useCallback(async () => {
+    if (!newMessage.trim() || !selectedConversation || !currentUser) return
+    
+    try {
+      await sendMessage({
+        memberId: selectedConversation,
+        athleteId: currentUser.uid,
+        senderId: currentUser.uid,
+        senderRole: "coach",
+        content: newMessage.trim(),
+      })
       setNewMessage("")
       setTimeout(() => {
         messageInputRef.current?.focus()
       }, 0)
+    } catch (error) {
+      console.error("Error sending message:", error)
     }
-  }, [newMessage])
+  }, [newMessage, selectedConversation, currentUser])
 
   const handleKeyPress = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -227,6 +222,15 @@ function MessagingPageContent() {
         return "bg-gray-100 text-gray-700"
     }
   }, [])
+
+  // Filter conversations based on search
+  const filteredConversations = useMemo(() => {
+    if (!conversationSearchQuery.trim()) return conversations
+    return conversations.filter(conv => 
+      conv.name.toLowerCase().includes(conversationSearchQuery.toLowerCase()) ||
+      conv.email.toLowerCase().includes(conversationSearchQuery.toLowerCase())
+    )
+  }, [conversations, conversationSearchQuery])
 
   // Memoized components
   const HeaderSearchDropdown = useMemo(() => {
@@ -282,8 +286,8 @@ function MessagingPageContent() {
   )
 
   const selectedConv = useMemo(
-    () => CONVERSATIONS.find((conv) => conv.id === selectedConversation),
-    [selectedConversation],
+    () => conversations.find((conv) => conv.id === selectedConversation),
+    [selectedConversation, conversations],
   )
 
   const DesktopHeader = useMemo(
@@ -383,55 +387,63 @@ function MessagingPageContent() {
 
         {/* Conversations List */}
         <div className="flex-1 overflow-y-auto">
-          {CONVERSATIONS.map((conversation) => (
-            <div
-              key={conversation.id}
-              onClick={() => setSelectedConversation(conversation.id)}
-              className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
-                selectedConversation === conversation.id ? "bg-blue-50 border-blue-200" : ""
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <Image
-                    src={conversation.avatar || "/placeholder.svg"}
-                    alt={conversation.name}
-                    width={40}
-                    height={40}
-                    className="w-10 h-10 rounded-full"
-                  />
-                  {conversation.online && (
-                    <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center space-x-2">
-                      <h3 className={`${isMobile ? "text-sm" : "text-base"} font-semibold text-gray-900 truncate`}>
-                        {conversation.name}
-                      </h3>
-                      <Badge variant="secondary" className={`${getTypeColor(conversation.type)} text-xs`}>
-                        {conversation.type}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      {conversation.unread > 0 && (
-                        <Badge className="bg-blue-600 text-white text-xs">{conversation.unread}</Badge>
-                      )}
-                      <span className="text-xs text-gray-500">{conversation.timestamp}</span>
-                    </div>
+          {loading ? (
+            <div className="p-4 text-center text-gray-500">Loading conversations...</div>
+          ) : filteredConversations.length === 0 ? (
+            <div className="p-4 text-center text-gray-500">
+              {conversationSearchQuery ? "No conversations found" : "No subscribers to message yet"}
+            </div>
+          ) : (
+            filteredConversations.map((conversation) => (
+              <div
+                key={conversation.id}
+                onClick={() => setSelectedConversation(conversation.id)}
+                className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
+                  selectedConversation === conversation.id ? "bg-blue-50 border-blue-200" : ""
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="relative">
+                    <Image
+                      src={conversation.avatar || "/placeholder.svg"}
+                      alt={conversation.name}
+                      width={40}
+                      height={40}
+                      className="w-10 h-10 rounded-full"
+                    />
+                    {conversation.online && (
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                    )}
                   </div>
-                  <p className={`${isMobile ? "text-xs" : "text-sm"} text-gray-600 truncate`}>
-                    {conversation.lastMessage}
-                  </p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center space-x-2">
+                        <h3 className={`${isMobile ? "text-sm" : "text-base"} font-semibold text-gray-900 truncate`}>
+                          {conversation.name}
+                        </h3>
+                        <Badge variant="secondary" className={`${getTypeColor(conversation.type)} text-xs`}>
+                          {conversation.type}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        {conversation.unread > 0 && (
+                          <Badge className="bg-blue-600 text-white text-xs">{conversation.unread}</Badge>
+                        )}
+                        <span className="text-xs text-gray-500">{conversation.timestamp}</span>
+                      </div>
+                    </div>
+                    <p className={`${isMobile ? "text-xs" : "text-sm"} text-gray-600 truncate`}>
+                      {conversation.lastMessage}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     ),
-    [isMobile, selectedConversation, conversationSearchQuery, handleConversationSearchChange, getTypeColor],
+    [isMobile, selectedConversation, conversationSearchQuery, handleConversationSearchChange, getTypeColor, loading, filteredConversations],
   )
 
   const ChatArea = useMemo(
@@ -504,16 +516,16 @@ function MessagingPageContent() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {MESSAGES.map((message) => (
-                <div key={message.id} className={`flex ${message.isOwn ? "justify-end" : "justify-start"}`}>
+              {messages.map((message) => (
+                <div key={message.id} className={`flex ${message.senderId === currentUser?.uid ? "justify-end" : "justify-start"}`}>
                   <div
                     className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                      message.isOwn ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900"
+                      message.senderId === currentUser?.uid ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-900"
                     }`}
                   >
                     <p className={`${isMobile ? "text-sm" : "text-base"}`}>{message.content}</p>
-                    <p className={`text-xs mt-1 ${message.isOwn ? "text-blue-100" : "text-gray-500"}`}>
-                      {message.timestamp}
+                    <p className={`text-xs mt-1 ${message.senderId === currentUser?.uid ? "text-blue-100" : "text-gray-500"}`}>
+                      {message.time || "Just now"}
                     </p>
                   </div>
                 </div>
@@ -567,6 +579,8 @@ function MessagingPageContent() {
       handleNewMessageChange,
       handleKeyPress,
       handleSendMessage,
+      messages,
+      currentUser,
     ],
   )
 
@@ -619,7 +633,7 @@ function MessagingPageContent() {
         currentPath="/messaging"
         showBottomNav={true}
         unreadNotifications={0}
-        unreadMessages={CONVERSATIONS.reduce((sum, conv) => sum + conv.unread, 0)}
+        unreadMessages={conversations.reduce((sum, conv) => sum + conv.unread, 0)}
         hasNewContent={false}
       >
         {MainContent}
