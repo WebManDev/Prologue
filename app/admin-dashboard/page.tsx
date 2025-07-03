@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import { getDocs, collection, updateDoc, doc } from "firebase/firestore"
+import { db } from "@/lib/firebase"
 
 export default function AdminDashboard() {
   const [feedback, setFeedback] = useState<any[]>([])
@@ -13,7 +15,7 @@ export default function AdminDashboard() {
   const [loadingFeedback, setLoadingFeedback] = useState(true)
   const [loadingUpdates, setLoadingUpdates] = useState(true)
   const [responding, setResponding] = useState<string | null>(null)
-  const [responseText, setResponseText] = useState("")
+  const [responseText, setResponseText] = useState<{ [id: string]: string }>({})
   const [updateTitle, setUpdateTitle] = useState("")
   const [updateMessage, setUpdateMessage] = useState("")
   const [sendingUpdate, setSendingUpdate] = useState(false)
@@ -22,9 +24,10 @@ export default function AdminDashboard() {
   // Fetch feedback
   useEffect(() => {
     setLoadingFeedback(true)
-    fetch("/api/platform-feedback")
-      .then(res => res.json())
-      .then(data => setFeedback(data.feedback || []))
+    getDocs(collection(db, "platformFeedback"))
+      .then(snapshot => {
+        setFeedback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+      })
       .finally(() => setLoadingFeedback(false))
   }, [])
 
@@ -40,14 +43,15 @@ export default function AdminDashboard() {
   // Respond to feedback
   const handleRespond = async (id: string) => {
     setResponding(id)
-    await fetch("/api/platform-feedback-respond", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ feedbackId: id, response: responseText }),
+    const feedbackRef = doc(db, "platformFeedback", id)
+    await updateDoc(feedbackRef, {
+      response: responseText[id] || "",
+      status: "responded",
+      respondedAt: new Date(),
     })
-    setFeedback(fb => fb.map(f => f.id === id ? { ...f, response: responseText, status: "responded" } : f))
+    setFeedback(fb => fb.map(f => f.id === id ? { ...f, response: responseText[id] || "", status: "responded" } : f))
     setResponding(null)
-    setResponseText("")
+    setResponseText(prev => ({ ...prev, [id]: "" }))
   }
 
   // Send update
@@ -109,7 +113,7 @@ export default function AdminDashboard() {
                   <div className="space-y-4">
                     {feedback.map(fb => {
                       const isResponding = responding === fb.id;
-                      const isDisabled = Boolean((responding && responding !== fb.id) || !responseText || isResponding);
+                      const isDisabled = Boolean((responding && responding !== fb.id) || !responseText[fb.id] || isResponding);
                       return (
                         <div key={fb.id} className="border border-gray-200 rounded-lg p-4 space-y-2 bg-white">
                           <div className="flex items-center justify-between">
@@ -126,8 +130,8 @@ export default function AdminDashboard() {
                           {fb.status !== "responded" ? (
                             <div className="mt-2 flex items-center space-x-2">
                               <Textarea
-                                value={isResponding ? responseText : ""}
-                                onChange={e => setResponseText(e.target.value)}
+                                value={responseText[fb.id] || ""}
+                                onChange={e => setResponseText(prev => ({ ...prev, [fb.id]: e.target.value }))}
                                 placeholder="Write a response..."
                                 rows={2}
                                 className="w-full"
@@ -135,7 +139,7 @@ export default function AdminDashboard() {
                               />
                               <Button
                                 onClick={() => handleRespond(fb.id)}
-                                disabled={isDisabled}
+                                disabled={Boolean((responding && responding !== fb.id) || !(responseText[fb.id]) || isResponding)}
                               >
                                 {isResponding ? <span className="animate-spin mr-2">⏳</span> : null} Respond
                               </Button>

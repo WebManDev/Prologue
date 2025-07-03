@@ -46,6 +46,10 @@ import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { auth } from "@/lib/firebase"
 import { getMemberProfile } from "@/lib/firebase"
 import { getAthletesByIds } from "@/lib/firebase"
+import { db } from "@/lib/firebase"
+import { addDoc, collection, Timestamp, getDocs, query, orderBy } from "firebase/firestore"
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import { onAuthStateChanged } from "firebase/auth"
 
 export default function MemberFeedbackPage() {
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
@@ -153,66 +157,45 @@ export default function MemberFeedbackPage() {
   const [loadingSubscribed, setLoadingSubscribed] = useState(true)
 
   useEffect(() => {
-    async function fetchSubscribedAthletes() {
-      if (!auth.currentUser) return
-      setLoadingSubscribed(true)
-      const profileData = await getMemberProfile(auth.currentUser.uid)
-      const subscriptionsObj = profileData?.subscriptions || {}
-      const now = new Date()
-      const activeAthleteIds = Object.entries(subscriptionsObj)
-        .filter(([athleteId, sub]: any) => {
-          if (sub.status === "active") return true
-          if (sub.status === "canceled" && sub.cancelAt && new Date(sub.cancelAt) > now) return true
-          return false
-        })
-        .map(([athleteId]) => athleteId)
-      if (activeAthleteIds.length === 0) {
-        setSubscribedAthletes([])
-        setLoadingSubscribed(false)
-        return
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        fetchSubscribedAthletes(user.uid);
+      } else {
+        setSubscribedAthletes([]);
+        setLoadingSubscribed(false);
       }
-      const athletes = await getAthletesByIds(activeAthleteIds)
-      setSubscribedAthletes(athletes)
-      setLoadingSubscribed(false)
-    }
-    fetchSubscribedAthletes()
-  }, [])
+    });
+    return () => unsubscribe();
+  }, []);
 
-  // Mock platform feedback history
-  const platformFeedbackHistory = [
-    {
-      id: 1,
-      type: "suggestion",
-      title: "Improve video quality in training sessions",
-      message:
-        "The video quality in some training sessions could be better. Sometimes it's hard to see the details of the techniques being demonstrated.",
-      status: "resolved",
-      date: "2024-01-15",
-      response:
-        "Thank you for your feedback! We've upgraded our recording equipment and improved video quality across all training content.",
-      rating: 5,
-    },
-    {
-      id: 2,
-      type: "bug",
-      title: "App crashes when uploading progress videos",
-      message: "The mobile app crashes whenever I try to upload a progress video longer than 2 minutes.",
-      status: "in-progress",
-      date: "2024-01-10",
-      response: "We're working on fixing this issue. A patch will be released in the next app update.",
-      rating: null,
-    },
-    {
-      id: 3,
-      type: "feature",
-      title: "Add nutrition tracking feature",
-      message: "It would be great to have a nutrition tracking feature integrated with the training program.",
-      status: "under-review",
-      date: "2024-01-05",
-      response: null,
-      rating: null,
-    },
-  ]
+  async function fetchSubscribedAthletes(uid) {
+    setLoadingSubscribed(true);
+    const profileData = await getMemberProfile(uid);
+    const subscriptionsArr = profileData?.subscriptions || [];
+    const activeAthleteIds = Array.isArray(subscriptionsArr) ? subscriptionsArr : [];
+    if (activeAthleteIds.length === 0) {
+      setSubscribedAthletes([]);
+      setLoadingSubscribed(false);
+      return;
+    }
+    const athletes = await getAthletesByIds(activeAthleteIds);
+    setSubscribedAthletes(athletes);
+    setLoadingSubscribed(false);
+  }
+
+  // Platform feedback history state
+  const [platformFeedbackHistory, setPlatformFeedbackHistory] = useState<any[]>([])
+  const [loadingFeedbackHistory, setLoadingFeedbackHistory] = useState(true)
+
+  // Fetch platform feedback history from Firestore
+  useEffect(() => {
+    setLoadingFeedbackHistory(true)
+    getDocs(query(collection(db, "platformFeedback"), orderBy("createdAt", "desc")))
+      .then(snapshot => {
+        setPlatformFeedbackHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+      })
+      .finally(() => setLoadingFeedbackHistory(false))
+  }, [])
 
   // Handle clicks outside search dropdown
   useEffect(() => {
@@ -248,29 +231,50 @@ export default function MemberFeedbackPage() {
     }
   }
 
-  const handleSubmitFeedbackToAthlete = () => {
+  const handleSubmitFeedbackToAthlete = async () => {
     if (!selectedAthlete) {
       alert("Please select an athlete to send feedback to.")
       return
     }
 
-    // Handle feedback submission logic here
     const selectedAthleteData = subscribedAthletes.find((athlete) => athlete.id === selectedAthlete)
-    console.log("Submitting feedback:", {
-      title: feedbackTitle,
-      description: feedbackDescription,
-      file: selectedFile,
-      targetAthlete: selectedAthleteData,
-    })
+    const memberId = auth.currentUser?.uid || null
+    const memberName = auth.currentUser?.displayName || ""
+    let videoUrl = null
 
-    // Reset form
-    setFeedbackTitle("")
-    setFeedbackDescription("")
-    setSelectedFile(null)
-    setSelectedAthlete("")
+    // Upload video if selected
+    if (selectedFile) {
+      try {
+        const storage = getStorage()
+        const filePath = `feedback-videos/${memberId}/${Date.now()}_${selectedFile.name}`
+        const fileRef = ref(storage, filePath)
+        await uploadBytes(fileRef, selectedFile)
+        videoUrl = await getDownloadURL(fileRef)
+      } catch (e) {
+        alert("Failed to upload video. Feedback will be sent without video.")
+      }
+    }
 
-    // Show success message
-    alert(`Feedback submitted successfully to ${selectedAthleteData?.name}!`)
+    try {
+      await addDoc(collection(db, "feedbackToAthlete"), {
+        athleteId: selectedAthleteData?.id,
+        athleteName: selectedAthleteData?.name,
+        memberId,
+        memberName,
+        title: feedbackTitle,
+        message: feedbackDescription,
+        videoUrl,
+        createdAt: Timestamp.now(),
+      })
+      // Reset form
+      setFeedbackTitle("")
+      setFeedbackDescription("")
+      setSelectedFile(null)
+      setSelectedAthlete("")
+      alert(`Feedback submitted successfully to ${selectedAthleteData?.name}!` + (videoUrl ? "\nVideo uploaded." : ""))
+    } catch (e) {
+      alert("Failed to submit feedback. Please try again.")
+    }
   }
 
   const handleSubmitPlatformFeedback = async () => {
@@ -280,7 +284,7 @@ export default function MemberFeedbackPage() {
 
     setIsSubmitting(true)
 
-    // Send email to andyhluu23@gmail.com
+    // Send email to andyhluu23@gmail.com (optional, keep if you want)
     try {
       await fetch("/api/send-feedback-email", {
         method: "POST",
@@ -290,6 +294,19 @@ export default function MemberFeedbackPage() {
           title: platformFeedbackTitle,
           message: platformFeedbackMessage,
         }),
+      })
+    } catch (e) {
+      // Optionally handle error
+    }
+
+    // Save feedback directly to Firestore (client-side, like articles)
+    try {
+      await addDoc(collection(db, "platformFeedback"), {
+        type: platformFeedbackType,
+        title: platformFeedbackTitle,
+        message: platformFeedbackMessage,
+        createdAt: Timestamp.now(),
+        userId: auth.currentUser?.uid || null,
       })
     } catch (e) {
       // Optionally handle error
@@ -888,81 +905,9 @@ export default function MemberFeedbackPage() {
           {/* Feedback History Tab */}
           <TabsContent value="history">
             <div className="space-y-4">
-              {platformFeedbackHistory.map((feedback) => (
-                <Card key={feedback.id}>
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <h3 className="font-semibold text-gray-900">{feedback.title}</h3>
-                          <Badge variant="secondary" className={getStatusColor(feedback.status)}>
-                            {getStatusIcon(feedback.status)}
-                            <span className="ml-1 capitalize">{feedback.status.replace("-", " ")}</span>
-                          </Badge>
-                        </div>
-                        <p className="text-gray-600 mb-3">{feedback.message}</p>
-                        <div className="flex items-center space-x-4 text-sm text-gray-500">
-                          <span>Type: {feedback.type}</span>
-                          <span>•</span>
-                          <span>{feedback.date}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {feedback.response && (
-                      <div className="mt-4 p-4 bg-prologue-electric/5 rounded-lg border border-prologue-electric/20">
-                        <div className="flex items-start space-x-3">
-                          <div className="w-8 h-8 bg-prologue-electric rounded-full flex items-center justify-center flex-shrink-0">
-                            <User className="h-4 w-4 text-white" />
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-medium text-prologue-electric mb-1">PROLOGUE Team Response</h4>
-                            <p className="text-gray-800">{feedback.response}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {feedback.status === "resolved" && feedback.rating && (
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm text-gray-600">Your rating:</span>
-                          <div className="flex items-center space-x-1">
-                            {[...Array(5)].map((_, i) => (
-                              <Star
-                                key={i}
-                                className={`h-4 w-4 ${
-                                  i < feedback.rating! ? "text-yellow-400 fill-current" : "text-gray-300"
-                                }`}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {feedback.status === "resolved" && !feedback.rating && (
-                      <div className="mt-4 pt-4 border-t border-gray-200">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-600">How satisfied are you with the resolution?</span>
-                          <div className="flex items-center space-x-2">
-                            <Button variant="outline" size="sm">
-                              <ThumbsUp className="h-4 w-4 mr-1" />
-                              Satisfied
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              <ThumbsDown className="h-4 w-4 mr-1" />
-                              Not Satisfied
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-
-              {platformFeedbackHistory.length === 0 && (
+              {loadingFeedbackHistory ? (
+                <div className="text-gray-500 text-center py-8">Loading feedback history...</div>
+              ) : platformFeedbackHistory.length === 0 ? (
                 <Card>
                   <CardContent className="p-12 text-center">
                     <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-300" />
@@ -970,6 +915,78 @@ export default function MemberFeedbackPage() {
                     <p className="text-gray-600">Your feedback history will appear here once you submit feedback.</p>
                   </CardContent>
                 </Card>
+              ) : (
+                platformFeedbackHistory.map((feedback) => (
+                  <Card key={feedback.id}>
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3 mb-2">
+                            <h3 className="font-semibold text-gray-900">{feedback.title}</h3>
+                            <Badge variant="secondary" className={getStatusColor(feedback.status)}>
+                              {getStatusIcon(feedback.status)}
+                              <span className="ml-1 capitalize">{(feedback.status || "new").replace("-", " ")}</span>
+                            </Badge>
+                          </div>
+                          <p className="text-gray-600 mb-3">{feedback.message}</p>
+                          <div className="flex items-center space-x-4 text-sm text-gray-500">
+                            <span>Type: {feedback.type}</span>
+                            <span>•</span>
+                            <span>{feedback.createdAt?.seconds ? new Date(feedback.createdAt.seconds * 1000).toISOString().slice(0, 10) : ""}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {feedback.response && (
+                        <div className="mt-4 p-4 bg-prologue-electric/5 rounded-lg border border-prologue-electric/20">
+                          <div className="flex items-start space-x-3">
+                            <div className="w-8 h-8 bg-prologue-electric rounded-full flex items-center justify-center flex-shrink-0">
+                              <User className="h-4 w-4 text-white" />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-medium text-prologue-electric mb-1">PROLOGUE Team Response</h4>
+                              <p className="text-gray-800">{feedback.response}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {feedback.status === "resolved" && feedback.rating && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm text-gray-600">Your rating:</span>
+                            <div className="flex items-center space-x-1">
+                              {[...Array(5)].map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`h-4 w-4 ${i < feedback.rating ? "text-yellow-400 fill-current" : "text-gray-300"}`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {feedback.status === "resolved" && !feedback.rating && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">How satisfied are you with the resolution?</span>
+                            <div className="flex items-center space-x-2">
+                              <Button variant="outline" size="sm">
+                                <ThumbsUp className="h-4 w-4 mr-1" />
+                                Satisfied
+                              </Button>
+                              <Button variant="outline" size="sm">
+                                <ThumbsDown className="h-4 w-4 mr-1" />
+                                Not Satisfied
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))
               )}
             </div>
           </TabsContent>

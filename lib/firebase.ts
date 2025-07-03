@@ -612,7 +612,8 @@ const notifyMemberOfFeedback = async (
 
 // Platform Feedback
 export async function addFeedback({ type, title, message, userId }: { type: string; title: string; message: string; userId?: string }) {
-  return await addDoc(collection(db, "platformFeedback"), {
+  console.log("addFeedback called", { type, title, message, userId });
+  const docRef = await addDoc(collection(db, "platformFeedback"), {
     type,
     title,
     message,
@@ -621,7 +622,9 @@ export async function addFeedback({ type, title, message, userId }: { type: stri
     status: "new",
     response: null,
     respondedAt: null,
-  })
+  });
+  console.log("addFeedback docRef:", docRef);
+  return docRef;
 }
 
 export async function getAllFeedback() {

@@ -24,6 +24,9 @@ import {
   AlertCircle,
   Users,
   BarChart3,
+  Plus,
+  Play,
+  Send,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -32,6 +35,14 @@ import { AthleteNav } from "@/components/navigation/athlete-nav"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { AdvancedNotificationProvider } from "@/contexts/advanced-notification-context"
+import { collection, query, where, getDocs } from "firebase/firestore"
+import { db, auth } from "@/lib/firebase"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { ThumbsDown } from "lucide-react"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -117,464 +128,631 @@ export default function FeedbackPage() {
 }
 
 function FeedbackPageContent() {
-  const { isMobile, isTablet } = useMobileDetection()
+  const { isMobile, isTablet } = useMobileDetection();
 
-  // Separate state for different inputs to prevent interference
-  const [activeTab, setActiveTab] = useState("requested")
-  const [selectedFilter, setSelectedFilter] = useState("all")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
-  const [newFeedback, setNewFeedback] = useState("")
-  const [feedbackRating, setFeedbackRating] = useState(5)
-  const [requestSubject, setRequestSubject] = useState("")
-
-  // Refs for maintaining focus
-  const searchRef = useRef<HTMLDivElement>(null)
-  const searchInputRef = useRef<HTMLInputElement>(null)
-  const feedbackTextareaRef = useRef<HTMLTextAreaElement>(null)
-  const subjectInputRef = useRef<HTMLInputElement>(null)
-
-  // Stable event handlers
-  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value)
-  }, [])
-
-  const handleSearchFocus = useCallback(() => {
-    setShowSearchDropdown(true)
-  }, [])
-
-  const handleSearchSelect = useCallback((search: string) => {
-    setSearchQuery(search)
-    setShowSearchDropdown(false)
-    searchInputRef.current?.focus()
-  }, [])
-
-  const clearSearch = useCallback(() => {
-    setSearchQuery("")
-    setShowSearchDropdown(false)
-    searchInputRef.current?.focus()
-  }, [])
-
-  const handleFeedbackChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setNewFeedback(e.target.value)
-  }, [])
-
-  const handleSubjectChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setRequestSubject(e.target.value)
-  }, [])
-
-  const handleSubmitFeedback = useCallback(() => {
-    console.log("Submitting feedback:", { content: newFeedback, rating: feedbackRating })
-    setNewFeedback("")
-    setFeedbackRating(5)
-  }, [newFeedback, feedbackRating])
-
-  const handleRequestFeedback = useCallback(() => {
-    console.log("Requesting feedback:", { subject: requestSubject, description: newFeedback })
-    setRequestSubject("")
-    setNewFeedback("")
-  }, [requestSubject, newFeedback])
-
-  // Handle clicks outside search dropdown
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowSearchDropdown(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [])
-
-  const getStatusColor = useCallback((status: string) => {
-    switch (status) {
-      case "active":
-        return "bg-green-100 text-green-700"
-      case "completed":
-        return "bg-blue-100 text-blue-700"
-      case "delivered":
-        return "bg-purple-100 text-purple-700"
-      case "pending":
-        return "bg-yellow-100 text-yellow-700"
-      default:
-        return "bg-gray-100 text-gray-700"
-    }
-  }, [])
-
-  const getStatusIcon = useCallback((status: string) => {
-    switch (status) {
-      case "active":
-        return <AlertCircle className="h-3 w-3" />
-      case "completed":
-        return <CheckCircle className="h-3 w-3" />
-      default:
-        return <Clock className="h-3 w-3" />
-    }
-  }, [])
-
-  // Memoized search dropdown to prevent re-renders
-  const SearchDropdown = useMemo(() => {
-    if (!showSearchDropdown) return null
-
-    return (
-      <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-        <div className="p-3 border-b border-gray-100">
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">Quick Searches</h4>
-          <div className="space-y-1">
-            {QUICK_SEARCHES.map((search) => (
-              <button
-                key={search}
-                className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-blue-500 rounded transition-colors"
-                onClick={() => handleSearchSelect(search)}
-              >
-                {search}
-              </button>
-            ))}
+  // DesktopHeader from the original code
+  const DesktopHeader = (
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex items-center justify-between h-16">
+          <div className="flex items-center space-x-8">
+            <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
+              <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
+                <Image
+                  src="/prologue-main-logo.png"
+                  alt="PROLOGUE"
+                  width={32}
+                  height={32}
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
+                PROLOGUE
+              </span>
+            </Link>
+            <div className="hidden md:flex items-center space-x-1 relative">
+              {/* Search bar and dropdown can be added here if needed */}
+            </div>
+          </div>
+          <div className="flex items-center space-x-6">
+            {/* Navigation and user dropdown */}
+            {/* You can add AthleteNav and DropdownMenu here as in the original header */}
           </div>
         </div>
       </div>
-    )
-  }, [showSearchDropdown, handleSearchSelect])
+    </header>
+  );
 
-  // Memoized header component
-  const DesktopHeader = useMemo(
-    () => (
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
-                <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
-                  <Image
-                    src="/prologue-main-logo.png"
-                    alt="PROLOGUE"
-                    width={32}
-                    height={32}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
-                  PROLOGUE
-                </span>
-              </Link>
+  // Platform feedback form state
+  const [platformFeedbackType, setPlatformFeedbackType] = useState("");
+  const [platformFeedbackTitle, setPlatformFeedbackTitle] = useState("");
+  const [platformFeedbackMessage, setPlatformFeedbackMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-              <div className="hidden md:flex items-center space-x-1 relative" ref={searchRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    placeholder="Search feedback requests..."
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    onFocus={handleSearchFocus}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={clearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-                {SearchDropdown}
-              </div>
-            </div>
+  // Feedback completion state
+  const [selectedFeedback, setSelectedFeedback] = useState<any>(null);
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [isCompletingFeedback, setIsCompletingFeedback] = useState(false);
 
-            <div className="flex items-center space-x-6">
-              <AthleteNav currentPath="/feedback" />
+  // Helper function to extract YouTube video ID from URL
+  const getYouTubeVideoId = (url: string) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return match && match[2].length === 11 ? match[2] : null;
+  };
 
-              <div className="flex items-center space-x-3">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center space-x-2 p-2">
-                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                        <User className="w-full h-full text-gray-500 p-1" />
-                      </div>
-                      <ChevronDown className="h-4 w-4 text-gray-500" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem>
-                      <Link href="/athleteDashboard" className="flex items-center w-full">
-                        <LayoutDashboard className="h-4 w-4 mr-2" />
-                        Profile
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Link href="/promote" className="flex items-center w-full">
-                        <TrendingUp className="h-4 w-4 mr-2" />
-                        Promote
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Settings className="h-4 w-4 mr-2" />
-                      Settings
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Link href="/analytics" className="flex items-center w-full">
-                        <BarChart3 className="h-4 w-4 mr-2" />
-                        Analytics
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Logout
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
+  // Mock video-based feedback requests data
+  const feedbackRequests = [
+    {
+      id: 1,
+      title: "Training Program Effectiveness",
+      subtitle: "Watch my 12-week strength program overview and share your thoughts",
+      videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      category: "Training Content",
+      status: "active",
+      sentTo: 45,
+      responses: 32,
+      averageRating: 4.6,
+      dueDate: "Dec 15, 2024",
+      createdAt: "2 days ago",
+      completed: false,
+    },
+    {
+      id: 2,
+      title: "Nutrition Content Quality",
+      subtitle: "Review my latest nutrition guidance video series",
+      videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      category: "Nutrition",
+      status: "completed",
+      sentTo: 28,
+      responses: 28,
+      averageRating: 4.8,
+      dueDate: "Dec 1, 2024",
+      createdAt: "1 week ago",
+      completed: true,
+      userRating: 5,
+      userComment: "Excellent content! Very helpful for my nutrition planning.",
+    },
+    {
+      id: 3,
+      title: "Mental Performance Series",
+      subtitle: "Provide feedback on my mental performance and mindset content",
+      videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      category: "Mental Performance",
+      status: "active",
+      sentTo: 67,
+      responses: 43,
+      averageRating: 4.4,
+      dueDate: "Dec 20, 2024",
+      createdAt: "3 days ago",
+      completed: false,
+    },
+  ];
+
+  // Mock platform feedback history
+  const platformFeedbackHistory = [
+    {
+      id: 1,
+      type: "suggestion",
+      title: "Improve analytics dashboard",
+      message: "The analytics dashboard could show more detailed engagement metrics for content creators.",
+      status: "resolved",
+      date: "2024-01-15",
+      response:
+        "Thank you for your feedback! We've added more detailed analytics including engagement rates, watch time, and subscriber growth metrics.",
+      rating: 5,
+    },
+    {
+      id: 2,
+      type: "bug",
+      title: "Video upload issues",
+      message: "Sometimes videos fail to upload when they're longer than 30 minutes.",
+      status: "in-progress",
+      date: "2024-01-10",
+      response: "We're working on fixing this issue. A patch will be released in the next update.",
+      rating: null,
+    },
+    {
+      id: 3,
+      type: "feature",
+      title: "Bulk messaging feature",
+      message: "It would be helpful to send messages to multiple subscribers at once.",
+      status: "under-review",
+      date: "2024-01-05",
+      response: null,
+      rating: null,
+    },
+  ];
+
+  const handleSubmitPlatformFeedback = async () => {
+    if (!platformFeedbackType || !platformFeedbackTitle || !platformFeedbackMessage) {
+      return;
+    }
+    setIsSubmitting(true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setPlatformFeedbackType("");
+    setPlatformFeedbackTitle("");
+    setPlatformFeedbackMessage("");
+    setIsSubmitting(false);
+    alert("Platform feedback submitted successfully!");
+  };
+
+  const handleCompleteFeedback = async () => {
+    if (!selectedFeedback || feedbackRating === 0) {
+      return;
+    }
+    setIsCompletingFeedback(true);
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    setSelectedFeedback(null);
+    setFeedbackRating(0);
+    setFeedbackComment("");
+    setIsCompletingFeedback(false);
+    alert("Feedback completed successfully!");
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "resolved":
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case "in-progress":
+        return <Clock className="h-4 w-4 text-yellow-500" />;
+      case "under-review":
+        return <AlertCircle className="h-4 w-4 text-blue-500" />;
+      default:
+        return <Clock className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "resolved":
+        return "bg-green-100 text-green-700";
+      case "in-progress":
+        return "bg-yellow-100 text-yellow-700";
+      case "under-review":
+        return "bg-blue-100 text-blue-700";
+      default:
+        return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  const getRequestStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return <Badge className="bg-green-100 text-green-700">Active</Badge>;
+      case "completed":
+        return <Badge className="bg-blue-100 text-blue-700">Completed</Badge>;
+      case "expired":
+        return <Badge className="bg-red-100 text-red-700">Expired</Badge>;
+      default:
+        return <Badge variant="secondary">Unknown</Badge>;
+    }
+  };
+
+  // Main content UI from user-provided code
+  const mainContent = (
+    <main className="max-w-7xl mx-auto px-6 py-8">
+      {/* Page Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center space-x-4">
+          <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+            <MessageSquare className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Feedback Center</h1>
+            <p className="text-gray-600">Request feedback from subscribers and give testimonials</p>
           </div>
         </div>
-      </header>
-    ),
-    [searchQuery, SearchDropdown, handleSearchChange, handleSearchFocus, clearSearch],
-  )
+        <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Filter className="h-4 w-4 mr-2" />
+          Filter
+        </Button>
+      </div>
 
-  // Memoized main content
-  const MainContent = useMemo(
-    () => (
-      <main className={`${isMobile ? "px-4 py-6 pb-24" : "max-w-7xl mx-auto px-6 py-8"}`}>
-        {/* Page Header */}
-        <div className="mb-6">
-          <div className={`flex ${isMobile ? "flex-col space-y-4" : "items-center justify-between"}`}>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <Card>
+          <CardContent className="p-6">
             <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-blue-500 rounded-lg flex items-center justify-center">
-                <MessageSquare className="h-6 w-6 text-white" />
+              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                <MessageSquare className="h-5 w-5 text-gray-600" />
               </div>
               <div>
-                <h1 className={`${isMobile ? "text-2xl" : "text-3xl"} font-bold text-gray-900`}>
-                  {isMobile ? "Feedback" : "Feedback Center"}
-                </h1>
-                <p className="text-gray-600 mt-1">
-                  {isMobile ? "Request & give feedback" : "Request feedback from subscribers and give testimonials"}
-                </p>
+                <p className="text-2xl font-bold text-gray-900">5</p>
+                <p className="text-sm text-gray-600">All feedback</p>
               </div>
             </div>
-            <div className={`flex ${isMobile ? "w-full space-x-2" : "space-x-3"}`}>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className={isMobile ? "flex-1" : ""} size={isMobile ? "sm" : "default"}>
-                    <Filter className="h-4 w-4 mr-2" />
-                    Filter
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setSelectedFilter("all")}>All Feedback</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSelectedFilter("active")}>Active Requests</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSelectedFilter("completed")}>Completed</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSelectedFilter("recent")}>Recent</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Users className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">3</p>
+                <p className="text-sm text-gray-600">From subscribers</p>
+              </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <Star className="h-5 w-5 text-yellow-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">4.6</p>
+                <p className="text-sm text-gray-600">Star rating</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                <BarChart3 className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-900">78%</p>
+                <p className="text-sm text-gray-600">Response rate</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Feedback Stats */}
-        <div
-          className={`grid ${isMobile ? "grid-cols-2 gap-3" : isTablet ? "grid-cols-2 gap-4" : "md:grid-cols-4 gap-6"} mb-6`}
-        >
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={`${isMobile ? "text-xs" : "text-sm"} font-medium`}>Total</CardTitle>
-              <MessageSquare className={`${isMobile ? "h-3 w-3" : "h-4 w-4"} text-muted-foreground`} />
-            </CardHeader>
-            <CardContent>
-              <div className={`${isMobile ? "text-lg" : "text-2xl"} font-bold`}>5</div>
-              <p className={`${isMobile ? "text-xs" : "text-xs"} text-muted-foreground`}>All feedback</p>
-            </CardContent>
-          </Card>
+      {/* Tabs */}
+      <Tabs defaultValue="requested" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="requested" className="flex items-center space-x-2">
+            <Users className="h-4 w-4" />
+            <span>Requested (3)</span>
+          </TabsTrigger>
+          <TabsTrigger value="given" className="flex items-center space-x-2">
+            <Star className="h-4 w-4" />
+            <span>Given (2)</span>
+          </TabsTrigger>
+          <TabsTrigger value="platform" className="flex items-center space-x-2">
+            <Plus className="h-4 w-4" />
+            <span>Platform Feedback</span>
+          </TabsTrigger>
+        </TabsList>
 
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={`${isMobile ? "text-xs" : "text-sm"} font-medium`}>Requested</CardTitle>
-              <Users className={`${isMobile ? "h-3 w-3" : "h-4 w-4"} text-muted-foreground`} />
-            </CardHeader>
-            <CardContent>
-              <div className={`${isMobile ? "text-lg" : "text-2xl"} font-bold`}>3</div>
-              <p className={`${isMobile ? "text-xs" : "text-xs"} text-muted-foreground`}>From subscribers</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={`${isMobile ? "text-xs" : "text-sm"} font-medium`}>Average</CardTitle>
-              <Star className={`${isMobile ? "h-3 w-3" : "h-4 w-4"} text-muted-foreground`} />
-            </CardHeader>
-            <CardContent>
-              <div className={`${isMobile ? "text-lg" : "text-2xl"} font-bold`}>4.6</div>
-              <p className={`${isMobile ? "text-xs" : "text-xs"} text-muted-foreground`}>Star rating</p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={`${isMobile ? "text-xs" : "text-sm"} font-medium`}>Response</CardTitle>
-              <CheckCircle className={`${isMobile ? "h-3 w-3" : "h-4 w-4"} text-muted-foreground`} />
-            </CardHeader>
-            <CardContent>
-              <div className={`${isMobile ? "text-lg" : "text-2xl"} font-bold`}>78%</div>
-              <p className={`${isMobile ? "text-xs" : "text-xs"} text-muted-foreground`}>Response rate</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Feedback Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className={`${isMobile ? "grid w-full grid-cols-2 h-auto" : "grid w-full grid-cols-2"}`}>
-            <TabsTrigger
-              value="requested"
-              className={`flex items-center space-x-1 ${isMobile ? "flex-col space-x-0 space-y-1 py-3" : "space-x-2"}`}
-            >
-              <Users className={`${isMobile ? "h-3 w-3" : "h-4 w-4"}`} />
-              <span className={`${isMobile ? "text-xs" : ""}`}>
-                {isMobile ? "Requested" : `Requested (${FEEDBACK_DATA.requested.length})`}
-              </span>
-              {isMobile && <span className="text-xs text-gray-500">({FEEDBACK_DATA.requested.length})</span>}
-            </TabsTrigger>
-            <TabsTrigger
-              value="given"
-              className={`flex items-center space-x-1 ${isMobile ? "flex-col space-x-0 space-y-1 py-3" : "space-x-2"}`}
-            >
-              <ThumbsUp className={`${isMobile ? "h-3 w-3" : "h-4 w-4"}`} />
-              <span className={`${isMobile ? "text-xs" : ""}`}>
-                {isMobile ? "Given" : `Given (${FEEDBACK_DATA.given.length})`}
-              </span>
-              {isMobile && <span className="text-xs text-gray-500">({FEEDBACK_DATA.given.length})</span>}
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Requested Feedback */}
-          <TabsContent value="requested" className="space-y-4">
-            {FEEDBACK_DATA.requested.length > 0 ? (
-              <div className="space-y-4">
-                {FEEDBACK_DATA.requested.map((request) => (
-                  <Card key={request.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <h4 className="font-semibold text-gray-900">{request.subject}</h4>
-                            <Badge variant="secondary" className={getStatusColor(request.status)}>
-                              {getStatusIcon(request.status)}
-                              <span className="ml-1 capitalize">{request.status}</span>
+        {/* Requested Feedback Tab */}
+        <TabsContent value="requested" className="space-y-6">
+          <div className="space-y-6">
+            {feedbackRequests.map((request) => {
+              const videoId = getYouTubeVideoId(request.videoUrl);
+              return (
+                <Card key={request.id}>
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <h3 className="text-lg font-semibold text-gray-900">{request.title}</h3>
+                          {getRequestStatusBadge(request.status)}
+                          <Badge variant="outline" className="text-xs">
+                            {request.category}
+                          </Badge>
+                          {request.completed && (
+                            <Badge className="bg-green-100 text-green-700">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Completed
                             </Badge>
-                          </div>
-                          <p className="text-gray-600 mb-3">{request.description}</p>
-                          <div className="flex items-center space-x-4 text-sm text-gray-500">
-                            <span>Sent to {request.recipients} subscribers</span>
-                            <span>•</span>
-                            <span>{request.responses} responses</span>
-                            <span>•</span>
-                            <span>Avg: {request.avgRating}/5 ⭐</span>
-                            <span>•</span>
-                            <span>Due: {request.deadline}</span>
-                          </div>
+                          )}
                         </div>
-                        <div className="flex items-center space-x-2 text-sm text-gray-500">
-                          <Badge variant="outline">{request.category}</Badge>
-                          <span>{request.timestamp}</span>
-                        </div>
+                        <p className="text-gray-600 mb-4">{request.subtitle}</p>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <Button size="sm" variant="outline">
-                          View Responses
-                        </Button>
-                        <Button size="sm" variant="ghost">
-                          Send Reminder
-                        </Button>
-                        {request.status === "active" && (
-                          <Button size="sm" variant="ghost">
-                            Close Request
-                          </Button>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-500 mb-2">{request.createdAt}</p>
+                      </div>
+                    </div>
+                    {/* Embedded Video Player */}
+                    <div className="mb-6">
+                      <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
+                        {videoId ? (
+                          <iframe
+                            width="100%"
+                            height="100%"
+                            src={`https://www.youtube.com/embed/${videoId}`}
+                            title={request.title}
+                            frameBorder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                            className="w-full h-full"
+                          ></iframe>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <div className="text-center">
+                              <Play className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                              <p className="text-gray-500">Video not available</p>
+                            </div>
+                          </div>
                         )}
                       </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="text-center py-12">
-                  <Users className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback requested</h3>
-                  <p className="text-gray-600">
-                    Start requesting feedback from your subscribers to improve your content.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Given Feedback */}
-          <TabsContent value="given" className="space-y-4">
-            {FEEDBACK_DATA.given.length > 0 ? (
-              <div className="space-y-4">
-                {FEEDBACK_DATA.given.map((feedback) => (
-                  <Card key={feedback.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex items-start space-x-4">
-                        <Image
-                          src={feedback.avatar || "/placeholder.svg"}
-                          alt={feedback.to}
-                          width={40}
-                          height={40}
-                          className="w-10 h-10 rounded-full"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center space-x-2">
-                              <h4 className="font-semibold text-gray-900">To: {feedback.to}</h4>
-                              <Badge variant="secondary" className={getStatusColor(feedback.status)}>
-                                {getStatusIcon(feedback.status)}
-                                <span className="ml-1 capitalize">{feedback.status}</span>
-                              </Badge>
-                            </div>
-                            <div className="flex items-center space-x-2 text-sm text-gray-500">
-                              <Badge variant="outline">{feedback.category}</Badge>
-                              <span>{feedback.timestamp}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-1 mb-3">
+                    </div>
+                    {/* Show completed feedback */}
+                    {request.completed && request.userRating && (
+                      <div className="mb-4 p-4 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span className="text-sm font-medium text-green-800">Your Feedback</span>
+                        </div>
+                        <div className="flex items-center space-x-2 mb-2">
+                          <span className="text-sm text-gray-600">Rating:</span>
+                          <div className="flex items-center space-x-1">
                             {[...Array(5)].map((_, i) => (
                               <Star
                                 key={i}
-                                className={`h-4 w-4 ${
-                                  i < feedback.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
-                                }`}
+                                className={`h-4 w-4 ${i < request.userRating! ? "text-yellow-400 fill-current" : "text-gray-300"}`}
                               />
                             ))}
-                            <span className="text-sm text-gray-600 ml-2">({feedback.rating}/5)</span>
                           </div>
-                          <p className="text-gray-700">{feedback.content}</p>
+                          <span className="text-sm text-gray-600">({request.userRating}/5)</span>
+                        </div>
+                        {request.userComment && <p className="text-sm text-gray-700 mt-2">{request.userComment}</p>}
+                      </div>
+                    )}
+                    <div className="flex items-center space-x-3">
+                      {!request.completed ? (
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              onClick={() => setSelectedFeedback(request)}
+                            >
+                              <Star className="h-4 w-4 mr-2" />
+                              Complete Feedback
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-md">
+                            <DialogHeader>
+                              <DialogTitle>Complete Feedback</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-6">
+                              <div>
+                                <h4 className="font-medium text-gray-900 mb-1">{selectedFeedback?.title}</h4>
+                                <p className="text-sm text-gray-600">{selectedFeedback?.subtitle}</p>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                  Rate this content
+                                </Label>
+                                <div className="flex items-center space-x-1">
+                                  {[1, 2, 3, 4, 5].map((rating) => (
+                                    <button
+                                      key={rating}
+                                      onClick={() => setFeedbackRating(rating)}
+                                      className="p-1 hover:scale-110 transition-transform"
+                                    >
+                                      <Star
+                                        className={`h-6 w-6 ${rating <= feedbackRating ? "text-yellow-400 fill-current" : "text-gray-300 hover:text-yellow-200"}`}
+                                      />
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <Label htmlFor="feedback-comment" className="text-sm font-medium text-gray-700 mb-2 block">
+                                  Additional Comments (Optional)
+                                </Label>
+                                <Textarea
+                                  id="feedback-comment"
+                                  value={feedbackComment}
+                                  onChange={(e) => setFeedbackComment(e.target.value)}
+                                  placeholder="Share your thoughts about this content..."
+                                  rows={4}
+                                />
+                              </div>
+                              <Button
+                                onClick={handleCompleteFeedback}
+                                disabled={feedbackRating === 0 || isCompletingFeedback}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                              >
+                                {isCompletingFeedback ? (
+                                  <>
+                                    <Clock className="h-4 w-4 mr-2 animate-spin" />
+                                    Submitting...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="h-4 w-4 mr-2" />
+                                    Submit Feedback
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      ) : (
+                        <Button variant="outline" disabled>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Feedback Completed
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </TabsContent>
+        {/* Given Feedback Tab */}
+        <TabsContent value="given" className="space-y-6">
+          <Card>
+            <CardContent className="p-12 text-center">
+              <Star className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback given yet</h3>
+              <p className="text-gray-600">Feedback you've given to other creators will appear here.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        {/* Platform Feedback Tab */}
+        <TabsContent value="platform" className="space-y-6">
+          <Tabs defaultValue="submit" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="submit">Submit Feedback</TabsTrigger>
+              <TabsTrigger value="history">Feedback History</TabsTrigger>
+            </TabsList>
+            {/* Submit Platform Feedback */}
+            <TabsContent value="submit">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Submit Platform Feedback</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div>
+                    <Label htmlFor="platform-feedback-type">Feedback Type</Label>
+                    <Select value={platformFeedbackType} onValueChange={setPlatformFeedbackType}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select feedback type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="bug">Bug Report</SelectItem>
+                        <SelectItem value="feature">Feature Request</SelectItem>
+                        <SelectItem value="suggestion">Suggestion</SelectItem>
+                        <SelectItem value="complaint">Complaint</SelectItem>
+                        <SelectItem value="compliment">Compliment</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="platform-feedback-title">Title</Label>
+                    <Input
+                      id="platform-feedback-title"
+                      value={platformFeedbackTitle}
+                      onChange={(e) => setPlatformFeedbackTitle(e.target.value)}
+                      placeholder="Brief description of your feedback"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="platform-feedback-message">Message</Label>
+                    <Textarea
+                      id="platform-feedback-message"
+                      value={platformFeedbackMessage}
+                      onChange={(e) => setPlatformFeedbackMessage(e.target.value)}
+                      placeholder="Please provide detailed feedback..."
+                      rows={6}
+                    />
+                    <p className="text-sm text-gray-500 mt-1">{platformFeedbackMessage.length}/1000 characters</p>
+                  </div>
+                  <Button
+                    onClick={handleSubmitPlatformFeedback}
+                    disabled={
+                      !platformFeedbackType || !platformFeedbackTitle || !platformFeedbackMessage || isSubmitting
+                    }
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Clock className="h-4 w-4 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Submit Feedback
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            {/* Platform Feedback History */}
+            <TabsContent value="history">
+              <div className="space-y-4">
+                {platformFeedbackHistory.map((feedback) => (
+                  <Card key={feedback.id}>
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3 mb-2">
+                            <h3 className="font-semibold text-gray-900">{feedback.title}</h3>
+                            <Badge variant="secondary" className={getStatusColor(feedback.status)}>
+                              {getStatusIcon(feedback.status)}
+                              <span className="ml-1 capitalize">{feedback.status.replace("-", " ")}</span>
+                            </Badge>
+                          </div>
+                          <p className="text-gray-600 mb-3">{feedback.message}</p>
+                          <div className="flex items-center space-x-4 text-sm text-gray-500">
+                            <span>Type: {feedback.type}</span>
+                            <span>•</span>
+                            <span>{feedback.date}</span>
+                          </div>
                         </div>
                       </div>
+                      {feedback.response && (
+                        <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                          <div className="flex items-start space-x-3">
+                            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                              <User className="h-4 w-4 text-white" />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-medium text-blue-600 mb-1">PROLOGUE Team Response</h4>
+                              <p className="text-gray-800">{feedback.response}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {feedback.status === "resolved" && feedback.rating && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm text-gray-600">Your rating:</span>
+                            <div className="flex items-center space-x-1">
+                              {[...Array(5)].map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`h-4 w-4 ${i < feedback.rating! ? "text-yellow-400 fill-current" : "text-gray-300"}`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {feedback.status === "resolved" && !feedback.rating && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-gray-600">How satisfied are you with the resolution?</span>
+                            <div className="flex items-center space-x-2">
+                              <Button variant="outline" size="sm">
+                                <ThumbsUp className="h-4 w-4 mr-1" />
+                                Satisfied
+                              </Button>
+                              <Button variant="outline" size="sm">
+                                <ThumbsDown className="h-4 w-4 mr-1" />
+                                Not Satisfied
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
+                {platformFeedbackHistory.length === 0 && (
+                  <Card>
+                    <CardContent className="p-12 text-center">
+                      <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback submitted yet</h3>
+                      <p className="text-gray-600">Your feedback history will appear here once you submit feedback.</p>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
-            ) : (
-              <Card>
-                <CardContent className="text-center py-12">
-                  <ThumbsUp className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback given</h3>
-                  <p className="text-gray-600">Testimonials and feedback you've given to others will appear here.</p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
-      </main>
-    ),
-    [isMobile, isTablet, activeTab, selectedFilter, getStatusColor, getStatusIcon],
-  )
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+      </Tabs>
+    </main>
+  );
 
+  // Top-level conditional rendering
   if (isMobile || isTablet) {
     return (
       <MobileLayout
@@ -585,15 +763,15 @@ function FeedbackPageContent() {
         unreadMessages={0}
         hasNewContent={false}
       >
-        {MainContent}
+        {mainContent}
       </MobileLayout>
-    )
+    );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {DesktopHeader}
-      {MainContent}
+      {mainContent}
     </div>
-  )
+  );
 } 
