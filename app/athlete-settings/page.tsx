@@ -15,7 +15,7 @@ import { User, Bell, CreditCard, Shield, Lock, Eye, EyeOff, Save, ArrowLeft, Tra
 import Link from "next/link"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutLoadingScreen } from "@/components/ui/logout-loading-screen"
-import { AthleteHeader } from "@/components/navigation/athlete-header"
+import { AthleteNav } from "@/components/navigation/athlete-nav"
 
 const AthleteSettingsPage = () => {
   // Loading states
@@ -126,7 +126,6 @@ const AthleteSettingsPage = () => {
 
     await logout({
       customMessage: "Saving settings and logging you out...",
-      redirectUrl: "/login",
       onComplete: () => {
         console.log("✅ Athlete logout completed successfully from settings")
         toast({
@@ -363,7 +362,21 @@ const AthleteSettingsPage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <AthleteHeader currentPath="/athlete-settings" onLogout={handleLogout} />
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-4">
+              <h1 className="text-xl font-semibold text-gray-900">Athlete Dashboard</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <AthleteNav currentPath="/athlete-settings" />
+              <Button variant="outline" onClick={handleLogout}>
+                Logout
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Page Header */}
       <div className="bg-white border-b border-gray-200">
@@ -730,6 +743,7 @@ const AthleteSettingsPage = () => {
                               setSubscriptionTiers(
                                 subscriptionTiers.map((t) =>
                                   t.id === tier.id ? { ...t, price: Number.parseInt(e.target.value) || 0 } : t,
+                                )
                               )
                             }}
                             className="w-24"
@@ -1169,10 +1183,9 @@ const AthleteSettingsPage = () => {
       {/* Logout Loading Screen */}
       <LogoutLoadingScreen
         isVisible={loadingState.isVisible}
-        stage={loadingState.stage}
-        progress={loadingState.progress}
+        stage={loadingState.stage as "initializing" | "clearing-data" | "securing-session" | "redirecting" | "complete" | "error"}
         message={loadingState.message}
-        error={loadingState.error}
+        error={loadingState.error || undefined}
         onRetry={retryLogout}
         onCancel={cancelLogout}
       />
