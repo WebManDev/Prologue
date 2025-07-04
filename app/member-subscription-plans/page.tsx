@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { SubscriptionCheckout } from "@/components/subscription-checkout"
 import { CREATORS } from "@/lib/creators"
 import { doc, getDoc } from "firebase/firestore"
@@ -54,7 +54,7 @@ const subscriptionTiers = [
   },
 ]
 
-export default function MemberSubscriptionPlansPage() {
+function MemberSubscriptionPlansContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const athleteId = searchParams ? searchParams.get("athleteId") : null
@@ -177,8 +177,11 @@ export default function MemberSubscriptionPlansPage() {
                   premium: 49.99,
                 },
               }}
-              memberEmail={memberEmail}
-              memberName={memberName}
+              members={{
+                id: "temp-member-id", // TODO: Replace with actual member ID from auth
+                name: memberName,
+                email: memberEmail,
+              }}
               onSuccess={handleCheckoutSuccess}
               onCancel={handleBackToPlans}
               selectedPlan={selectedPlan}
@@ -249,4 +252,23 @@ export default function MemberSubscriptionPlansPage() {
   }
 
   return <MainContent />
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-prologue-electric mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading subscription plans...</p>
+      </div>
+    </div>
+  )
+}
+
+export default function MemberSubscriptionPlansPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <MemberSubscriptionPlansContent />
+    </Suspense>
+  )
 } 
