@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,11 @@ import Link from "next/link"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutLoadingScreen } from "@/components/ui/logout-loading-screen"
 import { AthleteNav } from "@/components/navigation/athlete-nav"
+import { getFirestore, doc, updateDoc } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import { app as firebaseApp } from "@/lib/firebase";
+import { AthleteStripeConnect } from "@/components/athlete-stripe-connect";
+import { AthletePricingManager } from "@/components/athlete-pricing-manager";
 
 const AthleteSettingsPage = () => {
   // Loading states
@@ -73,22 +78,7 @@ const AthleteSettingsPage = () => {
     paymentAlerts: true,
   })
 
-  // Subscription Tiers State
-  const [subscriptionTiers, setSubscriptionTiers] = useState([
-    { id: 1, name: "Basic", price: 29, features: ["Monthly coaching calls", "Training plans", "Email support"] },
-    {
-      id: 2,
-      name: "Pro",
-      price: 59,
-      features: ["Weekly coaching calls", "Custom nutrition plans", "Video analysis", "Priority support"],
-    },
-    {
-      id: 3,
-      name: "Elite",
-      price: 99,
-      features: ["Daily support", "1-on-1 sessions", "Competition prep", "24/7 access"],
-    },
-  ])
+
 
   // Payment Methods State
   const [paymentMethods, setPaymentMethods] = useState([
@@ -118,6 +108,8 @@ const AthleteSettingsPage = () => {
     bankState: "",
     bankZip: "",
   })
+
+
 
   const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
 
@@ -284,30 +276,7 @@ const AthleteSettingsPage = () => {
     })
   }
 
-  const saveSubscriptionTiers = async () => {
-    setIsLoading({ ...isLoading, subscription: true })
 
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-
-    try {
-      console.log("Saving subscription tiers:", subscriptionTiers)
-
-      toast({
-        title: "Subscription Tiers Updated",
-        description: "Your subscription tiers have been saved successfully.",
-        duration: 3000,
-      })
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to save subscription tiers. Please try again.",
-        variant: "destructive",
-        duration: 3000,
-      })
-    } finally {
-      setIsLoading({ ...isLoading, subscription: false })
-    }
-  }
 
   const savePrivacySettings = async () => {
     setIsLoading({ ...isLoading, privacy: true })
@@ -358,6 +327,30 @@ const AthleteSettingsPage = () => {
       setIsLoading({ ...isLoading, banking: false })
     }
   }
+
+  // Handle URL parameters for Stripe Connect return
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const success = urlParams.get('success')
+    const refresh = urlParams.get('refresh')
+
+    if (success === 'true') {
+      toast({
+        title: "Stripe Connect Setup Complete",
+        description: "Your Stripe Connect account has been successfully set up!",
+        duration: 5000,
+      })
+      // Clean up URL
+      window.history.replaceState({}, '', '/athlete-settings')
+    }
+
+    if (refresh === 'true') {
+      // Reload the page to get updated Stripe account status
+      window.location.reload()
+    }
+  }, [])
+
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -714,91 +707,7 @@ const AthleteSettingsPage = () => {
 
           {/* Subscription Settings */}
           <TabsContent value="subscription" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Subscription Tiers</CardTitle>
-                <p className="text-sm text-gray-600">Manage your subscription offerings</p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {subscriptionTiers.map((tier) => (
-                  <div key={tier.id} className="border rounded-lg p-4 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4 flex-1">
-                        <Input
-                          value={tier.name}
-                          onChange={(e) => {
-                            setSubscriptionTiers(
-                              subscriptionTiers.map((t) => (t.id === tier.id ? { ...t, name: e.target.value } : t)),
-                            )
-                          }}
-                          className="font-medium max-w-xs"
-                          placeholder="Tier name"
-                        />
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm">$</span>
-                          <Input
-                            type="number"
-                            value={tier.price}
-                            onChange={(e) => {
-                              setSubscriptionTiers(
-                                subscriptionTiers.map((t) =>
-                                  t.id === tier.id ? { ...t, price: Number.parseInt(e.target.value) || 0 } : t,
-                                )
-                              )
-                            }}
-                            className="w-24"
-                            min="0"
-                          />
-                          <span className="text-sm text-gray-600">/month</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Features</Label>
-                      {tier.features.map((feature, index) => (
-                        <div key={index} className="flex items-center space-x-2">
-                          <Input
-                            value={feature}
-                            onChange={(e) => {
-                              const newTiers = subscriptionTiers.map((t) =>
-                                t.id === tier.id
-                                  ? {
-                                      ...t,
-                                      features: t.features.map((f, i) => (i === index ? e.target.value : f)),
-                                    }
-                                  : t,
-                              )
-                              setSubscriptionTiers(newTiers)
-                            }}
-                            placeholder="Feature description"
-                            className="flex-1"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-
-                <Button
-                  onClick={saveSubscriptionTiers}
-                  className="bg-prologue-electric hover:bg-prologue-blue"
-                  disabled={isLoading.subscription}
-                >
-                  {isLoading.subscription ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4 mr-2" />
-                      Save Subscription Tiers
-                    </>
-                  )}
-                </Button>
-              </CardContent>
-            </Card>
+            <AthletePricingManager athleteData={accountData} />
           </TabsContent>
 
           {/* Banking Settings */}
@@ -955,6 +864,9 @@ const AthleteSettingsPage = () => {
                     </>
                   )}
                 </Button>
+
+                <Separator className="my-6" />
+                <AthleteStripeConnect athleteData={accountData} />
               </CardContent>
             </Card>
           </TabsContent>

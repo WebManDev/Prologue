@@ -44,8 +44,11 @@ import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
-import { auth, getMemberProfile } from "@/lib/firebase"
+import { auth, getMemberProfile, db, getAthleteProfile } from "@/lib/firebase"
+import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, doc, updateDoc, arrayUnion, getDoc, deleteDoc } from "firebase/firestore"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
 
 export default function MemberHomePage() {
   // Mobile detection
@@ -442,6 +445,52 @@ export default function MemberHomePage() {
   // Optimized logout handler
   const { logout } = useUnifiedLogout()
 
+  const [firebasePosts, setFirebasePosts] = useState<any[]>([])
+  const [profileCache, setProfileCache] = useState<Record<string, any>>({})
+
+  // Fetch posts
+  useEffect(() => {
+    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"))
+    const unsub = onSnapshot(q, (snapshot) => {
+      setFirebasePosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+    })
+    return () => unsub()
+  }, [])
+
+  // Fetch user profiles for posts
+  useEffect(() => {
+    const missingUids = firebasePosts
+      .map(post => post.createdBy)
+      .filter(uid => uid && !profileCache[uid])
+    if (missingUids.length === 0) return
+    missingUids.forEach(async (uid) => {
+      let profile = null
+      // Try member first
+      profile = await getMemberProfile(uid)
+      if (!profile) {
+        profile = await getAthleteProfile(uid)
+      }
+      setProfileCache(prev => ({ ...prev, [uid]: profile }))
+    })
+  }, [firebasePosts])
+
+  // Track post views (only once per user per post)
+  useEffect(() => {
+    const user = auth.currentUser
+    if (!user) return
+    firebasePosts.forEach(async (item) => {
+      if (!item.id) return
+      const postRef = doc(db, "posts", item.id)
+      const postSnap = await getDoc(postRef)
+      const viewedBy = postSnap.data()?.viewedBy || []
+      if (!viewedBy.includes(user.uid)) {
+        await updateDoc(postRef, {
+          views: (postSnap.data()?.views || 0) + 1,
+          viewedBy: arrayUnion(user.uid),
+        })
+      }
+    })
+  }, [firebasePosts])
   // Memoized search dropdown content
   const searchDropdownContent = useMemo(() => {
     const displayItems = searchQuery ? searchResults : quickSearches.slice(0, 8)
@@ -516,6 +565,47 @@ export default function MemberHomePage() {
     loadProfile()
   }, [])
 
+  const [postContent, setPostContent] = useState("")
+  const [posting, setPosting] = useState(false)
+  const [postFile, setPostFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Post submit handler
+  async function handlePostSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault()
+    if (!postContent.trim() && !postFile) return
+    setPosting(true)
+    try {
+      const user = auth.currentUser
+      let mediaUrl = null
+      let mediaType = null
+      if (postFile) {
+        const storage = getStorage()
+        const ext = postFile.name.split('.').pop()
+        const fileType = postFile.type.startsWith('video') ? 'video' : 'image'
+        const storageRef = ref(storage, `post-media/${user ? user.uid : 'anon'}-${Date.now()}.${ext}`)
+        await uploadBytes(storageRef, postFile)
+        mediaUrl = await getDownloadURL(storageRef)
+        mediaType = fileType
+      }
+      await addDoc(collection(db, "posts"), {
+        content: postContent,
+        createdBy: user ? user.uid : "anon",
+        userType: "member",
+        createdAt: serverTimestamp(),
+        mediaUrl,
+        mediaType,
+      })
+      setPostContent("")
+      setPostFile(null)
+    } catch (err) {
+      // Optionally show error toast
+      console.error("Failed to post:", err)
+    } finally {
+      setPosting(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <MemberHeader
@@ -538,34 +628,62 @@ export default function MemberHomePage() {
             {/* Create Post Section */}
             <Card className="bg-white border border-gray-200 mb-6">
               <CardContent className="p-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
-                    <User className="w-full h-full text-gray-500 p-2" />
+                <form onSubmit={handlePostSubmit}>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
+                      {profileImageUrl ? (
+                        <Image src={profileImageUrl} alt="Profile" width={40} height={40} />
+                      ) : (
+                        <User className="w-full h-full text-gray-500 p-2" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <LexicalRichTextEditor value={postContent} onChange={setPostContent} />
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      placeholder="What's on your mind?"
-                      className="w-full bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
-                    />
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                    <div className="flex items-center space-x-4">
+                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-prologue-electric">
+                        <Video className="h-4 w-4 mr-2" />
+                        Live Video
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-600 hover:text-prologue-electric"
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Camera className="h-4 w-4 mr-2" />
+                        Photo/Video
+                      </Button>
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        className="hidden"
+                        ref={fileInputRef}
+                        onChange={e => setPostFile(e.target.files?.[0] || null)}
+                        disabled={posting}
+                      />
+                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-prologue-electric">
+                        <Target className="h-4 w-4 mr-2" />
+                        Train
+                      </Button>
+                      {postFile && (
+                        <span className="text-xs text-gray-500 ml-2">{postFile.name}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 flex justify-end">
+                      <Button
+                        type="submit"
+                        className="bg-prologue-electric hover:bg-prologue-blue text-white px-6"
+                        disabled={posting || (!postContent.trim() && !postFile)}
+                      >
+                        {posting ? "Posting..." : "Post"}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-                  <div className="flex items-center space-x-4">
-                    <Button variant="ghost" size="sm" className="text-gray-600 hover:text-prologue-electric">
-                      <Video className="h-4 w-4 mr-2" />
-                      Live Video
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-gray-600 hover:text-prologue-electric">
-                      <Camera className="h-4 w-4 mr-2" />
-                      Photo/Video
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-gray-600 hover:text-prologue-electric">
-                      <Target className="h-4 w-4 mr-2" />
-                      Train
-                    </Button>
-                  </div>
-                </div>
+                </form>
               </CardContent>
             </Card>
 
@@ -601,6 +719,129 @@ export default function MemberHomePage() {
 
             {/* Content Feed */}
             <div className="space-y-6">
+              {/* Firebase posts at the top */}
+              {firebasePosts.map((item) => {
+                const profile = profileCache[item.createdBy] || {}
+                // Check if post is new (within 24 hours)
+                let isNew = false
+                if (item.createdAt && item.createdAt.toDate) {
+                  const now = new Date()
+                  const created = item.createdAt.toDate()
+                  isNew = (now.getTime() - created.getTime()) < 24 * 60 * 60 * 1000
+                }
+                const isOwner = auth.currentUser && auth.currentUser.uid === item.createdBy
+                const handleDelete = async () => {
+                  if (!item.id) return
+                  await deleteDoc(doc(db, "posts", item.id))
+                }
+                return (
+                  <Card
+                    key={item.id}
+                    className="bg-white border transition-all duration-300 hover:shadow-lg border-prologue-electric/30 shadow-md"
+                  >
+                    <CardContent className="p-0">
+                      <div className="space-y-0">
+                        {/* Post Header */}
+                        <div className="p-4 pb-3">
+                          <div className="flex items-start space-x-3">
+                            <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden">
+                              {profile.profileImageUrl ? (
+                                <Image src={profile.profileImageUrl} alt={profile.firstName || "User"} width={48} height={48} />
+                              ) : (
+                                <User className="w-full h-full text-gray-500 p-2" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-gray-900">{profile.firstName || profile.name || item.createdBy}</h4>
+                              <p className="text-sm text-gray-600">{item.createdAt?.toDate?.().toLocaleString?.() || "Just now"}</p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              {isNew && (
+                                <Badge className="bg-prologue-electric text-white text-xs">New</Badge>
+                              )}
+                              <div className="flex items-center space-x-1">
+                                <Eye className="h-3 w-3" />
+                                <span>{item.views || 0}</span>
+                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button className="p-1 rounded hover:bg-gray-100">
+                                    <MoreHorizontal className="h-5 w-5 text-gray-400" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {isOwner && (
+                                    <DropdownMenuItem onClick={handleDelete} className="text-red-600">
+                                      Delete
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Text content above media */}
+                        <div className="px-4 pb-3">
+                          <div
+                            className="text-gray-700 leading-relaxed"
+                            dangerouslySetInnerHTML={{ __html: item.content || "" }}
+                          />
+                        </div>
+                        {/* Media display */}
+                        {item.mediaUrl && item.mediaType === 'image' && (
+                          <div className="w-full max-h-96 bg-black flex items-center justify-center">
+                            <Image src={item.mediaUrl} alt="Post media" width={600} height={400} className="object-contain max-h-96 w-full" />
+                          </div>
+                        )}
+                        {item.mediaUrl && item.mediaType === 'video' && (
+                          <div className="w-full max-h-96 bg-black flex items-center justify-center">
+                            <video src={item.mediaUrl} controls className="object-contain max-h-96 w-full" />
+                          </div>
+                        )}
+                        {/* Action Buttons (like, comment, share, etc.) */}
+                        <div className="px-4 py-3 border-t border-gray-100">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-1">
+                              <Button variant="ghost" size="sm" className="flex-1 text-gray-600 hover:text-red-500">
+                                <Heart className="h-5 w-5 mr-2" />
+                                <span className="hidden sm:inline">Like</span>
+                              </Button>
+                              <Button variant="ghost" size="sm" className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10">
+                                <MessageSquare className="h-5 w-5 mr-2" />
+                                <span className="hidden sm:inline">Comment</span>
+                              </Button>
+                              <Button variant="ghost" size="sm" className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10">
+                                <Share className="h-5 w-5 mr-2" />
+                                <span className="hidden sm:inline">Share</span>
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Comment Preview */}
+                        <div className="px-4 pb-4">
+                          <div className="flex items-start space-x-3">
+                            <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden">
+                              {profile.profileImageUrl ? (
+                                <Image src={profile.profileImageUrl} alt={profile.firstName || "User"} width={32} height={32} />
+                              ) : (
+                                <User className="w-full h-full text-gray-500 p-1.5" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <input
+                                type="text"
+                                placeholder="Write a comment..."
+                                className="w-full bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+              {/* Existing static/demo content below */}
               {activeTab === "feed" && (
                 <>
                   {enhancedFeedContent.length > 0 ? (

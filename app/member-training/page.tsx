@@ -42,7 +42,7 @@ import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
 import { auth, getMemberProfile } from "@/lib/firebase"
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Image from "next/image";
 import { doc, getDoc } from "firebase/firestore";
@@ -562,59 +562,102 @@ export default function MemberTrainingPage() {
     loadProfile()
   }, [])
 
+  // Remove hardcoded athleteIds and add correct fetching logic
   const [athleteIds, setAthleteIds] = useState<string[]>([]);
+
   useEffect(() => {
-    async function fetchAthleteIds() {
-      try {
-        setLoading(true);
-        setError(null);
-        const user = auth.currentUser;
-        if (!user) { 
-          console.log("[DEBUG] No user (auth.currentUser is null)"); 
-          setLoading(false);
-          return; 
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        try {
+          const memberRef = doc(db, "members", user.uid);
+          const memberSnap = await getDoc(memberRef);
+          if (memberSnap.exists()) {
+            const memberData = memberSnap.data();
+            let subs = memberData.subscriptions || [];
+            let ids: string[] = [];
+            if (Array.isArray(subs)) {
+              ids = subs; // legacy array support
+            } else if (typeof subs === 'object' && subs !== null) {
+              ids = Object.entries(subs)
+                .filter(([id, sub]: [string, any]) => sub && sub.status === "active")
+                .map(([id]) => id);
+            }
+            setAthleteIds(ids);
+          } else {
+            setAthleteIds([]);
+          }
+        } catch (err) {
+          setAthleteIds([]);
         }
-        const memberRef = doc(db, "members", user.uid);
-        const memberSnap = await getDoc(memberRef);
-        if (!memberSnap.exists()) { 
-          console.log("[DEBUG] No memberSnap for user", user.uid); 
-          setLoading(false);
-          return; 
-        }
-        const subs = memberSnap.data().subscriptions || {};
-        // Include all athlete IDs in subscriptions, regardless of status
-        const ids = Object.keys(subs);
-        console.log("[DEBUG] athleteIds:", ids); // Debug log
-        setAthleteIds(ids);
-      } catch (err) {
-        console.error("[DEBUG] Error fetching athlete IDs:", err);
-        setError("Failed to load subscriptions");
-        setLoading(false);
+      } else {
+        setAthleteIds([]);
       }
-    }
-    fetchAthleteIds();
+    });
+    return () => unsubscribe();
   }, []);
 
-  // Fetch ALL content (ignore subscriptions)
+  // After athleteIds is set, use it to fetch content from only those creators (with batching for >10 IDs)
   useEffect(() => {
-    async function fetchContent() {
-      setLoading(true);
-      setError(null);
-      try {
-        const articlesSnap = await getDocs(collection(db, "articles"));
-        const videosSnap = await getDocs(collection(db, "videos"));
-        const coursesSnap = await getDocs(collection(db, "courses"));
-
-        setArticles(articlesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        setVideos(videosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        setCourses(coursesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      } catch (err) {
-        setError("Failed to load content");
-      }
+    if (!athleteIds.length) {
+      setArticles([]);
+      setVideos([]);
+      setCourses([]);
+      setCreators({});
       setLoading(false);
+      return;
     }
-    fetchContent();
-  }, []);
+    setLoading(true);
+    const unsubscribes: (() => void)[] = [];
+
+    function listenToBatch(
+      ids: string[],
+      collectionName: "articles" | "videos" | "courses",
+      setter: React.Dispatch<any[]>
+    ) {
+      const q = query(collection(db, collectionName), where("createdBy", "in", ids));
+      const unsub = onSnapshot(q, (snap) => {
+        setter(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      }, (err) => {
+        console.error("Listen error:", err);
+        setError(`Failed to load ${collectionName}`);
+        setLoading(false);
+      });
+      unsubscribes.push(unsub);
+    }
+
+    for (let i = 0; i < athleteIds.length; i += 10) {
+      const batch = athleteIds.slice(i, i + 10);
+      listenToBatch(batch, "articles", setArticles);
+      listenToBatch(batch, "videos", setVideos);
+      listenToBatch(batch, "courses", setCourses);
+    }
+
+    // Fetch creator profiles from 'athletes' collection
+    async function fetchCreators() {
+      try {
+        const newCreators: {[key: string]: any} = {};
+        await Promise.all(
+          athleteIds.map(async (id) => {
+            const docRef = doc(db, "athletes", id);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+              newCreators[id] = { id, ...docSnap.data() };
+            }
+          })
+        );
+        setCreators(newCreators);
+      } catch (err) {
+        console.error("Error fetching creator profiles:", err);
+        setError("Failed to load creator profiles");
+      }
+    }
+    fetchCreators();
+
+    return () => {
+      unsubscribes.forEach(u => u());
+    };
+  }, [athleteIds]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -635,22 +678,14 @@ export default function MemberTrainingPage() {
         {/* Training Hub Navigation */}
         <div className="mb-8">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full max-w-2xl grid-cols-4 bg-white/50 backdrop-blur-sm">
+            <TabsList className="grid w-full max-w-2xl grid-cols-2 bg-white/50 backdrop-blur-sm">
               <TabsTrigger value="overview" className="flex items-center space-x-2">
                 <BarChart3 className="h-4 w-4" />
                 <span>Overview</span>
               </TabsTrigger>
-              <TabsTrigger value="articles" className="flex items-center space-x-2">
-                <FileText className="h-4 w-4" />
-                <span>Articles</span>
-              </TabsTrigger>
-              <TabsTrigger value="videos" className="flex items-center space-x-2">
-                <Play className="h-4 w-4" />
-                <span>Videos</span>
-              </TabsTrigger>
-              <TabsTrigger value="courses" className="flex items-center space-x-2">
-                <BookOpen className="h-4 w-4" />
-                <span>Courses</span>
+              <TabsTrigger value="subscribed" className="flex items-center space-x-2">
+                <Users className="h-4 w-4" />
+                <span>Subscribed</span>
               </TabsTrigger>
             </TabsList>
 
@@ -1066,12 +1101,12 @@ export default function MemberTrainingPage() {
               </div>
             </TabsContent>
 
-            {/* Articles Tab */}
-            <TabsContent value="articles" className="space-y-8">
+            {/* Subscribed Tab (replaces Articles, Videos, Courses) */}
+            <TabsContent value="subscribed" className="space-y-8">
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-prologue-electric"></div>
-                  <span className="ml-3 text-gray-600">Loading articles...</span>
+                  <span className="ml-3 text-gray-600">Loading content...</span>
                 </div>
               ) : error ? (
                 <div className="text-center py-12">
@@ -1080,12 +1115,12 @@ export default function MemberTrainingPage() {
                     Try Again
                   </Button>
                 </div>
-              ) : articles.length === 0 ? (
+              ) : articles.length === 0 && videos.length === 0 && courses.length === 0 ? (
                 <div className="text-center py-12">
-                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Articles Yet</h3>
+                  <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Content Yet</h3>
                   <p className="text-gray-600 mb-4">
-                    Subscribe to creators to see their articles here.
+                    Subscribe to creators to see their content here.
                   </p>
                   <Link href="/member-browse">
                     <Button variant="outline" className="text-prologue-electric border-prologue-electric">
@@ -1094,291 +1129,111 @@ export default function MemberTrainingPage() {
                   </Link>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {articles.map((article) => {
-                    const creator = getCreatorInfo(article.createdBy);
-                    return (
-                      <Card 
-                        key={article.id} 
-                        className="hover:shadow-lg transition-shadow cursor-pointer"
-                        onClick={() => handleContentClick('article', article.id, article.createdBy)}
-                      >
-                        {article.coverImage && (
-                          <div className="relative w-full h-48 mb-2">
-                            <Image src={article.coverImage} alt={article.title} fill className="object-cover rounded-t-lg" />
-                          </div>
-                        )}
-                        <CardContent className="p-6">
-                          <div className="flex items-start justify-between mb-3">
-                            <Badge variant="secondary" className="bg-green-100 text-green-700">
-                              {article.category || "Article"}
-                            </Badge>
-                            <div className="flex items-center space-x-1 text-sm text-gray-600">
-                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                              <span>{article.rating || "4.5"}</span>
-                            </div>
-                          </div>
-                          <h4 className="text-lg font-semibold mb-2 line-clamp-2">{article.title}</h4>
-                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{article.description || article.content}</p>
-                          
-                          {/* Creator info */}
-                          <div className="flex items-center space-x-3 mb-3">
-                            {creator.profileImageUrl ? (
-                              <Image 
-                                src={creator.profileImageUrl} 
-                                alt={`${creator.firstName} ${creator.lastName}`}
-                                width={24} 
-                                height={24} 
-                                className="rounded-full"
-                              />
-                            ) : (
-                              <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
-                                <span className="text-xs text-gray-600">
-                                  {creator.firstName?.[0]}{creator.lastName?.[0]}
-                                </span>
-                              </div>
-                            )}
-                            <span className="text-sm font-medium text-gray-900">
-                              {creator.firstName} {creator.lastName}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center justify-between text-sm text-gray-600">
-                            <div className="flex items-center space-x-2">
-                              <Clock className="h-4 w-4" />
-                              <span>{article.readTime || "5 min read"}</span>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <span>{formatDate(article.createdAt)}</span>
-                              {article.views && <span>• {article.views} views</span>}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Videos Tab */}
-            <TabsContent value="videos" className="space-y-4">
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-prologue-electric"></div>
-                  <span className="ml-3 text-gray-600">Loading videos...</span>
-                </div>
-              ) : error ? (
-                <div className="text-center py-12">
-                  <p className="text-red-600 mb-4">{error}</p>
-                  <Button onClick={() => window.location.reload()} variant="outline">
-                    Try Again
-                  </Button>
-                </div>
-              ) : videos.length === 0 ? (
-                <div className="text-center py-12">
-                  <Play className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Videos Yet</h3>
-                  <p className="text-gray-600 mb-4">
-                    Subscribe to creators to see their videos here.
-                  </p>
-                  <Link href="/member-browse">
-                    <Button variant="outline" className="text-prologue-electric border-prologue-electric">
-                      Discover Creators
-                    </Button>
-                  </Link>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {videos.map((video) => {
-                    const creator = getCreatorInfo(video.createdBy);
-                    return (
-                      <Card 
-                        key={video.id} 
-                        className="hover:shadow-lg transition-shadow cursor-pointer"
-                        onClick={() => handleContentClick('video', video.id, video.createdBy)}
-                      >
-                        <div className="relative">
-                          {video.videoUrl ? (
-                            <video src={video.videoUrl} controls className="w-full h-48 object-cover rounded-t-lg" />
-                          ) : (
-                            <Image src={video.thumbnail || "/placeholder.svg"} alt={video.title} width={300} height={200} className="w-full h-48 object-cover rounded-t-lg" />
-                          )}
-                          <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
-                            {video.duration || "10:30"}
-                          </div>
-                          <div className="absolute top-2 left-2">
-                            <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                              {video.category || "Training"}
-                            </Badge>
-                          </div>
-                          <div className="absolute inset-0 bg-black/20 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <Play className="h-12 w-12 text-white" />
-                          </div>
-                        </div>
-                        <CardContent className="p-4">
-                          <h4 className="text-base font-semibold mb-2 line-clamp-2">{video.title}</h4>
-                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{video.description}</p>
-                          
-                          {/* Creator info */}
-                          <div className="flex items-center space-x-3 mb-3">
-                            {creator.profileImageUrl ? (
-                              <Image 
-                                src={creator.profileImageUrl} 
-                                alt={`${creator.firstName} ${creator.lastName}`}
-                                width={20} 
-                                height={20} 
-                                className="rounded-full"
-                              />
-                            ) : (
-                              <div className="w-5 h-5 bg-gray-300 rounded-full flex items-center justify-center">
-                                <span className="text-xs text-gray-600">
-                                  {creator.firstName?.[0]}{creator.lastName?.[0]}
-                                </span>
-                              </div>
-                            )}
-                            <span className="text-sm font-medium text-gray-900">
-                              {creator.firstName} {creator.lastName}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center justify-between text-sm text-gray-600">
-                            <div className="flex items-center space-x-2">
-                              <Play className="h-4 w-4" />
-                              <span>{video.views || 0} views</span>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <span>{formatDate(video.createdAt)}</span>
-                              <div className="flex items-center space-x-1">
-                                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                                <span>{video.rating || "4.5"}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Courses Tab */}
-            <TabsContent value="courses" className="space-y-4">
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-prologue-electric"></div>
-                  <span className="ml-3 text-gray-600">Loading courses...</span>
-                </div>
-              ) : error ? (
-                <div className="text-center py-12">
-                  <p className="text-red-600 mb-4">{error}</p>
-                  <Button onClick={() => window.location.reload()} variant="outline">
-                    Try Again
-                  </Button>
-                </div>
-              ) : courses.length === 0 ? (
-                <div className="text-center py-12">
-                  <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Courses Yet</h3>
-                  <p className="text-gray-600 mb-4">
-                    Subscribe to creators to see their courses here.
-                  </p>
-                  <Link href="/member-browse">
-                    <Button variant="outline" className="text-prologue-electric border-prologue-electric">
-                      Discover Creators
-                    </Button>
-                  </Link>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {courses.map((course) => {
-                    const creator = getCreatorInfo(course.createdBy);
-                    return (
-                      <Card 
-                        key={course.id} 
-                        className="hover:shadow-lg transition-shadow cursor-pointer"
-                        onClick={() => handleContentClick('course', course.id, course.createdBy)}
-                      >
-                        {course.coverImage && (
-                          <div className="relative w-full h-48 mb-2">
-                            <Image src={course.coverImage} alt={course.title} fill className="object-cover rounded-t-lg" />
-                          </div>
-                        )}
-                        <CardContent className="p-6">
-                          <div className="flex items-start justify-between mb-3">
-                            <Badge variant="secondary" className="bg-purple-100 text-purple-700">
-                              {course.category || "Course"}
-                            </Badge>
-                            <div className="flex items-center space-x-1 text-sm text-gray-600">
-                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                              <span>{course.rating || "4.5"}</span>
-                            </div>
-                          </div>
-                          <h4 className="text-lg font-semibold mb-3">{course.title}</h4>
-                          <p className="text-sm text-gray-600 mb-4 line-clamp-2">{course.description}</p>
-                          
-                          {/* Creator info */}
-                          <div className="flex items-center space-x-3 mb-4">
-                            {creator.profileImageUrl ? (
-                              <Image 
-                                src={creator.profileImageUrl} 
-                                alt={`${creator.firstName} ${creator.lastName}`}
-                                width={24} 
-                                height={24} 
-                                className="rounded-full"
-                              />
-                            ) : (
-                              <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
-                                <span className="text-xs text-gray-600">
-                                  {creator.firstName?.[0]}{creator.lastName?.[0]}
-                                </span>
-                              </div>
-                            )}
-                            <span className="text-sm font-medium text-gray-900">
-                              {creator.firstName} {creator.lastName}
-                            </span>
-                          </div>
-                          
-                          <div className="mb-4">
-                            <p className="text-sm text-gray-600 mb-2">
-                              {course.lessons?.length || course.sessions || 0} lessons:
-                            </p>
-                            <div className="space-y-1">
-                              {course.lessons?.slice(0, 3).map((lesson: any, index: number) => (
-                                <div key={lesson.id || index} className="flex items-center space-x-2 text-xs text-gray-500">
-                                  {lesson.type === "video" ? (
-                                    <Play className="h-3 w-3 text-blue-500" />
-                                  ) : (
-                                    <FileText className="h-3 w-3 text-green-500" />
-                                  )}
-                                  <span className="truncate">{lesson.title}</span>
-                                  <span className="text-gray-400">•</span>
-                                  <span>{lesson.duration}</span>
-                                </div>
-                              ))}
-                              {course.lessons && course.lessons.length > 3 && (
-                                <p className="text-xs text-gray-400 pl-5">+{course.lessons.length - 3} more lessons</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[...articles, ...videos, ...courses]
+                    .sort((a, b) => {
+                      const aDate = a.createdAt instanceof Date ? a.createdAt.getTime() : (a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt).getTime());
+                      const bDate = b.createdAt instanceof Date ? b.createdAt.getTime() : (b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt).getTime());
+                      return bDate - aDate;
+                    })
+                    .map((item) => {
+                      // Determine type
+                      let type = 'article';
+                      if (videos.includes(item)) type = 'video';
+                      else if (courses.includes(item)) type = 'course';
+                      const creator = getCreatorInfo(item.createdBy);
+                      return (
+                        <Card 
+                          key={`${type}-${item.id}`} 
+                          className="hover:shadow-lg transition-shadow cursor-pointer"
+                          onClick={() => handleContentClick(type, item.id, item.createdBy)}
+                        >
+                          {type === 'video' && (
+                            <div className="relative">
+                              {item.videoUrl ? (
+                                <video src={item.videoUrl} controls className="w-full h-48 object-cover rounded-t-lg" />
+                              ) : (
+                                <Image src={item.thumbnail || "/placeholder.svg"} alt={item.title} width={300} height={200} className="w-full h-48 object-cover rounded-t-lg" />
                               )}
+                              <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
+                                {item.duration || "10:30"}
+                              </div>
+                              <div className="absolute top-2 left-2">
+                                <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                                  {item.category || "Training"}
+                                </Badge>
+                              </div>
+                              <div className="absolute inset-0 bg-black/20 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Play className="h-12 w-12 text-white" />
+                              </div>
                             </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                            <div className="flex items-center space-x-2">
-                              <Clock className="h-4 w-4" />
-                              <span>{course.duration || "8 weeks"}</span>
+                          )}
+                          {type === 'course' && item.coverImage && (
+                            <div className="relative w-full h-48 mb-2">
+                              <Image src={item.coverImage} alt={item.title} fill className="object-cover rounded-t-lg" />
                             </div>
-                            <div className="flex items-center space-x-2">
-                              <Users className="h-4 w-4" />
-                              <span>{course.participants || 0} enrolled</span>
+                          )}
+                          <CardContent className="p-6">
+                            <div className="flex items-start justify-between mb-3">
+                              <Badge variant="secondary" className={
+                                type === 'article' ? "bg-green-100 text-green-700" :
+                                type === 'video' ? "bg-blue-100 text-blue-700" :
+                                "bg-purple-100 text-purple-700"
+                              }>
+                                {item.category || (type.charAt(0).toUpperCase() + type.slice(1))}
+                              </Badge>
+                              <div className="flex items-center space-x-1 text-sm text-gray-600">
+                                {type === 'course' || type === 'video' ? <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /> : null}
+                                {(item.rating || (type === 'course' || type === 'video') ? (item.rating || "4.5") : null)}
+                              </div>
                             </div>
-                          </div>
-                          <div className="mt-3 text-xs text-gray-500">
-                            Created {formatDate(course.createdAt)}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                            <h4 className="text-lg font-semibold mb-2">{item.title}</h4>
+                            {type === 'article' && (
+                              <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+                                <span>{item.readTime}</span>
+                                <span>{item.views} views</span>
+                              </div>
+                            )}
+                            {type === 'video' && (
+                              <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
+                                <span>{item.views || 0} views</span>
+                                <span>{formatDate(item.createdAt)}</span>
+                              </div>
+                            )}
+                            {type === 'course' && (
+                              <div className="mb-2">
+                                <span className="text-sm text-gray-600">{item.lessons?.length || item.sessions || 0} lessons</span>
+                              </div>
+                            )}
+                            <p className="text-sm text-gray-600 mb-2 line-clamp-2">{item.description}</p>
+                            {/* Creator info */}
+                            <div className="flex items-center space-x-3 mb-3">
+                              {creator.profileImageUrl ? (
+                                <Image 
+                                  src={creator.profileImageUrl} 
+                                  alt={`${creator.firstName} ${creator.lastName}`}
+                                  width={20} 
+                                  height={20} 
+                                  className="rounded-full"
+                                />
+                              ) : (
+                                <div className="w-5 h-5 bg-gray-300 rounded-full flex items-center justify-center">
+                                  <span className="text-xs text-gray-600">
+                                    {creator.firstName?.[0]}{creator.lastName?.[0]}
+                                  </span>
+                                </div>
+                              )}
+                              <span className="text-sm font-medium text-gray-900">
+                                {creator.firstName} {creator.lastName}
+                              </span>
+                            </div>
+                            <div className="mt-3 text-xs text-gray-500">
+                              Created {formatDate(item.createdAt)}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                 </div>
               )}
             </TabsContent>

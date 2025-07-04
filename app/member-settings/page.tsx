@@ -156,6 +156,28 @@ export default function MemberSettingsPage() {
     }
   }
 
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  const handleManageSubscriptions = async () => {
+    setPortalLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Not logged in");
+      const res = await fetch("/api/stripe/create-customer-portal-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.uid }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to open portal");
+      window.location.href = data.url;
+    } catch (err: any) {
+      alert(err.message || "Failed to open Stripe portal");
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -392,9 +414,9 @@ export default function MemberSettingsPage() {
 
                 <div className="space-y-4">
                   <h4 className="font-medium text-gray-900">Payments</h4>
-                  <Button variant="outline" className="w-full justify-start bg-transparent">
+                  <Button variant="outline" className="w-full justify-start bg-transparent" onClick={handleManageSubscriptions} disabled={portalLoading}>
                     <CreditCard className="h-4 w-4 mr-2" />
-                    Manage Subscriptions
+                    {portalLoading ? "Loading..." : "Manage Subscriptions"}
                   </Button>
                 </div>
               </CardContent>

@@ -86,7 +86,7 @@ function CheckoutForm({ athlete, members, onSuccess, onCancel, selectedPlan }: S
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          memberId: members.id,
+          userId: members.id, // <-- changed from memberId to userId
           name: members.name,
           email: members.email,
           athleteId: athlete.id,
@@ -107,7 +107,11 @@ function CheckoutForm({ athlete, members, onSuccess, onCancel, selectedPlan }: S
       if (members.id) {
         const userRef = doc(db, "members", members.id)
         await updateDoc(userRef, {
-          subscriptions: arrayUnion(athlete.id)
+          [`subscriptions.${athlete.id}`]: {
+            status: "active",
+            plan: selectedPlan,
+            createdAt: new Date().toISOString(),
+          }
         })
       }
       setSubscriptionSucceeded(true)

@@ -57,6 +57,7 @@ import { useNotifications } from "@/contexts/notification-context"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutNotification } from "@/components/ui/logout-notification"
 import { ExactCourseCreationForm } from "@/components/ExactCourseCreationForm";
+import { getAthleteProfile, getMemberProfile } from "@/lib/firebase";
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -187,6 +188,8 @@ function ContentPageContent() {
   const [firebaseVideos, setFirebaseVideos] = useState<any[]>([])
   const [firebaseCourses, setFirebaseCourses] = useState<any[]>([]);
   const [isCreatingCourse, setIsCreatingCourse] = useState(false);
+  const [userRole, setUserRole] = useState<"athlete" | "member" | null>(null);
+  const [subscriptions, setSubscriptions] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchCounts() {
@@ -211,53 +214,111 @@ function ContentPageContent() {
     fetchCounts()
   }, [])
 
+  // Determine user role and fetch subscriptions if member
+  useEffect(() => {
+    async function fetchUserRoleAndSubs() {
+      if (!user) return;
+      const athleteProfile = await getAthleteProfile(user.uid);
+      if (athleteProfile) {
+        setUserRole("athlete");
+        setSubscriptions([]); // not used for athletes
+        return;
+      }
+      const memberProfile = await getMemberProfile(user.uid);
+      if (memberProfile) {
+        setUserRole("member");
+        // Subscriptions can be an object or array; handle both
+        let subs: string[] = [];
+        if (Array.isArray(memberProfile.subscriptions)) {
+          subs = memberProfile.subscriptions;
+        } else if (memberProfile.subscriptions && typeof memberProfile.subscriptions === "object") {
+          subs = Object.keys(memberProfile.subscriptions);
+        }
+        setSubscriptions(subs);
+      }
+    }
+    fetchUserRoleAndSubs();
+  }, [user]);
+
   // Fetch articles from Firebase
   useEffect(() => {
     async function fetchArticles() {
-      try {
-        if (!user) return;
+      if (!user) return;
+      if (userRole === "athlete") {
+        // Only own content
         const q = query(collection(db, "articles"), where("createdBy", "==", user.uid));
-        const snap = await getDocs(q)
-        const articles = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-        setFirebaseArticles(articles)
-      } catch (e) {
-        setFirebaseArticles([])
+        const snap = await getDocs(q);
+        setFirebaseArticles(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } else if (userRole === "member") {
+        if (!subscriptions.length) { setFirebaseArticles([]); return; }
+        // Batch queries if >10 subscriptions
+        const batches = [];
+        for (let i = 0; i < subscriptions.length; i += 10) {
+          const batchIds = subscriptions.slice(i, i + 10);
+          batches.push(query(collection(db, "articles"), where("createdBy", "in", batchIds)));
+        }
+        let allDocs: any[] = [];
+        for (const q of batches) {
+          const snap = await getDocs(q);
+          allDocs = allDocs.concat(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }
+        setFirebaseArticles(allDocs);
       }
     }
-    fetchArticles()
-  }, [user])
+    fetchArticles();
+  }, [user, userRole, subscriptions]);
 
   // Fetch videos from Firebase
   useEffect(() => {
     async function fetchVideos() {
-      try {
-        if (!user) return;
+      if (!user) return;
+      if (userRole === "athlete") {
         const q = query(collection(db, "videos"), where("createdBy", "==", user.uid));
-        const snap = await getDocs(q)
-        const videos = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-        setFirebaseVideos(videos)
-      } catch (e) {
-        setFirebaseVideos([])
+        const snap = await getDocs(q);
+        setFirebaseVideos(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } else if (userRole === "member") {
+        if (!subscriptions.length) { setFirebaseVideos([]); return; }
+        const batches = [];
+        for (let i = 0; i < subscriptions.length; i += 10) {
+          const batchIds = subscriptions.slice(i, i + 10);
+          batches.push(query(collection(db, "videos"), where("createdBy", "in", batchIds)));
+        }
+        let allDocs: any[] = [];
+        for (const q of batches) {
+          const snap = await getDocs(q);
+          allDocs = allDocs.concat(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }
+        setFirebaseVideos(allDocs);
       }
     }
-    fetchVideos()
-  }, [user])
+    fetchVideos();
+  }, [user, userRole, subscriptions]);
 
   // Fetch courses from Firebase
   useEffect(() => {
     async function fetchCourses() {
-      try {
-        if (!user) return;
+      if (!user) return;
+      if (userRole === "athlete") {
         const q = query(collection(db, "courses"), where("createdBy", "==", user.uid));
         const snap = await getDocs(q);
-        const courses = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setFirebaseCourses(courses);
-      } catch (e) {
-        setFirebaseCourses([]);
+        setFirebaseCourses(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } else if (userRole === "member") {
+        if (!subscriptions.length) { setFirebaseCourses([]); return; }
+        const batches = [];
+        for (let i = 0; i < subscriptions.length; i += 10) {
+          const batchIds = subscriptions.slice(i, i + 10);
+          batches.push(query(collection(db, "courses"), where("createdBy", "in", batchIds)));
+        }
+        let allDocs: any[] = [];
+        for (const q of batches) {
+          const snap = await getDocs(q);
+          allDocs = allDocs.concat(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }
+        setFirebaseCourses(allDocs);
       }
     }
     fetchCourses();
-  }, [user]);
+  }, [user, userRole, subscriptions]);
 
   // Handle clicks outside search dropdown
   useEffect(() => {

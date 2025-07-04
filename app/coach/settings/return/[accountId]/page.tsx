@@ -90,8 +90,29 @@ export default function ReturnPage() {
                   ? "That's everything we need for now. Your Stripe account has been successfully set up."
                   : "Please complete your Stripe account setup to start receiving payments."}
               </p>
+              {!isComplete && (
+                <Button
+                  onClick={async () => {
+                    if (!accountId) return;
+                    const res = await fetch("/api/stripe/create-account-link", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ account: accountId }),
+                    });
+                    const data = await res.json();
+                    if (data.url) {
+                      window.location.href = data.url;
+                    } else {
+                      alert(data.error || "Failed to create onboarding link");
+                    }
+                  }}
+                  className="w-full bg-prologue-electric hover:bg-prologue-blue mb-2"
+                >
+                  Continue Stripe Setup
+                </Button>
+              )}
               <Button
-                onClick={() => window.location.href = "/coach/settings"}
+                onClick={() => window.location.href = "/athlete-settings"}
                 className="w-full"
               >
                 Return to Settings

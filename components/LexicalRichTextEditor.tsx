@@ -65,13 +65,22 @@ export default function LexicalRichTextEditor({ value, onChange }: LexicalRichTe
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <Toolbar />
-      <RichTextPlugin
-        contentEditable={
-          <ContentEditable className="border rounded p-2 min-h-[120px] max-h-[300px] overflow-y-auto" />
-        }
-        placeholder={<div className="text-gray-400">Describe your content...</div>}
-        ErrorBoundary={ErrorBoundary}
-      />
+      <div className="relative">
+        <RichTextPlugin
+          contentEditable={
+            <ContentEditable className="border rounded p-2 min-h-[120px] max-h-[300px] overflow-y-auto" />
+          }
+          placeholder={
+            <div
+              className="absolute left-3 top-2 text-gray-400 pointer-events-none select-none"
+              style={{ zIndex: 1 }}
+            >
+              Describe your content...
+            </div>
+          }
+          ErrorBoundary={ErrorBoundary}
+        />
+      </div>
       <HistoryPlugin />
       <OnChangePlugin onChange={handleChange} />
     </LexicalComposer>

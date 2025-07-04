@@ -42,6 +42,10 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useNotifications } from "@/contexts/notification-context"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
+import { auth, db, getAthleteProfile, getMemberProfile } from "@/lib/firebase"
+import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, doc, updateDoc, arrayUnion, getDoc } from "firebase/firestore"
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
+import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
 
 export default function HomePage() {
   // Mobile detection
@@ -499,6 +503,90 @@ export default function HomePage() {
     )
   }, [searchQuery, searchResults, quickSearches, handleSearchSelect])
   
+  const [postContent, setPostContent] = useState("")
+  const [posting, setPosting] = useState(false)
+  const [profileCache, setProfileCache] = useState<Record<string, any>>({})
+  const [postFile, setPostFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!auth.currentUser) return
+      // Try to get athlete profile first
+      let profile = await getAthleteProfile(auth.currentUser.uid)
+      if (!profile) {
+        profile = await getMemberProfile(auth.currentUser.uid)
+      }
+      if (profile) {
+        setProfileImageUrl(profile.profileImageUrl || null)
+      }
+    }
+    loadProfile()
+  }, [])
+
+  // Post submit handler
+  async function handlePostSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault()
+    if (!postContent.trim() && !postFile) return
+    setPosting(true)
+    try {
+      const user = auth.currentUser
+      let mediaUrl = null
+      let mediaType = null
+      if (postFile) {
+        const storage = getStorage()
+        const ext = postFile.name.split('.').pop()
+        const fileType = postFile.type.startsWith('video') ? 'video' : 'image'
+        const storageRef = ref(storage, `post-media/${user ? user.uid : 'anon'}-${Date.now()}.${ext}`)
+        await uploadBytes(storageRef, postFile)
+        mediaUrl = await getDownloadURL(storageRef)
+        mediaType = fileType
+      }
+      await addDoc(collection(db, "posts"), {
+        content: postContent,
+        createdBy: user ? user.uid : "anon",
+        userType: "athlete",
+        createdAt: serverTimestamp(),
+        mediaUrl,
+        mediaType,
+      })
+      setPostContent("")
+      setPostFile(null)
+    } catch (err) {
+      // Optionally show error toast
+      console.error("Failed to post:", err)
+    } finally {
+      setPosting(false)
+    }
+  }
+  
+  const [firebasePosts, setFirebasePosts] = useState<any[]>([])
+  useEffect(() => {
+    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"))
+    const unsub = onSnapshot(q, (snapshot) => {
+      setFirebasePosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+    })
+    return () => unsub()
+  }, [])
+
+  // Track post views (only once per user per post)
+  useEffect(() => {
+    const user = auth.currentUser
+    if (!user) return
+    firebasePosts.forEach(async (item) => {
+      if (!item.id) return
+      const postRef = doc(db, "posts", item.id)
+      const postSnap = await getDoc(postRef)
+      const viewedBy = postSnap.data()?.viewedBy || []
+      if (!viewedBy.includes(user.uid)) {
+        await updateDoc(postRef, {
+          views: (postSnap.data()?.views || 0) + 1,
+          viewedBy: arrayUnion(user.uid),
+        })
+      }
+    })
+  }, [firebasePosts])
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Mobile Header - Fixed Navigation */}
@@ -753,34 +841,62 @@ export default function HomePage() {
             {/* Create Post Section */}
             <Card className="bg-white border border-gray-200 mb-6">
               <CardContent className="p-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
-                    <User className="w-full h-full text-gray-500 p-2" />
+                <form onSubmit={handlePostSubmit}>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
+                      {profileImageUrl ? (
+                        <Image src={profileImageUrl} alt="Profile" width={40} height={40} />
+                      ) : (
+                        <User className="w-full h-full text-gray-500 p-2" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <LexicalRichTextEditor value={postContent} onChange={setPostContent} />
+                    </div>
                   </div>
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      placeholder="What's on your mind?"
-                      className="w-full bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+                    <div className="flex items-center space-x-4">
+                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-blue-500">
+                        <Video className="h-4 w-4 mr-2" />
+                        Live Video
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-600 hover:text-blue-500"
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Camera className="h-4 w-4 mr-2" />
+                        Photo/Video
+                      </Button>
+                      <input
+                        type="file"
+                        accept="image/*,video/*"
+                        className="hidden"
+                        ref={fileInputRef}
+                        onChange={e => setPostFile(e.target.files?.[0] || null)}
+                        disabled={posting}
+                      />
+                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-blue-500">
+                        <Target className="h-4 w-4 mr-2" />
+                        Train
+                      </Button>
+                      {postFile && (
+                        <span className="text-xs text-gray-500 ml-2">{postFile.name}</span>
+                      )}
+                    </div>
+                    <div className="flex-1 flex justify-end">
+                      <Button
+                        type="submit"
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-6"
+                        disabled={posting || (!postContent.trim() && !postFile)}
+                      >
+                        {posting ? "Posting..." : "Post"}
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-                  <div className="flex items-center space-x-4">
-                    <Button variant="ghost" size="sm" className="text-gray-600 hover:text-blue-500">
-                      <Video className="h-4 w-4 mr-2" />
-                      Live Video
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-gray-600 hover:text-blue-500">
-                      <Camera className="h-4 w-4 mr-2" />
-                      Photo/Video
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-gray-600 hover:text-blue-500">
-                      <Target className="h-4 w-4 mr-2" />
-                      Train
-                    </Button>
-                  </div>
-                </div>
+                </form>
               </CardContent>
             </Card>
 
@@ -812,6 +928,69 @@ export default function HomePage() {
 
             {/* Content Feed */}
             <div className="space-y-6">
+              {/* Firebase posts at the top */}
+              {firebasePosts.map((item) => {
+                const profile = profileCache[item.createdBy] || {}
+                // Check if post is new (within 24 hours)
+                let isNew = false
+                if (item.createdAt && item.createdAt.toDate) {
+                  const now = new Date()
+                  const created = item.createdAt.toDate()
+                  isNew = (now.getTime() - created.getTime()) < 24 * 60 * 60 * 1000
+                }
+                return (
+                  <Card
+                    key={item.id}
+                    className="bg-white border transition-all duration-300 hover:shadow-lg border-blue-500/30 shadow-md"
+                  >
+                    <CardContent className="p-0">
+                      <div className="space-y-0">
+                        {/* Post Header */}
+                        <div className="p-4 pb-3">
+                          <div className="flex items-start space-x-3">
+                            <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden">
+                              {profile.profileImageUrl ? (
+                                <Image src={profile.profileImageUrl} alt={profile.firstName || "User"} width={48} height={48} />
+                              ) : (
+                                <User className="w-full h-full text-gray-500 p-2" />
+                              )}
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-gray-900">{profile.firstName || profile.name || item.createdBy}</h4>
+                              <p className="text-sm text-gray-600">{item.createdAt?.toDate?.().toLocaleString?.() || "Just now"}</p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              {isNew && (
+                                <Badge className="bg-blue-500 text-white text-xs">New</Badge>
+                              )}
+                              <div className="flex items-center space-x-1">
+                                <Eye className="h-3 w-3" />
+                                <span>{item.views || 0}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Media display */}
+                        {item.mediaUrl && item.mediaType === 'image' && (
+                          <div className="w-full max-h-96 bg-black flex items-center justify-center">
+                            <Image src={item.mediaUrl} alt="Post media" width={600} height={400} className="object-contain max-h-96 w-full" />
+                          </div>
+                        )}
+                        {item.mediaUrl && item.mediaType === 'video' && (
+                          <div className="w-full max-h-96 bg-black flex items-center justify-center">
+                            <video src={item.mediaUrl} controls className="object-contain max-h-96 w-full" />
+                          </div>
+                        )}
+                        {/* Post Content */}
+                        <div className="px-4 pb-3">
+                          <p className="text-gray-700 leading-relaxed">{item.content}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+              {/* Existing static/demo content below */}
               {activeTab === "feed" && (
                 <>
                   {enhancedFeedContent.length > 0 ? (
