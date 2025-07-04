@@ -39,7 +39,7 @@ import { AthleteNav } from "@/components/navigation/athlete-nav"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { AdvancedNotificationProvider } from "@/contexts/advanced-notification-context"
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore"
+import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore"
 import { db, auth } from "@/lib/firebase"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -177,9 +177,19 @@ function FeedbackPageContent() {
   const [requestedFeedback, setRequestedFeedback] = useState<RequestedFeedback[]>([]);
   const [givenFeedback, setGivenFeedback] = useState<GivenFeedback[]>([]);
 
+  // Profile picture state
+  const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null);
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        // Fetch member profile picture (works for both athlete and member roles)
+        const docRef = doc(db, "members", user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          // Try both possible field names
+          setProfilePicUrl(docSnap.data().profilePic || docSnap.data().profilePicture || null);
+        }
         // Fetch requested feedback
         const q = query(collection(db, "feedbackToAthlete"), where("athleteId", "==", user.uid));
         getDocs(q).then(snapshot => {
@@ -908,9 +918,19 @@ function FeedbackPageContent() {
                       className="flex items-center space-x-2 p-2"
                       disabled={loadingState.isLoading}
                     >
-                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                        <User className="w-full h-full text-gray-500 p-1" />
-                      </div>
+                      {profilePicUrl ? (
+                        <Image
+                          src={profilePicUrl}
+                          alt="Profile"
+                          width={32}
+                          height={32}
+                          className="w-8 h-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
+                          <User className="w-full h-full text-gray-500 p-1" />
+                        </div>
+                      )}
                       <ChevronDown className="h-4 w-4 text-gray-500" />
                     </Button>
                   </DropdownMenuTrigger>

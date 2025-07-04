@@ -1,30 +1,71 @@
-# Modern landing page design
+# Prologue - Athletic Training Platform
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+A modern platform connecting athletes with coaches and trainers for personalized training content.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/andywoolove-8021s-projects/v0-modern-landing-page-design)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/yMqWlpHrqTl)
+## Features
 
-## Overview
+### Member Training Hub
+- **Content Discovery**: Members can view articles, videos, and courses from subscribed creators
+- **Subscription Management**: Easy access to content from creators they follow
+- **Content Organization**: Tabbed interface for different content types (Articles, Videos, Courses)
+- **Creator Profiles**: Display creator information with each piece of content
+- **Real-time Updates**: Content is sorted by creation date with latest content first
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+### Key Components
+- **Overview Tab**: Training statistics, progress tracking, and latest content from creators
+- **Articles Tab**: Text-based content with reading time and creator information
+- **Videos Tab**: Video content with duration, views, and creator details
+- **Courses Tab**: Structured learning programs with lesson breakdowns
 
-## Deployment
+### Technical Features
+- **Firebase Integration**: Real-time content fetching from Firestore
+- **Responsive Design**: Mobile-first approach with adaptive layouts
+- **Loading States**: Smooth loading indicators and error handling
+- **Content Navigation**: Click-through to detailed content views
+- **Creator Information**: Profile images, names, and specialties displayed
 
-Your project is live at:
+## Getting Started
 
-**[https://vercel.com/andywoolove-8021s-projects/v0-modern-landing-page-design](https://vercel.com/andywoolove-8021s-projects/v0-modern-landing-page-design)**
+1. Install dependencies:
+```bash
+npm install
+```
 
-## Build your app
+2. Set up Firebase configuration in `lib/firebase.ts`
 
-Continue building your app on:
+3. Run the development server:
+```bash
+npm run dev
+```
 
-**[https://v0.dev/chat/projects/yMqWlpHrqTl](https://v0.dev/chat/projects/yMqWlpHrqTl)**
+## Content Structure
 
-## How It Works
+The platform supports three main content types:
+- **Articles**: Text-based content with cover images and reading time
+- **Videos**: Video content with thumbnails and duration
+- **Courses**: Structured programs with multiple lessons
 
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+Each content type includes:
+- Creator information (name, profile image, specialty)
+- Creation date and engagement metrics
+- Category classification
+- Rating system
+
+## Database Schema
+
+### Members Collection
+- `subscriptions`: Object containing subscribed creator IDs
+- `firstName`, `lastName`: Member profile information
+- `profileImageUrl`: Member profile image
+
+### Content Collections (articles, videos, courses)
+- `createdBy`: Creator ID reference
+- `title`, `description`: Content metadata
+- `createdAt`: Timestamp for sorting
+- `category`, `rating`: Classification and ratings
+- Content-specific fields (duration, readTime, lessons, etc.)
+
+### Athletes Collection
+- `firstName`, `lastName`: Creator profile information
+- `profileImageUrl`: Creator profile image
+- `sport`, `specialty`: Creator specialization

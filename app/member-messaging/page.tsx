@@ -348,7 +348,7 @@ export default function MemberMessagingPage() {
       const memberDoc = await getDoc(doc(db, "members", currentUser.uid))
       if (memberDoc.exists()) {
         const data = memberDoc.data()
-        setProfileImageUrl(data.profilePic || null)
+        setProfileImageUrl(data.profilePic || data.profilePicture || null)
         setProfileData({ firstName: data.firstName || "", lastName: data.lastName || "" })
       }
     }

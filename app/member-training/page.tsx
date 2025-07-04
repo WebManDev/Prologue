@@ -34,6 +34,7 @@ import {
   UserPlus,
   Zap,
   X,
+  FileText,
 } from "lucide-react"
 import Link from "next/link"
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
@@ -41,8 +42,13 @@ import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
 import { auth, getMemberProfile } from "@/lib/firebase"
+import { collection, query, where, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import Image from "next/image";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function MemberTrainingPage() {
+  console.log("[DEBUG] MemberTrainingPage mounted");
   // Mobile detection
   const { isMobile, isTablet } = useMobileDetection()
 
@@ -51,19 +57,13 @@ export default function MemberTrainingPage() {
     useMemberNotifications()
 
   // State management
-  const [activeTab, setActiveTab] = useState<"overview" | "programs">("overview")
-  const [selectedFilter, setSelectedFilter] = useState<"all" | "in-progress" | "completed" | "new">("all")
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
-  const searchRef = useRef<HTMLDivElement>(null)
-
-  // Mark training as visited on mount
-  useEffect(() => {
-    if (hasNewTrainingContent) {
-      markTrainingAsVisited()
-    }
-  }, [hasNewTrainingContent, markTrainingAsVisited])
+  const [activeTab, setActiveTab] = useState("overview");
+  const [articles, setArticles] = useState<any[]>([]);
+  const [videos, setVideos] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [creators, setCreators] = useState<{[key: string]: any}>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // State for goals management
   const [selectedGoals, setSelectedGoals] = useState<string[]>([])
@@ -351,46 +351,85 @@ export default function MemberTrainingPage() {
     }
   }, [areGoalsExpired])
 
+  // Helper functions for content display
+  const getCreatorInfo = useCallback((creatorId: string) => {
+    return creators[creatorId] || { firstName: "Unknown", lastName: "Creator", profileImageUrl: null };
+  }, [creators]);
+
+  const formatDate = useCallback((date: any) => {
+    // Convert Firestore Timestamp or string to Date
+    let d = date;
+    if (!d) return "";
+    if (typeof d === "object" && typeof d.toDate === "function") {
+      d = d.toDate();
+    } else if (typeof d === "string") {
+      d = new Date(d);
+    }
+    if (!(d instanceof Date) || isNaN(d.getTime())) return "";
+
+    const now = new Date();
+    const diffInHours = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60));
+
+    if (diffInHours < 1) return "Just now";
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    if (diffInHours < 168) return `${Math.floor(diffInHours / 24)}d ago`;
+    return d.toLocaleDateString();
+  }, []);
+
+  const handleContentClick = useCallback((contentType: string, contentId: string, creatorId: string) => {
+    // Navigate to the content detail page
+    const creator = getCreatorInfo(creatorId);
+    const creatorSlug = `${creator.firstName}-${creator.lastName}`.toLowerCase().replace(/\s+/g, '-');
+    
+    switch (contentType) {
+      case 'article':
+        window.open(`/creator/${creatorSlug}/article/${contentId}`, '_blank');
+        break;
+      case 'video':
+        window.open(`/creator/${creatorSlug}/video/${contentId}`, '_blank');
+        break;
+      case 'course':
+        window.open(`/creator/${creatorSlug}/course/${contentId}`, '_blank');
+        break;
+    }
+  }, [getCreatorInfo]);
+
   // Filter programs
   const filteredPrograms = useMemo(() => {
     let filtered = trainingPrograms
 
-    if (selectedFilter !== "all") {
-      filtered = filtered.filter((program) => program.status === selectedFilter)
+    if (activeTab === "overview") {
+      // Overview tab doesn't have a specific filter or search, so return all programs
+      return filtered
     }
 
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (program) =>
-          program.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          program.instructor.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    }
-
+    // For articles, videos, and courses, we need to fetch content first
+    // This part of the logic needs to be re-evaluated based on how content is fetched
+    // For now, we'll return all programs for these tabs as they are not filtered by status/search
     return filtered
-  }, [trainingPrograms, selectedFilter, searchQuery])
+  }, [trainingPrograms, activeTab])
 
   // Search handlers
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
-    setSearchQuery(value)
+    // setSearchQuery(value) // This line is removed
   }, [])
 
   const handleSearchFocus = useCallback(() => {
-    setShowSearchDropdown(true)
+    // setShowSearchDropdown(true) // This line is removed
   }, [])
 
   const clearSearch = useCallback(() => {
-    setSearchQuery("")
-    setShowSearchDropdown(false)
+    // setSearchQuery("") // This line is removed
+    // setShowSearchDropdown(false) // This line is removed
   }, [])
 
   // Handle clicks outside search dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowSearchDropdown(false)
-      }
+      // if (searchRef.current && !searchRef.current.contains(event.target as Node)) { // This line is removed
+      //   setShowSearchDropdown(false) // This line is removed
+      // }
     }
 
     document.addEventListener("mousedown", handleClickOutside)
@@ -523,6 +562,60 @@ export default function MemberTrainingPage() {
     loadProfile()
   }, [])
 
+  const [athleteIds, setAthleteIds] = useState<string[]>([]);
+  useEffect(() => {
+    async function fetchAthleteIds() {
+      try {
+        setLoading(true);
+        setError(null);
+        const user = auth.currentUser;
+        if (!user) { 
+          console.log("[DEBUG] No user (auth.currentUser is null)"); 
+          setLoading(false);
+          return; 
+        }
+        const memberRef = doc(db, "members", user.uid);
+        const memberSnap = await getDoc(memberRef);
+        if (!memberSnap.exists()) { 
+          console.log("[DEBUG] No memberSnap for user", user.uid); 
+          setLoading(false);
+          return; 
+        }
+        const subs = memberSnap.data().subscriptions || {};
+        // Include all athlete IDs in subscriptions, regardless of status
+        const ids = Object.keys(subs);
+        console.log("[DEBUG] athleteIds:", ids); // Debug log
+        setAthleteIds(ids);
+      } catch (err) {
+        console.error("[DEBUG] Error fetching athlete IDs:", err);
+        setError("Failed to load subscriptions");
+        setLoading(false);
+      }
+    }
+    fetchAthleteIds();
+  }, []);
+
+  // Fetch ALL content (ignore subscriptions)
+  useEffect(() => {
+    async function fetchContent() {
+      setLoading(true);
+      setError(null);
+      try {
+        const articlesSnap = await getDocs(collection(db, "articles"));
+        const videosSnap = await getDocs(collection(db, "videos"));
+        const coursesSnap = await getDocs(collection(db, "courses"));
+
+        setArticles(articlesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setVideos(videosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setCourses(coursesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      } catch (err) {
+        setError("Failed to load content");
+      }
+      setLoading(false);
+    }
+    fetchContent();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <GoalsModal />
@@ -541,69 +634,25 @@ export default function MemberTrainingPage() {
       <main className="max-w-7xl mx-auto px-4 lg:px-6 py-8 pb-20 lg:pb-8">
         {/* Training Hub Navigation */}
         <div className="mb-8">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)} className="w-full">
-            <div className="flex items-center justify-between mb-6">
-              <TabsList className="grid w-full max-w-md grid-cols-2 bg-white/50 backdrop-blur-sm">
-                <TabsTrigger value="overview" className="flex items-center space-x-2">
-                  <BarChart3 className="h-4 w-4" />
-                  <span>Overview</span>
-                </TabsTrigger>
-                <TabsTrigger value="programs" className="flex items-center space-x-2">
-                  <BookOpen className="h-4 w-4" />
-                  <span>Programs</span>
-                </TabsTrigger>
-              </TabsList>
-
-              <div className="flex items-center space-x-3">
-                {activeTab === "programs" && (
-                  <>
-                    <div className="flex items-center space-x-1 bg-white rounded-lg p-1">
-                      <Button
-                        variant={viewMode === "grid" ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => setViewMode("grid")}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Grid3X3 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant={viewMode === "list" ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => setViewMode("list")}
-                        className="h-8 w-8 p-0"
-                      >
-                        <List className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="flex items-center space-x-2 bg-white">
-                          <Filter className="h-4 w-4" />
-                          <span className="capitalize">
-                            {selectedFilter === "all" ? "All" : selectedFilter.replace("-", " ")}
-                          </span>
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setSelectedFilter("all")}>All Programs</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setSelectedFilter("new")}>New</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setSelectedFilter("in-progress")}>
-                          In Progress
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setSelectedFilter("completed")}>Completed</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </>
-                )}
-                <Link href="/member-discover">
-                  <Button className="bg-prologue-electric hover:bg-prologue-blue text-white">
-                    <Compass className="h-4 w-4 mr-2" />
-                    <span className="hidden sm:inline">Discover More</span>
-                  </Button>
-                </Link>
-              </div>
-            </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full max-w-2xl grid-cols-4 bg-white/50 backdrop-blur-sm">
+              <TabsTrigger value="overview" className="flex items-center space-x-2">
+                <BarChart3 className="h-4 w-4" />
+                <span>Overview</span>
+              </TabsTrigger>
+              <TabsTrigger value="articles" className="flex items-center space-x-2">
+                <FileText className="h-4 w-4" />
+                <span>Articles</span>
+              </TabsTrigger>
+              <TabsTrigger value="videos" className="flex items-center space-x-2">
+                <Play className="h-4 w-4" />
+                <span>Videos</span>
+              </TabsTrigger>
+              <TabsTrigger value="courses" className="flex items-center space-x-2">
+                <BookOpen className="h-4 w-4" />
+                <span>Courses</span>
+              </TabsTrigger>
+            </TabsList>
 
             {/* Overview Tab */}
             <TabsContent value="overview" className="space-y-8">
@@ -758,6 +807,70 @@ export default function MemberTrainingPage() {
                       </div>
                     </CardContent>
                   </Card>
+
+                  {/* Latest from Subscribed Creators */}
+                  <Card className="bg-white border border-gray-200">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-xl font-bold text-gray-900">Latest from Creators</h3>
+                        <div className="flex items-center space-x-2">
+                          <Badge variant="outline" className="text-xs">
+                            {articles.length + videos.length + courses.length} items
+                          </Badge>
+                        </div>
+                      </div>
+                      {loading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-prologue-electric"></div>
+                          <span className="ml-2 text-gray-600">Loading...</span>
+                        </div>
+                      ) : articles.length === 0 && videos.length === 0 && courses.length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-gray-600 mb-4">No content from subscribed creators yet.</p>
+                          <Link href="/member-browse">
+                            <Button variant="outline" size="sm" className="text-prologue-electric border-prologue-electric">
+                              Discover Creators
+                            </Button>
+                          </Link>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {/* Show latest 3 items from all content types */}
+                          {[...articles.slice(0, 1), ...videos.slice(0, 1), ...courses.slice(0, 1)]
+                            .sort((a, b) => b.createdAt - a.createdAt)
+                            .slice(0, 3)
+                            .map((item) => {
+                              const creator = getCreatorInfo(item.createdBy);
+                              const contentType = articles.includes(item) ? 'article' : 
+                                                videos.includes(item) ? 'video' : 'course';
+                              const IconComponent = contentType === 'article' ? FileText : 
+                                                   contentType === 'video' ? Play : BookOpen;
+                              const color = contentType === 'article' ? 'text-green-600' : 
+                                           contentType === 'video' ? 'text-blue-600' : 'text-purple-600';
+                              const bgColor = contentType === 'article' ? 'bg-green-100' : 
+                                             contentType === 'video' ? 'bg-blue-100' : 'bg-purple-100';
+                              
+                              return (
+                                <div
+                                  key={`${contentType}-${item.id}`}
+                                  className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                                  onClick={() => handleContentClick(contentType, item.id, item.createdBy)}
+                                >
+                                  <div className={`w-8 h-8 ${bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                                    <IconComponent className={`h-4 w-4 ${color}`} />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-medium text-gray-900 text-sm line-clamp-1">{item.title}</h4>
+                                    <p className="text-xs text-gray-600">{creator.firstName} {creator.lastName}</p>
+                                    <p className="text-xs text-gray-500 mt-1">{formatDate(item.createdAt)}</p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
 
                 {/* Sidebar */}
@@ -837,6 +950,65 @@ export default function MemberTrainingPage() {
                     </CardContent>
                   </Card>
 
+                  {/* Subscribed Creators */}
+                  <Card className="bg-white border border-gray-200">
+                    <CardContent className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-gray-900">Subscribed Creators</h3>
+                        <Users className="h-5 w-5 text-prologue-electric" />
+                      </div>
+                      {loading ? (
+                        <div className="flex items-center justify-center py-4">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-prologue-electric"></div>
+                        </div>
+                      ) : athleteIds.length === 0 ? (
+                        <div className="text-center py-4">
+                          <p className="text-sm text-gray-600 mb-3">No subscriptions yet</p>
+                          <Link href="/member-browse">
+                            <Button variant="outline" size="sm" className="text-prologue-electric border-prologue-electric">
+                              Find Creators
+                            </Button>
+                          </Link>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {Object.values(creators).slice(0, 3).map((creator: any) => (
+                            <div key={creator.id} className="flex items-center space-x-3">
+                              {creator.profileImageUrl ? (
+                                <Image 
+                                  src={creator.profileImageUrl} 
+                                  alt={`${creator.firstName} ${creator.lastName}`}
+                                  width={32} 
+                                  height={32} 
+                                  className="rounded-full"
+                                />
+                              ) : (
+                                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
+                                  <span className="text-sm text-gray-600">
+                                    {creator.firstName?.[0]}{creator.lastName?.[0]}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {creator.firstName} {creator.lastName}
+                                </p>
+                                <p className="text-xs text-gray-600 truncate">
+                                  {creator.sport || creator.specialty || "Athlete"}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                          {Object.keys(creators).length > 3 && (
+                            <p className="text-xs text-gray-500 text-center">
+                              +{Object.keys(creators).length - 3} more creators
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
                   {/* Discover More Programs */}
                   <Card className="bg-gradient-to-br from-prologue-electric to-prologue-blue border-0 text-white">
                     <CardContent className="p-6">
@@ -894,251 +1066,320 @@ export default function MemberTrainingPage() {
               </div>
             </TabsContent>
 
-            {/* Programs Tab */}
-            <TabsContent value="programs" className="space-y-6">
-              {/* Discover More Section */}
-              <Card className="bg-gradient-to-r from-prologue-electric/10 to-prologue-blue/10 border border-prologue-electric/20">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-900 mb-2">Looking for more training programs?</h3>
-                      <p className="text-gray-600 mb-4">
-                        Discover new programs from top coaches and connect with other athletes in your sport.
-                      </p>
-                      <div className="flex items-center space-x-3">
-                        <Link href="/member-discover">
-                          <Button className="bg-prologue-electric hover:bg-prologue-blue text-white">
-                            <UserPlus className="h-4 w-4 mr-2" />
-                            Find Programs
-                          </Button>
-                        </Link>
-                        <Link href="/member-discover">
-                          <Button
-                            variant="outline"
-                            className="border-prologue-electric text-prologue-electric hover:bg-prologue-electric/10 bg-transparent"
-                          >
-                            <Users className="h-4 w-4 mr-2" />
-                            Connect with Athletes
-                          </Button>
-                        </Link>
-                      </div>
-                    </div>
-                    <div className="hidden lg:block">
-                      <div className="w-24 h-24 bg-prologue-electric/20 rounded-full flex items-center justify-center">
-                        <Compass className="h-12 w-12 text-prologue-electric" />
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {viewMode === "grid" ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {filteredPrograms.map((program) => (
-                    <Card
-                      key={program.id}
-                      className={`bg-white border transition-all duration-300 ${
-                        program.isSubscribed
-                          ? "border-prologue-electric shadow-lg ring-2 ring-prologue-electric/20"
-                          : "border-gray-200 hover:shadow-lg"
-                      }`}
-                    >
-                      <CardContent className="p-0">
-                        <div className="relative">
-                          <div className="aspect-video bg-gray-200 rounded-t-lg overflow-hidden">
-                            <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                              <Play className="h-12 w-12 text-gray-600" />
-                            </div>
-                          </div>
-                          {program.isNew && (
-                            <Badge className="absolute top-3 left-3 bg-prologue-electric text-white">New</Badge>
-                          )}
-                          {program.isSubscribed && (
-                            <Badge className="absolute top-3 right-3 bg-green-600 text-white">Subscribed</Badge>
-                          )}
-                          <div className="absolute bottom-3 right-3 flex items-center space-x-1 bg-black/70 text-white px-2 py-1 rounded text-xs">
-                            <Clock className="h-3 w-3" />
-                            <span>{program.duration}</span>
-                          </div>
-                        </div>
-
-                        <div className="p-6">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex-1">
-                              <h3
-                                className={`font-semibold mb-1 ${program.isSubscribed ? "text-prologue-electric" : "text-gray-900"}`}
-                              >
-                                {program.title}
-                              </h3>
-                              <p className="text-sm text-gray-600">{program.instructor}</p>
-                            </div>
-                            <Badge variant="outline" className="text-xs">
-                              {program.difficulty}
-                            </Badge>
-                          </div>
-
-                          <p className="text-sm text-gray-700 mb-4 line-clamp-2">{program.description}</p>
-
-                          <div className="flex items-center space-x-4 mb-4 text-sm text-gray-600">
-                            <div className="flex items-center space-x-1">
-                              <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                              <span>{program.rating}</span>
-                            </div>
-                            <div className="flex items-center space-x-1">
-                              <Users className="h-4 w-4" />
-                              <span>{program.students}</span>
-                            </div>
-                          </div>
-
-                          {program.status !== "new" && (
-                            <div className="mb-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-medium text-gray-700">Progress</span>
-                                <span className="text-sm text-gray-600">
-                                  {program.completedLessons}/{program.totalLessons} lessons
-                                </span>
-                              </div>
-                              <Progress value={program.progress} className="h-2" />
-                            </div>
-                          )}
-
-                          {/* Recent Videos for Subscribed Creators */}
-                          {program.isSubscribed && program.recentVideos.length > 0 && (
-                            <div className="mb-4 p-3 bg-prologue-electric/5 rounded-lg border border-prologue-electric/20">
-                              <h4 className="text-sm font-medium text-prologue-electric mb-2">
-                                Latest from {program.instructor}
-                              </h4>
-                              <div className="space-y-2">
-                                {program.recentVideos.slice(0, 2).map((video) => (
-                                  <div key={video.id} className="flex items-center space-x-3">
-                                    <div className="w-12 h-8 bg-gray-200 rounded overflow-hidden flex-shrink-0">
-                                      <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                                        <Play className="h-3 w-3 text-gray-600" />
-                                      </div>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-medium text-gray-900 truncate">{video.title}</p>
-                                      <div className="flex items-center space-x-2 text-xs text-gray-500">
-                                        <span>{video.duration}</span>
-                                        <span>•</span>
-                                        <span>{video.uploadedAt}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="flex items-center justify-between">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className={`flex-1 mr-2 bg-transparent ${
-                                program.isSubscribed
-                                  ? "border-prologue-electric text-prologue-electric hover:bg-prologue-electric hover:text-white"
-                                  : "hover:bg-prologue-electric hover:text-white"
-                              }`}
-                            >
-                              {program.status === "completed"
-                                ? "Review"
-                                : program.status === "new"
-                                  ? "Start"
-                                  : "Continue"}
-                            </Button>
-                            <Button variant="ghost" size="sm" className="text-gray-500 hover:text-prologue-electric">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+            {/* Articles Tab */}
+            <TabsContent value="articles" className="space-y-8">
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-prologue-electric"></div>
+                  <span className="ml-3 text-gray-600">Loading articles...</span>
+                </div>
+              ) : error ? (
+                <div className="text-center py-12">
+                  <p className="text-red-600 mb-4">{error}</p>
+                  <Button onClick={() => window.location.reload()} variant="outline">
+                    Try Again
+                  </Button>
+                </div>
+              ) : articles.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Articles Yet</h3>
+                  <p className="text-gray-600 mb-4">
+                    Subscribe to creators to see their articles here.
+                  </p>
+                  <Link href="/member-browse">
+                    <Button variant="outline" className="text-prologue-electric border-prologue-electric">
+                      Discover Creators
+                    </Button>
+                  </Link>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {filteredPrograms.map((program) => (
-                    <Card
-                      key={program.id}
-                      className="bg-white border border-gray-200 hover:shadow-md transition-shadow"
-                    >
-                      <CardContent className="p-6">
-                        <div className="flex items-center space-x-6">
-                          <div className="w-24 h-16 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
-                            <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                              <Play className="h-6 w-6 text-gray-600" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {articles.map((article) => {
+                    const creator = getCreatorInfo(article.createdBy);
+                    return (
+                      <Card 
+                        key={article.id} 
+                        className="hover:shadow-lg transition-shadow cursor-pointer"
+                        onClick={() => handleContentClick('article', article.id, article.createdBy)}
+                      >
+                        {article.coverImage && (
+                          <div className="relative w-full h-48 mb-2">
+                            <Image src={article.coverImage} alt={article.title} fill className="object-cover rounded-t-lg" />
+                          </div>
+                        )}
+                        <CardContent className="p-6">
+                          <div className="flex items-start justify-between mb-3">
+                            <Badge variant="secondary" className="bg-green-100 text-green-700">
+                              {article.category || "Article"}
+                            </Badge>
+                            <div className="flex items-center space-x-1 text-sm text-gray-600">
+                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                              <span>{article.rating || "4.5"}</span>
                             </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between mb-2">
-                              <div>
-                                <h3 className="font-semibold text-gray-900 mb-1">{program.title}</h3>
-                                <p className="text-sm text-gray-600">{program.instructor}</p>
+                          <h4 className="text-lg font-semibold mb-2 line-clamp-2">{article.title}</h4>
+                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{article.description || article.content}</p>
+                          
+                          {/* Creator info */}
+                          <div className="flex items-center space-x-3 mb-3">
+                            {creator.profileImageUrl ? (
+                              <Image 
+                                src={creator.profileImageUrl} 
+                                alt={`${creator.firstName} ${creator.lastName}`}
+                                width={24} 
+                                height={24} 
+                                className="rounded-full"
+                              />
+                            ) : (
+                              <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
+                                <span className="text-xs text-gray-600">
+                                  {creator.firstName?.[0]}{creator.lastName?.[0]}
+                                </span>
                               </div>
-                              <div className="flex items-center space-x-2">
-                                <Badge variant="outline" className="text-xs">
-                                  {program.difficulty}
-                                </Badge>
-                                {program.isNew && (
-                                  <Badge className="bg-prologue-electric text-white text-xs">New</Badge>
-                                )}
-                              </div>
+                            )}
+                            <span className="text-sm font-medium text-gray-900">
+                              {creator.firstName} {creator.lastName}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center justify-between text-sm text-gray-600">
+                            <div className="flex items-center space-x-2">
+                              <Clock className="h-4 w-4" />
+                              <span>{article.readTime || "5 min read"}</span>
                             </div>
-                            <p className="text-sm text-gray-700 mb-3 line-clamp-1">{program.description}</p>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                <div className="flex items-center space-x-1">
-                                  <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                                  <span>{program.rating}</span>
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                  <Users className="h-4 w-4" />
-                                  <span>{program.students}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                {program.status !== "new" && (
-                                  <div className="text-sm text-gray-600">{program.progress}% complete</div>
-                                )}
-                                <Button size="sm" className="bg-prologue-electric hover:bg-prologue-blue text-white">
-                                  {program.status === "completed"
-                                    ? "Review"
-                                    : program.status === "new"
-                                      ? "Start"
-                                      : "Continue"}
-                                </Button>
-                              </div>
+                            <div className="flex items-center space-x-2">
+                              <span>{formatDate(article.createdAt)}</span>
+                              {article.views && <span>• {article.views} views</span>}
                             </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               )}
+            </TabsContent>
 
-              {filteredPrograms.length === 0 && (
-                <Card className="bg-white border border-gray-200">
-                  <CardContent className="text-center py-16">
-                    <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-                      <BookOpen className="h-10 w-10 text-gray-400" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-3">No training programs found</h3>
-                    <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                      Start your training journey by discovering available programs or adjust your filters.
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                      <Link href="/member-discover">
-                        <Button className="bg-prologue-electric hover:bg-prologue-blue text-white">
-                          Discover Programs
-                        </Button>
-                      </Link>
-                      <Button variant="outline" onClick={() => setSelectedFilter("all")}>
-                        Clear Filters
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+            {/* Videos Tab */}
+            <TabsContent value="videos" className="space-y-4">
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-prologue-electric"></div>
+                  <span className="ml-3 text-gray-600">Loading videos...</span>
+                </div>
+              ) : error ? (
+                <div className="text-center py-12">
+                  <p className="text-red-600 mb-4">{error}</p>
+                  <Button onClick={() => window.location.reload()} variant="outline">
+                    Try Again
+                  </Button>
+                </div>
+              ) : videos.length === 0 ? (
+                <div className="text-center py-12">
+                  <Play className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Videos Yet</h3>
+                  <p className="text-gray-600 mb-4">
+                    Subscribe to creators to see their videos here.
+                  </p>
+                  <Link href="/member-browse">
+                    <Button variant="outline" className="text-prologue-electric border-prologue-electric">
+                      Discover Creators
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {videos.map((video) => {
+                    const creator = getCreatorInfo(video.createdBy);
+                    return (
+                      <Card 
+                        key={video.id} 
+                        className="hover:shadow-lg transition-shadow cursor-pointer"
+                        onClick={() => handleContentClick('video', video.id, video.createdBy)}
+                      >
+                        <div className="relative">
+                          {video.videoUrl ? (
+                            <video src={video.videoUrl} controls className="w-full h-48 object-cover rounded-t-lg" />
+                          ) : (
+                            <Image src={video.thumbnail || "/placeholder.svg"} alt={video.title} width={300} height={200} className="w-full h-48 object-cover rounded-t-lg" />
+                          )}
+                          <div className="absolute bottom-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs">
+                            {video.duration || "10:30"}
+                          </div>
+                          <div className="absolute top-2 left-2">
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                              {video.category || "Training"}
+                            </Badge>
+                          </div>
+                          <div className="absolute inset-0 bg-black/20 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Play className="h-12 w-12 text-white" />
+                          </div>
+                        </div>
+                        <CardContent className="p-4">
+                          <h4 className="text-base font-semibold mb-2 line-clamp-2">{video.title}</h4>
+                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{video.description}</p>
+                          
+                          {/* Creator info */}
+                          <div className="flex items-center space-x-3 mb-3">
+                            {creator.profileImageUrl ? (
+                              <Image 
+                                src={creator.profileImageUrl} 
+                                alt={`${creator.firstName} ${creator.lastName}`}
+                                width={20} 
+                                height={20} 
+                                className="rounded-full"
+                              />
+                            ) : (
+                              <div className="w-5 h-5 bg-gray-300 rounded-full flex items-center justify-center">
+                                <span className="text-xs text-gray-600">
+                                  {creator.firstName?.[0]}{creator.lastName?.[0]}
+                                </span>
+                              </div>
+                            )}
+                            <span className="text-sm font-medium text-gray-900">
+                              {creator.firstName} {creator.lastName}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center justify-between text-sm text-gray-600">
+                            <div className="flex items-center space-x-2">
+                              <Play className="h-4 w-4" />
+                              <span>{video.views || 0} views</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span>{formatDate(video.createdAt)}</span>
+                              <div className="flex items-center space-x-1">
+                                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                                <span>{video.rating || "4.5"}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Courses Tab */}
+            <TabsContent value="courses" className="space-y-4">
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-prologue-electric"></div>
+                  <span className="ml-3 text-gray-600">Loading courses...</span>
+                </div>
+              ) : error ? (
+                <div className="text-center py-12">
+                  <p className="text-red-600 mb-4">{error}</p>
+                  <Button onClick={() => window.location.reload()} variant="outline">
+                    Try Again
+                  </Button>
+                </div>
+              ) : courses.length === 0 ? (
+                <div className="text-center py-12">
+                  <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Courses Yet</h3>
+                  <p className="text-gray-600 mb-4">
+                    Subscribe to creators to see their courses here.
+                  </p>
+                  <Link href="/member-browse">
+                    <Button variant="outline" className="text-prologue-electric border-prologue-electric">
+                      Discover Creators
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {courses.map((course) => {
+                    const creator = getCreatorInfo(course.createdBy);
+                    return (
+                      <Card 
+                        key={course.id} 
+                        className="hover:shadow-lg transition-shadow cursor-pointer"
+                        onClick={() => handleContentClick('course', course.id, course.createdBy)}
+                      >
+                        {course.coverImage && (
+                          <div className="relative w-full h-48 mb-2">
+                            <Image src={course.coverImage} alt={course.title} fill className="object-cover rounded-t-lg" />
+                          </div>
+                        )}
+                        <CardContent className="p-6">
+                          <div className="flex items-start justify-between mb-3">
+                            <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                              {course.category || "Course"}
+                            </Badge>
+                            <div className="flex items-center space-x-1 text-sm text-gray-600">
+                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                              <span>{course.rating || "4.5"}</span>
+                            </div>
+                          </div>
+                          <h4 className="text-lg font-semibold mb-3">{course.title}</h4>
+                          <p className="text-sm text-gray-600 mb-4 line-clamp-2">{course.description}</p>
+                          
+                          {/* Creator info */}
+                          <div className="flex items-center space-x-3 mb-4">
+                            {creator.profileImageUrl ? (
+                              <Image 
+                                src={creator.profileImageUrl} 
+                                alt={`${creator.firstName} ${creator.lastName}`}
+                                width={24} 
+                                height={24} 
+                                className="rounded-full"
+                              />
+                            ) : (
+                              <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
+                                <span className="text-xs text-gray-600">
+                                  {creator.firstName?.[0]}{creator.lastName?.[0]}
+                                </span>
+                              </div>
+                            )}
+                            <span className="text-sm font-medium text-gray-900">
+                              {creator.firstName} {creator.lastName}
+                            </span>
+                          </div>
+                          
+                          <div className="mb-4">
+                            <p className="text-sm text-gray-600 mb-2">
+                              {course.lessons?.length || course.sessions || 0} lessons:
+                            </p>
+                            <div className="space-y-1">
+                              {course.lessons?.slice(0, 3).map((lesson: any, index: number) => (
+                                <div key={lesson.id || index} className="flex items-center space-x-2 text-xs text-gray-500">
+                                  {lesson.type === "video" ? (
+                                    <Play className="h-3 w-3 text-blue-500" />
+                                  ) : (
+                                    <FileText className="h-3 w-3 text-green-500" />
+                                  )}
+                                  <span className="truncate">{lesson.title}</span>
+                                  <span className="text-gray-400">•</span>
+                                  <span>{lesson.duration}</span>
+                                </div>
+                              ))}
+                              {course.lessons && course.lessons.length > 3 && (
+                                <p className="text-xs text-gray-400 pl-5">+{course.lessons.length - 3} more lessons</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                            <div className="flex items-center space-x-2">
+                              <Clock className="h-4 w-4" />
+                              <span>{course.duration || "8 weeks"}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Users className="h-4 w-4" />
+                              <span>{course.participants || 0} enrolled</span>
+                            </div>
+                          </div>
+                          <div className="mt-3 text-xs text-gray-500">
+                            Created {formatDate(course.createdAt)}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
               )}
             </TabsContent>
           </Tabs>
