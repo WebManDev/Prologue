@@ -322,7 +322,12 @@ export const getSubscribersForAthlete = async (athleteId: string) => {
   const snapshot = await getDocs(membersRef);
   return snapshot.docs
     .map(doc => ({ id: doc.id, ...doc.data() }))
-    .filter(member => Array.isArray((member as any).subscriptions) && (member as any).subscriptions.includes(athleteId));
+    .filter(member => 
+      (member as any).subscriptions &&
+      typeof (member as any).subscriptions === "object" &&
+      (member as any).subscriptions[athleteId] &&
+      (member as any).subscriptions[athleteId].status === "active"
+    );
 };
 
 // Function to update athlete post
