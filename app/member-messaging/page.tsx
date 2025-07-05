@@ -97,7 +97,7 @@ export default function MemberMessagingPage() {
                   return {
                     id: athleteId,
                     name: athleteData.name || "Athlete",
-                    avatar: athleteData.profilePic || "/placeholder.svg",
+                    avatar: athleteData.profileImageUrl || athleteData.profilePic || athleteData.profilePicture || "/placeholder.svg",
                     lastMessage: "Click to start a conversation",
                     timestamp: "Just now",
                     unread: 0,
@@ -351,7 +351,7 @@ export default function MemberMessagingPage() {
       const memberDoc = await getDoc(doc(db, "members", currentUser.uid))
       if (memberDoc.exists()) {
         const data = memberDoc.data()
-        setProfileImageUrl(data.profilePic || data.profilePicture || null)
+        setProfileImageUrl(data.profileImageUrl || data.profilePic || data.profilePicture || null)
         setProfileData({ firstName: data.firstName || "", lastName: data.lastName || "" })
       }
     }

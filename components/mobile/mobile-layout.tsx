@@ -37,7 +37,7 @@ export default function MobileLayout({
           href: "/member-training",
           icon: BookOpen,
           label: "Training",
-          badge: hasNewContent ? "new" : null,
+          badge: null, // Removed badge for training
         },
         {
           href: "/member-browse",
@@ -55,7 +55,7 @@ export default function MobileLayout({
           href: "/member-messaging",
           icon: MessageCircle,
           label: "Messages",
-          badge: unreadMessages > 0 ? unreadMessages.toString() : null,
+          badge: null, // Removed badge for messages
         },
         {
           href: "/member-dashboard",
