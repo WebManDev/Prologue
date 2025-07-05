@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -21,6 +21,8 @@ import {
   CheckCircle,
   Circle,
 } from "lucide-react"
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
+import { auth } from "@/lib/firebase"
 
 type ProfileData = {
   firstName: string
@@ -47,6 +49,8 @@ interface ProfileHeaderProps {
   isLoading: boolean
   onEditToggle: () => void
   onSave: (data: ProfileData) => void // This will be used by the parent editor component
+  onProfileImageChange: (file: File) => void
+  onCoverImageChange: (file: File) => void
 }
 
 const coachingStats = {
@@ -56,8 +60,25 @@ const coachingStats = {
   successRate: 94,
 }
 
-export default function ProfileHeader({ profileData, isEditing, isLoading, onEditToggle, onSave }: ProfileHeaderProps) {
+export default function ProfileHeader({ profileData, isEditing, isLoading, onEditToggle, onSave, onProfileImageChange, onCoverImageChange }: ProfileHeaderProps) {
   const [showProfileChecklist, setShowProfileChecklist] = useState(false)
+  const profileInputRef = useRef<HTMLInputElement>(null)
+  const coverInputRef = useRef<HTMLInputElement>(null)
+
+  const handleProfilePhotoClick = () => {
+    profileInputRef.current?.click()
+  }
+  const handleCoverPhotoClick = () => {
+    coverInputRef.current?.click()
+  }
+  const handleProfilePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) onProfileImageChange(file)
+  }
+  const handleCoverPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) onCoverImageChange(file)
+  }
 
   const profileChecklist = [
     {
@@ -105,15 +126,26 @@ export default function ProfileHeader({ profileData, isEditing, isLoading, onEdi
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-4 lg:mb-8 overflow-hidden">
       <div className="h-24 lg:h-32 bg-gradient-to-r from-blue-500 to-blue-600 relative">
         <div className="absolute inset-0 bg-black/10"></div>
+        {profileData.coverPhotoUrl && <img src={profileData.coverPhotoUrl} alt="Cover" className="absolute inset-0 w-full h-full object-cover" />}
         {isEditing && (
-          <Button
-            variant="secondary"
-            size="sm"
-            className="absolute top-2 right-2 lg:top-4 lg:right-4 bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 text-xs lg:text-sm"
-          >
-            <Camera className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
-            <span className="hidden sm:inline">Change Cover</span>
-          </Button>
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="absolute top-2 right-2 lg:top-4 lg:right-4 bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 text-xs lg:text-sm"
+              onClick={handleCoverPhotoClick}
+            >
+              <Camera className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
+              <span className="hidden sm:inline">Change Cover</span>
+            </Button>
+            <input
+              type="file"
+              accept="image/*"
+              ref={coverInputRef}
+              style={{ display: "none" }}
+              onChange={handleCoverPhotoChange}
+            />
+          </>
         )}
       </div>
 
@@ -122,15 +154,29 @@ export default function ProfileHeader({ profileData, isEditing, isLoading, onEdi
           <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-6">
             <div className="relative self-center lg:self-auto">
               <div className="w-20 h-20 lg:w-24 lg:h-24 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full border-4 border-white overflow-hidden">
-                <User className="w-full h-full text-white p-4 lg:p-6" />
+                {profileData.profilePhotoUrl ? (
+                  <img src={profileData.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-full h-full text-white p-4 lg:p-6" />
+                )}
               </div>
               {isEditing && (
-                <Button
-                  size="sm"
-                  className="absolute -bottom-1 -right-1 lg:-bottom-2 lg:-right-2 w-6 h-6 lg:w-8 lg:h-8 rounded-full p-0 bg-blue-500 hover:bg-blue-600"
-                >
-                  <Upload className="h-3 w-3 lg:h-4 lg:w-4" />
-                </Button>
+                <>
+                  <Button
+                    size="sm"
+                    className="absolute -bottom-1 -right-1 lg:-bottom-2 lg:-right-2 w-6 h-6 lg:w-8 lg:h-8 rounded-full p-0 bg-blue-500 hover:bg-blue-600"
+                    onClick={handleProfilePhotoClick}
+                  >
+                    <Upload className="h-3 w-3 lg:h-4 lg:w-4" />
+                  </Button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    ref={profileInputRef}
+                    style={{ display: "none" }}
+                    onChange={handleProfilePhotoChange}
+                  />
+                </>
               )}
             </div>
 

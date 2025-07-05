@@ -27,6 +27,8 @@ export type ProfileData = {
   specialties: string[]
   experience: string
   achievements: string[]
+  profilePhotoUrl?: string
+  coverPhotoUrl?: string
 }
 
 interface ProfileEditorProps {

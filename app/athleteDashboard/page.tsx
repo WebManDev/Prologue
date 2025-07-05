@@ -34,6 +34,7 @@ import ProfileEditor, { ProfileData } from "@/components/profile-editor"
 import Sidebar from "@/components/sidebar"
 import { NotificationProvider } from "@/contexts/notification-context"
 import { saveAthleteProfile, auth, getAthleteProfile } from "@/lib/firebase"
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
 
 // Static quick searches to prevent re-creation
 const QUICK_SEARCHES = [
@@ -74,10 +75,14 @@ export default function DashboardPage() {
     certifications: [],
     specialties: [],
     experience: "",
-    achievements: []
+    achievements: [],
+    profilePhotoUrl: "",
+    coverPhotoUrl: "",
   })
 
   const profileEditorRef = useRef<any>(null)
+  const [isUploadingProfile, setIsUploadingProfile] = useState(false)
+  const [isUploadingCover, setIsUploadingCover] = useState(false)
 
   // Stable search handlers
   const handleSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,7 +191,9 @@ export default function DashboardPage() {
           certifications: updatedProfile.certifications || [],
           specialties: updatedProfile.specialties || [],
           experience: updatedProfile.experience || "",
-          achievements: updatedProfile.achievements || []
+          achievements: updatedProfile.achievements || [],
+          profilePhotoUrl: updatedProfile.profilePhotoUrl || "",
+          coverPhotoUrl: updatedProfile.coverPhotoUrl || "",
         })
       }
       setIsEditing(false)
@@ -206,6 +213,49 @@ export default function DashboardPage() {
       setIsSaving(false)
     }
   }, [])
+
+  // Add a handler to save profile changes from ProfileHeader (image upload)
+  const handleHeaderSave = useCallback((newProfileData: ProfileData) => {
+    handleSaveProfile(newProfileData)
+  }, [handleSaveProfile])
+
+  // Member-dashboard-style image upload handlers
+  const handleProfileImageChange = async (file: File) => {
+    if (!auth.currentUser) return
+    setIsUploadingProfile(true)
+    try {
+      const storage = getStorage()
+      const fileRef = storageRef(storage, `athlete-profile-pics/${auth.currentUser.uid}/profile.jpg`)
+      await uploadBytes(fileRef, file)
+      const url = await getDownloadURL(fileRef)
+      const newProfileData = { ...profileData, profilePhotoUrl: url }
+      await saveAthleteProfile(auth.currentUser.uid, newProfileData)
+      setProfileData(newProfileData)
+      toast({ title: "Profile picture updated!" })
+    } catch (err) {
+      toast({ title: "Upload failed", description: "Could not upload profile picture.", variant: "destructive" })
+    } finally {
+      setIsUploadingProfile(false)
+    }
+  }
+  const handleCoverImageChange = async (file: File) => {
+    if (!auth.currentUser) return
+    setIsUploadingCover(true)
+    try {
+      const storage = getStorage()
+      const fileRef = storageRef(storage, `athlete-profile-pics/${auth.currentUser.uid}/cover.jpg`)
+      await uploadBytes(fileRef, file)
+      const url = await getDownloadURL(fileRef)
+      const newProfileData = { ...profileData, coverPhotoUrl: url }
+      await saveAthleteProfile(auth.currentUser.uid, newProfileData)
+      setProfileData(newProfileData)
+      toast({ title: "Cover photo updated!" })
+    } catch (err) {
+      toast({ title: "Upload failed", description: "Could not upload cover photo.", variant: "destructive" })
+    } finally {
+      setIsUploadingCover(false)
+    }
+  }
 
   // Fetch athlete profile on mount and when auth state changes
   useEffect(() => {
@@ -227,7 +277,9 @@ export default function DashboardPage() {
               certifications: profile.certifications || [],
               specialties: profile.specialties || [],
               experience: profile.experience || "",
-              achievements: profile.achievements || []
+              achievements: profile.achievements || [],
+              profilePhotoUrl: profile.profilePhotoUrl || "",
+              coverPhotoUrl: profile.coverPhotoUrl || "",
             })
           }
         })
@@ -419,7 +471,9 @@ export default function DashboardPage() {
         isEditing={isEditing}
         isLoading={isSaving}
         onEditToggle={handleEditToggle}
-        onSave={() => profileEditorRef.current?.save()}
+        onSave={handleHeaderSave}
+        onProfileImageChange={handleProfileImageChange}
+        onCoverImageChange={handleCoverImageChange}
       />
 
       <StatsCards />
