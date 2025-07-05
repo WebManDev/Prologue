@@ -1,13 +1,17 @@
 import Stripe from "stripe"
 
+const STRIPE_SECRET_KEY = "sk_test_51RTKV905oLGlYeZ0Xn4UdqK51tP3a8yUFs0fqHUQr56s7AKx2uUeNjbgb9K2g0EL4suY05tfROpWYhasGgL3Rec400yiOHmTON";
+const STRIPE_PUBLISHABLE_KEY = "pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu";
+
 // Initialize Stripe with the secret key
-export const stripe = new Stripe('sk_test_51RTKV905oLGlYeZ0Xn4UdqK51tP3a8yUFs0fqHUQr56s7AKx2uUeNjbgb9K2g0EL4suY05tfROpWYhasGgL3Rec400yiOHmTON', {
-  apiVersion: '2025-05-28.basil',
-})
+export const stripe = new Stripe(
+  process.env.STRIPE_SECRET_KEY!,
+  { apiVersion: "2025-06-30.basil" }
+);
 
 // Stripe configuration
 export const STRIPE_CONFIG = {
-  publishableKey: "pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu",
+  publishableKey: STRIPE_PUBLISHABLE_KEY,
   webhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
   currency: "usd",
   platformFeePercentage: 15, // 15% platform fee (athlete's share is 85%)

@@ -215,6 +215,7 @@ export default function MemberDiscoverPage() {
   const { logout } = useUnifiedLogout()
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
   const [profileData, setProfileData] = useState<any>(null)
+  const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -240,10 +241,9 @@ export default function MemberDiscoverPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [sortBy, setSortBy] = useState<"rating" | "price" | "students" | "newest">("rating")
-  const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false)
-  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
-  const [athletes, setAthletes] = useState(CREATORS)
   const [subscriptions, setSubscriptions] = useState<{[athleteId: string]: any}>({})
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [athletes, setAthletes] = useState<any[]>(CREATORS);
 
   // Refs for maintaining focus
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -256,7 +256,7 @@ export default function MemberDiscoverPage() {
 
   // Enhanced filtering logic
   const filteredAthletes = useMemo(() => {
-    const filtered = athletes.filter((athlete) => {
+    const filtered = athletes.filter((athlete: any) => {
       // Sport filter
       if (selectedSport !== "all" && athlete.sport !== selectedSport) return false;
       // Type filter
@@ -301,7 +301,7 @@ export default function MemberDiscoverPage() {
       return true;
     });
     // Sorting
-    filtered.sort((a, b) => {
+    filtered.sort((a: any, b: any) => {
       switch (sortBy) {
         case "rating":
           return b.rating - a.rating;
@@ -321,7 +321,6 @@ export default function MemberDiscoverPage() {
   // Stable event handlers
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value)
-    setShowSearchDropdown(e.target.value.length > 0)
   }, [])
 
   const handleSearchFocus = useCallback(() => {
@@ -350,9 +349,10 @@ export default function MemberDiscoverPage() {
     router.push(`/creator/${creator.id}`);
   }, [router]);
 
-  const handleSubscribeClick = useCallback((creator: (typeof CREATORS)[0]) => {
-    setSubscriptionDialogOpen(true)
-  }, [])
+  // Replace handleSubscribeClick with direct navigation
+  const handleSubscribe = useCallback((athleteId: string) => {
+    router.push(`/member-browse/subscription/${athleteId}`);
+  }, [router]);
 
   const moveAthleteToTop = (athleteId: string) => {
     setAthletes((prev) => {
@@ -374,27 +374,6 @@ export default function MemberDiscoverPage() {
       }
     }
   };
-
-  const handleConfirmSubscription = useCallback(() => {
-    setSubscriptionDialogOpen(false);
-  }, [subscribeToCreator]);
-
-  const clearAllFilters = useCallback(() => {
-    setSelectedSport("all")
-    setSelectedType("all")
-    setSelectedRating("all")
-    setSelectedPrice("all")
-    setSelectedExperience("all")
-    setSearchQuery("")
-  }, [])
-
-  const hasActiveFilters =
-    selectedSport !== "all" ||
-    selectedType !== "all" ||
-    selectedRating !== "all" ||
-    selectedPrice !== "all" ||
-    selectedExperience !== "all" ||
-    searchQuery
 
   // Memoized search dropdown
   const SearchDropdown = useMemo(() => {
@@ -631,6 +610,98 @@ export default function MemberDiscoverPage() {
     return subscriptions[athleteId] && subscriptions[athleteId].status === "active";
   };
 
+  // Move clearAllFilters up here
+  const clearAllFilters = useCallback(() => {
+    setSelectedSport("all")
+    setSelectedType("all")
+    setSelectedRating("all")
+    setSelectedPrice("all")
+    setSelectedExperience("all")
+    setSearchQuery("")
+  }, [])
+
+  // Athlete Card Component (Grid View)
+  const AthleteCard = useCallback(
+    ({ athlete }: { athlete: (typeof CREATORS)[0] }) => (
+      <AthleteBrowseCard
+        key={athlete.id}
+        athlete={athlete}
+        isSubscribed={isSubscribed}
+        onSubscribe={handleSubscribe}
+        onUnsubscribe={() => unsubscribeFromCreator(athlete.id)}
+        onViewProfile={handleCreatorClick}
+      />
+    ),
+    [handleSubscribe, unsubscribeFromCreator, handleCreatorClick, isSubscribed]
+  );
+
+  // Athlete List Item Component
+  const AthleteListItem = useCallback(
+    ({ athlete }: { athlete: (typeof CREATORS)[0] }) => (
+      <Card className="bg-white border border-gray-200 hover:shadow-lg transition-all duration-300">
+        <CardContent className="p-6">
+          <div className="flex items-center space-x-6">
+            {/* Avatar */}
+            <div
+              className="w-16 h-16 bg-gray-200 rounded-full overflow-hidden cursor-pointer hover:ring-4 hover:ring-prologue-electric/20 transition-all"
+              onClick={() => handleCreatorClick(athlete)}
+            >
+              <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
+                <User className="h-8 w-8 text-gray-600" />
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <h3
+                    className="font-semibold text-gray-900 text-lg cursor-pointer hover:text-prologue-electric transition-colors mb-1"
+                    onClick={() => handleCreatorClick(athlete)}
+                  >
+                    {athlete.name}
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-2">
+                    {athlete.sport} • {athlete.location}
+                    {athlete.university && <span className="text-gray-500"> • {athlete.university}</span>}
+                  </p>
+                  <p className="text-sm text-gray-700 line-clamp-2">{athlete.bio}</p>
+                </div>
+
+                {/* Stats */}
+                <div className="flex items-center space-x-6 ml-6">
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-gray-900">{athlete.rating}</p>
+                    <p className="text-xs text-gray-600">Rating</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-gray-900">{athlete.totalStudents}</p>
+                    <p className="text-xs text-gray-600">Students</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-gray-900">${athlete.pricing?.basic?.toFixed(2) ?? athlete.subscriptionPrice?.toFixed(2) ?? '0.00'}</p>
+                    <p className="text-xs text-gray-600">/month</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-3 mt-4">
+                <Button
+                  onClick={() => handleCreatorClick(athlete)}
+                  className="bg-prologue-electric hover:bg-prologue-electric/90 text-white"
+                >
+                  View Profile
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    ),
+    [handleCreatorClick]
+  );
+
   // Filter Section Component
   const FilterSection = useMemo(() => (
     <div className="space-y-6">
@@ -727,121 +798,13 @@ export default function MemberDiscoverPage() {
     </div>
   ), [selectedSport, selectedType, selectedRating, selectedPrice, selectedExperience, availableSports, clearAllFilters]);
 
-  // Athlete Card Component (Grid View)
-  const AthleteCard = useCallback(
-    ({ athlete }: { athlete: (typeof CREATORS)[0] }) => (
-      <AthleteBrowseCard
-        key={athlete.id}
-        athlete={athlete}
-        isSubscribed={isSubscribed}
-        onSubscribe={() => handleSubscribeClick(athlete)}
-        onUnsubscribe={() => unsubscribeFromCreator(athlete.id)}
-        onViewProfile={handleCreatorClick}
-      />
-    ),
-    [handleSubscribeClick, unsubscribeFromCreator, handleCreatorClick, isSubscribed]
-  );
-
-  // Athlete List Item Component
-  const AthleteListItem = useCallback(
-    ({ athlete }: { athlete: (typeof CREATORS)[0] }) => (
-      <Card className="bg-white border border-gray-200 hover:shadow-lg transition-all duration-300">
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-6">
-            {/* Avatar */}
-            <div
-              className="w-16 h-16 bg-gray-200 rounded-full overflow-hidden cursor-pointer hover:ring-4 hover:ring-prologue-electric/20 transition-all"
-              onClick={() => handleCreatorClick(athlete)}
-            >
-              <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                <User className="h-8 w-8 text-gray-600" />
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <h3
-                    className="font-semibold text-gray-900 text-lg cursor-pointer hover:text-prologue-electric transition-colors mb-1"
-                    onClick={() => handleCreatorClick(athlete)}
-                  >
-                    {athlete.name}
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-2">
-                    {athlete.sport} • {athlete.location}
-                    {athlete.university && <span className="text-gray-500"> • {athlete.university}</span>}
-                  </p>
-                  <p className="text-sm text-gray-700 line-clamp-2">{athlete.bio}</p>
-                </div>
-
-                {/* Stats */}
-                <div className="flex items-center space-x-6 ml-6">
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-gray-900">{athlete.rating}</p>
-                    <p className="text-xs text-gray-600">Rating</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-gray-900">{athlete.totalStudents}</p>
-                    <p className="text-xs text-gray-600">Students</p>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-lg font-bold text-gray-900">${athlete.pricing?.basic?.toFixed(2) ?? athlete.subscriptionPrice?.toFixed(2) ?? '0.00'}</p>
-                    <p className="text-xs text-gray-600">/month</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center space-x-3 mt-4">
-                <Button
-                  onClick={() => handleCreatorClick(athlete)}
-                  className="bg-prologue-electric hover:bg-prologue-electric/90 text-white"
-                >
-                  View Profile
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    ),
-    [handleCreatorClick]
-  );
-
-  // Subscription Dialog Component
-  const SubscriptionDialog = useMemo(() => (
-    <Dialog open={subscriptionDialogOpen} onOpenChange={setSubscriptionDialogOpen}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Subscribe</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <p className="text-gray-600">
-            Get access to exclusive content, personalized training plans, and direct messaging.
-          </p>
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <p className="font-semibold text-lg">Subscription</p>
-            <p className="text-sm text-gray-600">Cancel anytime</p>
-          </div>
-          <div className="flex space-x-3">
-            <Button
-              onClick={handleConfirmSubscription}
-              className="flex-1 bg-prologue-electric hover:bg-prologue-electric/90 text-white"
-            >
-              Confirm Subscription
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setSubscriptionDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  ), [subscriptionDialogOpen, handleConfirmSubscription]);
+  const hasActiveFilters =
+    selectedSport !== "all" ||
+    selectedType !== "all" ||
+    selectedRating !== "all" ||
+    selectedPrice !== "all" ||
+    selectedExperience !== "all" ||
+    searchQuery
 
   if (isMobile || isTablet) {
     return (
@@ -1021,8 +984,6 @@ export default function MemberDiscoverPage() {
             </Link>
           </div>
         </nav>
-
-        {SubscriptionDialog}
       </MobileLayout>
     )
   }
@@ -1237,8 +1198,6 @@ export default function MemberDiscoverPage() {
           </div>
         </Tabs>
       </main>
-
-      {SubscriptionDialog}
     </div>
   )
 }
