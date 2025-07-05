@@ -421,7 +421,11 @@ export default function DashboardPage() {
                       disabled={loadingState.isLoading}
                     >
                       <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                        <User className="w-full h-full text-gray-500 p-1" />
+                        {profileData.profilePhotoUrl ? (
+                          <img src={profileData.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                          <User className="w-full h-full text-gray-500 p-1" />
+                        )}
                       </div>
                       <ChevronDown className="h-4 w-4 text-gray-500" />
                     </Button>
@@ -461,7 +465,7 @@ export default function DashboardPage() {
         </div>
       </header>
     ),
-    [SearchComponent, hasUnreadMessages, loadingState.isLoading, handleLogout],
+    [SearchComponent, hasUnreadMessages, loadingState.isLoading, handleLogout, profileData.profilePhotoUrl],
   )
 
   const MainContent = () => (

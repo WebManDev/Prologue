@@ -32,6 +32,8 @@ import { useAdvancedNotifications, AdvancedNotificationProvider } from "@/contex
 import { NotificationCard } from "@/components/notifications/notification-card"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
+import { getFirestore, doc, onSnapshot } from "firebase/firestore"
+import { auth } from "@/lib/firebase"
 
 function NotificationsPageContent() {
   const { isMobile, isTablet } = useMobileDetection()
@@ -45,6 +47,23 @@ function NotificationsPageContent() {
     archiveNotification,
     filterNotifications,
   } = useAdvancedNotifications()
+
+  const [athleteProfile, setAthleteProfile] = useState<any>(null)
+  useEffect(() => {
+    const db = getFirestore()
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        const athleteDocRef = doc(db, "athletes", user.uid)
+        const unsubProfile = onSnapshot(athleteDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            setAthleteProfile(docSnap.data())
+          }
+        })
+        return unsubProfile
+      }
+    })
+    return () => unsubscribe && unsubscribe()
+  }, [])
 
   // Local helper functions to replace missing ones
   const getNotificationsByType = (type: string) => {
@@ -228,7 +247,11 @@ function NotificationsPageContent() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center space-x-2 p-2">
                     <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                      <User className="w-full h-full text-gray-500 p-1" />
+                      {athleteProfile?.profilePhotoUrl ? (
+                        <img src={athleteProfile.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <User className="w-full h-full text-gray-500 p-1" />
+                      )}
                     </div>
                     <ChevronDown className="h-4 w-4 text-gray-500" />
                   </Button>
