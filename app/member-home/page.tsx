@@ -45,7 +45,7 @@ import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
 import { auth, getMemberProfile, db, getAthleteProfile } from "@/lib/firebase"
-import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, doc, updateDoc, arrayUnion, getDoc, deleteDoc } from "firebase/firestore"
+import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, doc, updateDoc, arrayUnion, arrayRemove, getDoc, deleteDoc, setDoc } from "firebase/firestore"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
@@ -351,16 +351,17 @@ export default function MemberHomePage() {
   }, [searchQuery])
 
   // Social media interaction handlers
-  const handleLike = useCallback((postId: string) => {
-    setLikedPosts((prev) => {
-      const newSet = new Set(prev)
-      if (newSet.has(postId)) {
-        newSet.delete(postId)
-      } else {
-        newSet.add(postId)
-      }
-      return newSet
-    })
+  const handleLike = useCallback(async (postId: string) => {
+    const user = auth.currentUser
+    if (!user) return
+    const postRef = doc(db, "posts", postId)
+    const postSnap = await getDoc(postRef)
+    const likes = postSnap.data()?.likes || []
+    if (likes.includes(user.uid)) {
+      await updateDoc(postRef, { likes: arrayRemove(user.uid) })
+    } else {
+      await updateDoc(postRef, { likes: arrayUnion(user.uid) })
+    }
   }, [])
 
   const handleSave = useCallback((postId: string) => {
@@ -447,6 +448,8 @@ export default function MemberHomePage() {
 
   const [firebasePosts, setFirebasePosts] = useState<any[]>([])
   const [profileCache, setProfileCache] = useState<Record<string, any>>({})
+  const [commentInputs, setCommentInputs] = useState<{ [postId: string]: string }>({})
+  const [comments, setComments] = useState<{ [postId: string]: any[] }>({})
 
   // Fetch posts
   useEffect(() => {
@@ -491,6 +494,20 @@ export default function MemberHomePage() {
       }
     })
   }, [firebasePosts])
+
+  // Listen for comments for each post
+  useEffect(() => {
+    firebasePosts.forEach((post) => {
+      if (!post.id) return
+      const commentsRef = collection(db, "posts", post.id, "comments")
+      const q = query(commentsRef, orderBy("createdAt", "asc"))
+      const unsub = onSnapshot(q, (snapshot) => {
+        setComments((prev) => ({ ...prev, [post.id]: snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) }))
+      })
+      return () => unsub()
+    })
+  }, [firebasePosts])
+
   // Memoized search dropdown content
   const searchDropdownContent = useMemo(() => {
     const displayItems = searchQuery ? searchResults : quickSearches.slice(0, 8)
@@ -605,6 +622,27 @@ export default function MemberHomePage() {
       setPosting(false)
     }
   }
+
+  // Comment submit handler
+  const handleCommentSubmit = useCallback(async (postId: string) => {
+    const user = auth.currentUser
+    if (!user) return
+    const postRef = doc(db, "posts", postId)
+    const postSnap = await getDoc(postRef)
+    const commentsRef = collection(db, "posts", postId, "comments")
+    const newCommentRef = await addDoc(commentsRef, {
+      content: commentInputs[postId],
+      createdBy: user.uid,
+      userType: "member",
+      createdAt: serverTimestamp(),
+      profileImageUrl: profileImageUrl,
+      firstName: profileData.firstName,
+      lastName: profileData.lastName,
+    })
+    setCommentInputs((prev) => ({ ...prev, [postId]: "" }))
+    // Optionally, update the main post's comment count
+    await updateDoc(postRef, { commentsCount: (postSnap.data()?.commentsCount || 0) + 1 })
+  }, [profileImageUrl, profileData])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -734,11 +772,13 @@ export default function MemberHomePage() {
                   if (!item.id) return
                   await deleteDoc(doc(db, "posts", item.id))
                 }
+                const likeCount = item.likes ? item.likes.length : 0
+                const isLiked = item.likes && auth.currentUser ? item.likes.includes(auth.currentUser.uid) : false
+                const postComments = comments[item.id] || []
+                const commentCount = postComments.length
+                const shareCount = item.shares || 0
                 return (
-                  <Card
-                    key={item.id}
-                    className="bg-white border transition-all duration-300 hover:shadow-lg border-prologue-electric/30 shadow-md"
-                  >
+                  <Card key={item.id} className="bg-white border transition-all duration-300 hover:shadow-lg border-prologue-electric/30 shadow-md">
                     <CardContent className="p-0">
                       <div className="space-y-0">
                         {/* Post Header */}
@@ -798,13 +838,34 @@ export default function MemberHomePage() {
                             <video src={item.mediaUrl} controls className="object-contain max-h-96 w-full" />
                           </div>
                         )}
-                        {/* Action Buttons (like, comment, share, etc.) */}
+                        {/* Engagement Stats Row */}
+                        <div className="px-4 py-2 border-t border-gray-100">
+                          <div className="flex items-center justify-between text-sm text-gray-600">
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-1">
+                                <div className="flex -space-x-1">
+                                  <div className="w-5 h-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
+                                    <Heart className="h-2.5 w-2.5 text-white fill-current" />
+                                  </div>
+                                  <div className="w-5 h-5 bg-prologue-electric rounded-full border-2 border-white flex items-center justify-center">
+                                    <ThumbsUp className="h-2.5 w-2.5 text-white fill-current" />
+                                  </div>
+                                </div>
+                                <span>{likeCount} {likeCount === 1 ? "like" : "likes"}</span>
+                              </div>
+                              <span>{commentCount} {commentCount === 1 ? "comment" : "comments"}</span>
+                              <span>{shareCount} {shareCount === 1 ? "share" : "shares"}</span>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Action Buttons */}
                         <div className="px-4 py-3 border-t border-gray-100">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-1">
-                              <Button variant="ghost" size="sm" className="flex-1 text-gray-600 hover:text-red-500">
-                                <Heart className="h-5 w-5 mr-2" />
+                              <Button variant="ghost" size="sm" className={`flex-1 ${isLiked ? "text-red-500" : "text-gray-600 hover:text-red-500"}`} onClick={() => handleLike(item.id)}>
+                                <Heart className={`h-5 w-5 mr-2 ${isLiked ? "fill-current" : ""}`} />
                                 <span className="hidden sm:inline">Like</span>
+                                <span className="ml-1">{likeCount}</span>
                               </Button>
                               <Button variant="ghost" size="sm" className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10">
                                 <MessageSquare className="h-5 w-5 mr-2" />
@@ -817,7 +878,7 @@ export default function MemberHomePage() {
                             </div>
                           </div>
                         </div>
-                        {/* Comment Preview */}
+                        {/* Comment input and list */}
                         <div className="px-4 pb-4">
                           <div className="flex items-start space-x-3">
                             <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden">
@@ -827,13 +888,36 @@ export default function MemberHomePage() {
                                 <User className="w-full h-full text-gray-500 p-1.5" />
                               )}
                             </div>
-                            <div className="flex-1">
+                            <div className="flex-1 flex items-center space-x-2">
                               <input
                                 type="text"
                                 placeholder="Write a comment..."
                                 className="w-full bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
+                                value={commentInputs[item.id] || ""}
+                                onChange={e => setCommentInputs((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleCommentSubmit(item.id) } }}
                               />
+                              <Button size="sm" variant="ghost" onClick={() => handleCommentSubmit(item.id)}>
+                                <Send className="h-4 w-4" />
+                              </Button>
                             </div>
+                          </div>
+                          <div className="mt-2 space-y-2">
+                            {postComments.map((comment) => (
+                              <div key={comment.id} className="flex items-start space-x-2">
+                                <div className="w-7 h-7 bg-gray-200 rounded-full overflow-hidden">
+                                  {comment.profileImageUrl ? (
+                                    <Image src={comment.profileImageUrl} alt={comment.firstName || "User"} width={28} height={28} />
+                                  ) : (
+                                    <User className="w-full h-full text-gray-500 p-1" />
+                                  )}
+                                </div>
+                                <div className="flex-1 bg-gray-100 rounded-lg px-3 py-1">
+                                  <span className="font-medium text-xs text-gray-900">{comment.firstName} {comment.lastName}</span>
+                                  <p className="text-xs text-gray-700">{comment.content}</p>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       </div>

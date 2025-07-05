@@ -52,6 +52,7 @@ import { db } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { auth } from "@/lib/firebase"
+import { getMemberProfile } from "@/lib/firebase"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -101,7 +102,15 @@ function AthleteBrowseCard({
         {/* Avatar Overlapping Cover */}
         <div className="absolute left-1/2 -translate-x-1/2 bottom-[-1.75rem] z-10">
           <div className="w-14 h-14 rounded-full bg-gray-100 border-4 border-white shadow-md flex items-center justify-center">
-            <User className="h-7 w-7 text-gray-400" />
+            {athlete.profileImageUrl || athlete.profilePic || athlete.profilePicture || athlete.avatar ? (
+              <img
+                src={athlete.profileImageUrl || athlete.profilePic || athlete.profilePicture || athlete.avatar}
+                alt={athlete.name}
+                className="w-full h-full rounded-full object-cover"
+              />
+            ) : (
+              <User className="h-7 w-7 text-gray-400" />
+            )}
           </div>
         </div>
       </div>
@@ -156,7 +165,7 @@ function AthleteBrowseCard({
         {/* Pricing & Actions */}
         <div className="flex flex-col gap-2">
           <div className="text-center mb-1">
-            <span className="text-2xl font-bold text-gray-900">${athlete.subscriptionPrice}</span>
+            <span className="text-2xl font-bold text-gray-900">${athlete.pricing?.basic?.toFixed(2) ?? athlete.subscriptionPrice?.toFixed(2) ?? '0.00'}</span>
             <span className="text-xs text-gray-500 ml-1">/month</span>
           </div>
           {isSubscribed(athlete.id) ? (
@@ -170,7 +179,7 @@ function AthleteBrowseCard({
             </Button>
           ) : (
             <Button
-              onClick={() => router.push(`/member-browse/subscription/${athlete.id}`)}
+              onClick={() => onSubscribe(athlete.id)}
               className="w-full bg-blue-500 hover:bg-blue-600 text-white h-11 font-bold rounded-lg"
             >
               <UserPlus className="h-4 w-4 mr-2" />
@@ -204,6 +213,21 @@ export default function MemberDiscoverPage() {
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
   const router = useRouter()
   const { logout } = useUnifiedLogout()
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
+  const [profileData, setProfileData] = useState<any>(null)
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    const fetchProfile = async () => {
+      if (!auth.currentUser) return;
+      const memberProfile = await getMemberProfile(auth.currentUser.uid)
+      if (memberProfile) {
+        setProfileImageUrl(memberProfile.profileImageUrl || memberProfile.profilePic || memberProfile.profilePicture || null)
+        setProfileData({ firstName: memberProfile.firstName || "", lastName: memberProfile.lastName || "" })
+      }
+    }
+    fetchProfile()
+  }, [])
 
   // Enhanced state management
   const [activeTab, setActiveTab] = useState<"browse" | "featured" | "trending">("browse")
@@ -445,6 +469,7 @@ export default function MemberDiscoverPage() {
           socialMedia: data.socialMedia || {},
           recentActivity: data.recentActivity || [],
           stats: data.stats || {},
+          pricing: data.pricing || {}, // Add pricing to fetched data
         }
       });
       
@@ -515,6 +540,7 @@ export default function MemberDiscoverPage() {
           socialMedia: data.socialMedia || {},
           recentActivity: data.recentActivity || [],
           stats: data.stats || {},
+          pricing: data.pricing || {}, // Add pricing to fetched data
         }
       });
       
@@ -581,6 +607,7 @@ export default function MemberDiscoverPage() {
             socialMedia: data.socialMedia || {},
             recentActivity: data.recentActivity || [],
             stats: data.stats || {},
+            pricing: data.pricing || {}, // Add pricing to fetched data
           }
         })
         // Merge fetched with static by id
@@ -707,8 +734,8 @@ export default function MemberDiscoverPage() {
         key={athlete.id}
         athlete={athlete}
         isSubscribed={isSubscribed}
-        onSubscribe={handleSubscribeClick}
-        onUnsubscribe={unsubscribeFromCreator}
+        onSubscribe={() => handleSubscribeClick(athlete)}
+        onUnsubscribe={() => unsubscribeFromCreator(athlete.id)}
         onViewProfile={handleCreatorClick}
       />
     ),
@@ -759,7 +786,7 @@ export default function MemberDiscoverPage() {
                     <p className="text-xs text-gray-600">Students</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-lg font-bold text-gray-900">${athlete.subscriptionPrice}</p>
+                    <p className="text-lg font-bold text-gray-900">${athlete.pricing?.basic?.toFixed(2) ?? athlete.subscriptionPrice?.toFixed(2) ?? '0.00'}</p>
                     <p className="text-xs text-gray-600">/month</p>
                   </div>
                 </div>
@@ -1002,13 +1029,15 @@ export default function MemberDiscoverPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <MemberHeader
         currentPath="/member-discover"
+        onLogout={() => {}}
+        showSearch={true}
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
-        onLogout={logout}
+        profileImageUrl={profileImageUrl}
+        profileData={profileData}
       />
 
       {/* Main Content with better spacing */}
