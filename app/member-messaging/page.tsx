@@ -83,7 +83,10 @@ export default function MemberMessagingPage() {
           const memberDoc = await getDoc(doc(db, "members", user.uid))
           if (memberDoc.exists()) {
             const memberData = memberDoc.data()
-            const subscribedAthleteIds = memberData.subscriptions || []
+            const subscriptions = memberData.subscriptions || {}
+            const subscribedAthleteIds = Object.keys(subscriptions).filter(
+              (athleteId) => subscriptions[athleteId]?.status === "active"
+            )
             
             if (subscribedAthleteIds.length > 0) {
               // Fetch athlete profiles for subscribed athletes

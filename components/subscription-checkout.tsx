@@ -18,6 +18,11 @@ interface SubscriptionCheckoutProps {
     id: string
     name?: string
     email?: string
+    pricing?: {
+      basic: number
+      pro: number
+      premium: number
+    }
   }
   members: {
     id: string
@@ -144,7 +149,10 @@ function CheckoutForm({ athlete, members, onSuccess, onCancel, selectedPlan }: S
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Payment Details</h3>
-        <div className="mb-2 text-2xl font-bold">$4.99<span className="text-gray-500 text-lg">/month</span></div>
+        <div className="mb-2 text-2xl font-bold">
+          {typeof athlete?.pricing?.[selectedPlan] === 'number' ? `$${athlete.pricing[selectedPlan].toFixed(2)}` : '...'}
+          <span className="text-gray-500 text-lg">/month</span>
+        </div>
         <Card>
           <CardContent className="p-6">
             <CardElement

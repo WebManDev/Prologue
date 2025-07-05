@@ -357,7 +357,7 @@ export default function SubscribePage() {
 
                 <div className="mt-6">
                   <div className="flex items-center justify-center space-x-2">
-                    <span className="text-4xl font-bold text-gray-900">${calculateMonthlyPrice(plan.price)}</span>
+                    <span className="text-4xl font-bold text-gray-900">${typeof athlete?.pricing?.[plan.id] === 'number' ? athlete.pricing[plan.id].toFixed(2) : '...'}</span>
                     <div className="text-left">
                       <div className="text-sm text-gray-500">{billingCycle === "monthly" ? "/month" : "/month"}</div>
                       {billingCycle === "yearly" && <div className="text-xs text-green-600">billed yearly</div>}
@@ -366,9 +366,9 @@ export default function SubscribePage() {
 
                   {billingCycle === "yearly" && (
                     <div className="mt-2">
-                      <span className="text-sm text-gray-500 line-through">${(plan.price * 12).toFixed(2)}/year</span>
+                      <span className="text-sm text-gray-500 line-through">${(typeof athlete?.pricing?.[plan.id] === 'number' ? (athlete.pricing[plan.id] * 12).toFixed(2) : '...')}/year</span>
                       <span className="text-sm text-green-600 ml-2 font-medium">
-                        Save ${(plan.price * 12 * yearlyDiscount).toFixed(2)}
+                        Save ${(typeof athlete?.pricing?.[plan.id] === 'number' ? (athlete.pricing[plan.id] * 12 * yearlyDiscount).toFixed(2) : '...')}
                       </span>
                     </div>
                   )}

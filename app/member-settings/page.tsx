@@ -38,7 +38,101 @@ import { useState, useRef, useEffect } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { auth, db } from "@/lib/firebase"
-import { doc, deleteDoc } from "firebase/firestore"
+import { doc, deleteDoc, getDoc } from "firebase/firestore"
+import { onAuthStateChanged } from "firebase/auth";
+import React from "react";
+import { collection, getDoc as getDocFromCollection } from "firebase/firestore";
+
+function MemberSubscriptions({ members }: { members: any }) {
+  const [athleteData, setAthleteData] = React.useState<Record<string, any>>({});
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    async function fetchAthletes() {
+      if (!members || !members.subscriptions) return;
+      setLoading(true);
+      const athleteIds = Object.keys(members.subscriptions);
+      const newAthleteData: Record<string, any> = {};
+      for (const athleteId of athleteIds) {
+        try {
+          const docRef = doc(db, "athletes", athleteId);
+          const docSnap = await getDocFromCollection(docRef);
+          if (docSnap.exists()) {
+            newAthleteData[athleteId] = docSnap.data();
+          }
+        } catch (e) {
+          // Optionally handle error
+        }
+      }
+      setAthleteData(newAthleteData);
+      setLoading(false);
+    }
+    fetchAthletes();
+  }, [members]);
+
+  const handleManage = async (stripeSubscriptionId: string | undefined) => {
+    if (!members?.stripeCustomerId) return;
+    try {
+      const res = await fetch("/api/stripe/create-customer-portal-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: members.stripeCustomerId,
+          subscriptionId: stripeSubscriptionId,
+        }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else alert("Failed to open Stripe portal");
+    } catch (err: any) {
+      alert(err.message || "Failed to open Stripe portal");
+    }
+  };
+
+  if (!members || !members.subscriptions) return <div>Loading...</div>;
+  if (loading) return <div>Loading subscriptions...</div>;
+
+  return (
+    <div className="mt-6">
+      <h3 className="font-semibold mb-2">Your Subscriptions</h3>
+      <table className="w-full border text-sm">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="text-left p-2">Athlete</th>
+            <th className="text-left p-2">Plan</th>
+            <th className="text-left p-2">Status</th>
+            <th className="text-right p-2">Manage</th>
+          </tr>
+        </thead>
+        <tbody>
+          {Object.entries(members.subscriptions).map(([athleteId, sub]: [string, any]) => {
+            const athlete = athleteData[athleteId];
+            return (
+              <tr key={athleteId} className="border-t">
+                <td className="p-2 flex items-center gap-2">
+                  {athlete?.profilePicture && (
+                    <img src={athlete.profilePicture} alt={athlete.name} className="w-8 h-8 rounded-full object-cover" />
+                  )}
+                  <span>{athlete?.name || athleteId}</span>
+                </td>
+                <td className="p-2 capitalize">{sub.plan}</td>
+                <td className="p-2">{sub.status}</td>
+                <td className="p-2 text-right">
+                  <button
+                    className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition"
+                    onClick={() => handleManage(sub.stripeSubscriptionId)}
+                  >
+                    Manage
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function MemberSettingsPage() {
   const { unreadMessagesCount, unreadNotificationsCount } = useMemberNotifications()
@@ -177,6 +271,30 @@ export default function MemberSettingsPage() {
       setPortalLoading(false);
     }
   };
+
+  async function openPortal(userId: string, athleteId: string) {
+    const res = await fetch('/api/stripe/create-customer-portal-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, athleteId }),
+    });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+  }
+
+  const [members, setMembers] = useState<any>(null);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const docRef = doc(db, "members", user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setMembers({ id: user.uid, ...docSnap.data() });
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -364,7 +482,7 @@ export default function MemberSettingsPage() {
                     <Input
                       id="firstName"
                       value={settings.firstName}
-                      onChange={(e) => setSettings({ ...settings, firstName: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, firstName: e.target.value })}
                     />
                   </div>
                   <div>
@@ -372,7 +490,7 @@ export default function MemberSettingsPage() {
                     <Input
                       id="lastName"
                       value={settings.lastName}
-                      onChange={(e) => setSettings({ ...settings, lastName: e.target.value })}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, lastName: e.target.value })}
                     />
                   </div>
                 </div>
@@ -383,7 +501,7 @@ export default function MemberSettingsPage() {
                     id="email"
                     type="email"
                     value={settings.email}
-                    onChange={(e) => setSettings({ ...settings, email: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, email: e.target.value })}
                   />
                 </div>
 
@@ -392,7 +510,7 @@ export default function MemberSettingsPage() {
                   <Input
                     id="phone"
                     value={settings.phone}
-                    onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, phone: e.target.value })}
                   />
                 </div>
 
@@ -419,6 +537,7 @@ export default function MemberSettingsPage() {
                     {portalLoading ? "Loading..." : "Manage Subscriptions"}
                   </Button>
                 </div>
+                <MemberSubscriptions members={members} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -441,7 +560,7 @@ export default function MemberSettingsPage() {
                     </div>
                     <Switch
                       checked={settings.emailNotifications}
-                      onCheckedChange={(checked) => setSettings({ ...settings, emailNotifications: checked })}
+                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, emailNotifications: checked })}
                     />
                   </div>
 
@@ -452,7 +571,7 @@ export default function MemberSettingsPage() {
                     </div>
                     <Switch
                       checked={settings.pushNotifications}
-                      onCheckedChange={(checked) => setSettings({ ...settings, pushNotifications: checked })}
+                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, pushNotifications: checked })}
                     />
                   </div>
 
@@ -463,7 +582,7 @@ export default function MemberSettingsPage() {
                     </div>
                     <Switch
                       checked={settings.smsNotifications}
-                      onCheckedChange={(checked) => setSettings({ ...settings, smsNotifications: checked })}
+                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, smsNotifications: checked })}
                     />
                   </div>
                 </div>
@@ -480,7 +599,7 @@ export default function MemberSettingsPage() {
                     </div>
                     <Switch
                       checked={settings.trainingReminders}
-                      onCheckedChange={(checked) => setSettings({ ...settings, trainingReminders: checked })}
+                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, trainingReminders: checked })}
                     />
                   </div>
 
@@ -491,7 +610,7 @@ export default function MemberSettingsPage() {
                     </div>
                     <Switch
                       checked={settings.messageNotifications}
-                      onCheckedChange={(checked) => setSettings({ ...settings, messageNotifications: checked })}
+                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, messageNotifications: checked })}
                     />
                   </div>
 
@@ -502,7 +621,7 @@ export default function MemberSettingsPage() {
                     </div>
                     <Switch
                       checked={settings.achievementNotifications}
-                      onCheckedChange={(checked) => setSettings({ ...settings, achievementNotifications: checked })}
+                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, achievementNotifications: checked })}
                     />
                   </div>
 
@@ -513,7 +632,7 @@ export default function MemberSettingsPage() {
                     </div>
                     <Switch
                       checked={settings.recruitmentAlerts}
-                      onCheckedChange={(checked) => setSettings({ ...settings, recruitmentAlerts: checked })}
+                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, recruitmentAlerts: checked })}
                     />
                   </div>
                 </div>
@@ -560,7 +679,7 @@ export default function MemberSettingsPage() {
                     </div>
                     <Switch
                       checked={settings.showEmail}
-                      onCheckedChange={(checked) => setSettings({ ...settings, showEmail: checked })}
+                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, showEmail: checked })}
                     />
                   </div>
 
@@ -571,7 +690,7 @@ export default function MemberSettingsPage() {
                     </div>
                     <Switch
                       checked={settings.showPhone}
-                      onCheckedChange={(checked) => setSettings({ ...settings, showPhone: checked })}
+                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, showPhone: checked })}
                     />
                   </div>
                 </div>
@@ -588,7 +707,7 @@ export default function MemberSettingsPage() {
                     </div>
                     <Switch
                       checked={settings.allowMessages}
-                      onCheckedChange={(checked) => setSettings({ ...settings, allowMessages: checked })}
+                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, allowMessages: checked })}
                     />
                   </div>
 
@@ -599,7 +718,7 @@ export default function MemberSettingsPage() {
                     </div>
                     <Switch
                       checked={settings.allowCoachContact}
-                      onCheckedChange={(checked) => setSettings({ ...settings, allowCoachContact: checked })}
+                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, allowCoachContact: checked })}
                     />
                   </div>
                 </div>

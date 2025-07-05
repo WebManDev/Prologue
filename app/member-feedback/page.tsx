@@ -183,8 +183,10 @@ export default function MemberFeedbackPage() {
   async function fetchSubscribedAthletes(uid: string) {
     setLoadingSubscribed(true);
     const profileData = await getMemberProfile(uid);
-    const subscriptionsArr = profileData?.subscriptions || [];
-    const activeAthleteIds = Array.isArray(subscriptionsArr) ? subscriptionsArr : [];
+    const subscriptionsObj = profileData?.subscriptions || {};
+    const activeAthleteIds = Object.keys(subscriptionsObj).filter(
+      (athleteId) => subscriptionsObj[athleteId]?.status === "active"
+    );
     if (activeAthleteIds.length === 0) {
       setSubscribedAthletes([]);
       setLoadingSubscribed(false);
@@ -199,10 +201,16 @@ export default function MemberFeedbackPage() {
   const [platformFeedbackHistory, setPlatformFeedbackHistory] = useState<any[]>([])
   const [loadingFeedbackHistory, setLoadingFeedbackHistory] = useState(true)
 
-  // Fetch platform feedback history from Firestore
+  // Fetch platform feedback history from Firestore (only for current user)
   useEffect(() => {
-    setLoadingFeedbackHistory(true)
-    getDocs(query(collection(db, "platformFeedback"), orderBy("createdAt", "desc")))
+    if (!auth.currentUser) return;
+    setLoadingFeedbackHistory(true);
+    const q = query(
+      collection(db, "platformFeedback"),
+      where("userId", "==", auth.currentUser.uid),
+      orderBy("createdAt", "desc")
+    );
+    getDocs(q)
       .then(snapshot => {
         setPlatformFeedbackHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
       })
