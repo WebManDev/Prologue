@@ -1,7 +1,8 @@
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { User, Heart, MessageCircle } from "lucide-react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
+import { getMemberProfile, getAthleteProfile } from "@/lib/firebase";
 
 interface Comment {
   id: string
@@ -13,7 +14,7 @@ interface Comment {
   isLiked: boolean
   replies: Comment[]
   parentId?: string
-  displayName?: string
+  createdBy?: string;
 }
 
 interface CommentSectionProps {
@@ -36,6 +37,50 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, comments, onAdd
   const [commentInput, setCommentInput] = useState("")
   const [replyInput, setReplyInput] = useState<{ [key: string]: string }>({})
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
+  const [profileCache, setProfileCache] = useState<Record<string, any>>({});
+
+  // Fetch missing profiles for all unique createdBy in comments and replies
+  useEffect(() => {
+    function collectUserIds(comments: Comment[]): string[] {
+      let ids: string[] = [];
+      for (const c of comments) {
+        if (typeof c.createdBy === 'string') ids.push(c.createdBy);
+        if (c.replies && c.replies.length) ids = ids.concat(collectUserIds(c.replies));
+      }
+      return ids;
+    }
+    const allUserIds = collectUserIds(comments).filter(Boolean);
+    const uniqueUserIds = Array.from(new Set(allUserIds)).filter(uid => !profileCache[uid]);
+    uniqueUserIds.forEach(async (uid) => {
+      let profile = await getMemberProfile(uid);
+      if (!profile) {
+        profile = await getAthleteProfile(uid);
+      }
+      setProfileCache(prev => ({ ...prev, [uid]: profile }));
+    });
+  }, [comments]);
+
+  function getDisplayName(comment: Comment) {
+    const profile = profileCache[comment.createdBy as string] || {};
+    const firstName = profile.firstName && typeof profile.firstName === 'string' ? profile.firstName : '';
+    const lastName = profile.lastName && typeof profile.lastName === 'string' ? profile.lastName : '';
+    if (firstName && lastName) {
+      return `${firstName} ${lastName}`;
+    }
+    if (firstName) {
+      return firstName;
+    }
+    if (lastName) {
+      return lastName;
+    }
+    if (profile.name && typeof profile.name === 'string') {
+      return profile.name;
+    }
+    if (comment.createdBy && typeof comment.createdBy === 'string') {
+      return comment.createdBy;
+    }
+    return 'User';
+  }
 
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault()
@@ -58,15 +103,24 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, comments, onAdd
     <div key={comment.id} className={`flex items-start space-x-3 ${isReply ? "ml-8 mt-2" : "mt-4"}`}>
       <div className="w-9 h-9 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
         {comment.userAvatar ? (
-          <Image src={comment.userAvatar} alt={comment.displayName || 'User avatar'} width={36} height={36} />
+          <Image src={comment.userAvatar} alt={getDisplayName(comment)} width={36} height={36} />
         ) : (
           <User className="w-full h-full text-gray-500 p-2" />
         )}
       </div>
       <div className="flex-1">
         <div className="flex items-center space-x-2">
-          {/* Username removed */}
-          <span className="text-xs text-gray-500">{formatTimeAgo(new Date(comment.timestamp))}</span>
+          {/* Only show name if at least one of first or last is valid */}
+          {(() => {
+            const profile = profileCache[comment.createdBy as string] || {};
+            const firstName = profile.firstName && typeof profile.firstName === 'string' ? profile.firstName : '';
+            const lastName = profile.lastName && typeof profile.lastName === 'string' ? profile.lastName : '';
+            if (firstName || lastName) {
+              return <span className="font-semibold text-gray-900 text-sm">{`${firstName}${firstName && lastName ? ' ' : ''}${lastName}`}</span>;
+            }
+            return null;
+          })()}
+          {/* Removed time-ago display */}
         </div>
         <div className="text-gray-800 text-sm mb-1 whitespace-pre-line">{comment.content}</div>
         <div className="flex items-center space-x-4 text-xs text-gray-500">

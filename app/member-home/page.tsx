@@ -566,17 +566,8 @@ export default function MemberHomePage() {
 
   function mapCommentWithProfile(comment: any, profileCache: Record<string, any>): any {
     const profile = profileCache[comment.createdBy] || {}
-    let username = ''
-    if (profile.firstName || profile.lastName) {
-      username = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
-    }
-    if (!username) {
-      username = profile.name || comment.firstName || comment.lastName || comment.createdBy
-    }
-    if (!username || username === 'NaN' || username === 'NaNd') username = 'User'
     return {
       ...comment,
-      username,
       userAvatar: profile.profileImageUrl || comment.profileImageUrl || '',
       replies: (comment.replies || []).map((reply: any) => mapCommentWithProfile(reply, profileCache)),
     }
