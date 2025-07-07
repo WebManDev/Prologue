@@ -36,6 +36,8 @@ import {
   Eye,
   Target,
   TrendingUp,
+  Edit,
+  Trash2,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -45,7 +47,7 @@ import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
 import { auth, getMemberProfile, db, getAthleteProfile } from "@/lib/firebase"
-import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, doc, updateDoc, arrayUnion, arrayRemove, getDoc, deleteDoc, setDoc } from "firebase/firestore"
+import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, doc, updateDoc, arrayUnion, arrayRemove, getDoc, deleteDoc, setDoc, where, getDocs } from "firebase/firestore"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
@@ -482,7 +484,7 @@ export default function MemberHomePage() {
     )
   }, [searchQuery, searchResults, quickSearches, handleSearchSelect])
 
-  const [profileData, setProfileData] = useState({ firstName: "", lastName: "", profileImageUrl: null })
+  const [profileData, setProfileData] = useState<{ firstName: string; lastName: string; profileImageUrl: string | null; profilePic?: string; profilePicture?: string }>({ firstName: "", lastName: "", profileImageUrl: null });
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
   useEffect(() => {
     const loadProfile = async () => {
@@ -503,6 +505,8 @@ export default function MemberHomePage() {
   const [postContent, setPostContent] = useState("")
   const [posting, setPosting] = useState(false)
   const [postFile, setPostFile] = useState<File | null>(null)
+  const [editingPost, setEditingPost] = useState<string | null>(null)
+  const [editPostContent, setEditPostContent] = useState<{ [key: string]: string }>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Post submit handler
@@ -581,6 +585,75 @@ export default function MemberHomePage() {
     }
   }, [profileImageUrl, profileData]);
 
+  // Edit a comment
+  const handleEditComment = useCallback(async (postId: string, commentId: string, newContent: string) => {
+    const user = auth.currentUser;
+    if (!user || !newContent || !newContent.trim()) return;
+    const commentRef = doc(db, "posts", postId, "comments", commentId);
+    await updateDoc(commentRef, {
+      content: newContent,
+      editedAt: serverTimestamp(),
+    });
+  }, []);
+
+  // Delete a comment
+  const handleDeleteComment = useCallback(async (postId: string, commentId: string) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    
+    // First, get all replies to this comment recursively
+    const getAllReplies = async (parentId: string): Promise<string[]> => {
+      const repliesQuery = query(collection(db, "posts", postId, "comments"), where("parentId", "==", parentId));
+      const repliesSnap = await getDocs(repliesQuery);
+      let allIds = [parentId];
+      
+      for (const replyDoc of repliesSnap.docs) {
+        const replyIds = await getAllReplies(replyDoc.id);
+        allIds = allIds.concat(replyIds);
+      }
+      
+      return allIds;
+    };
+    
+    const commentIdsToDelete = await getAllReplies(commentId);
+    
+    // Delete all comments and replies
+    for (const id of commentIdsToDelete) {
+      const commentRef = doc(db, "posts", postId, "comments", id);
+      await deleteDoc(commentRef);
+    }
+    
+    // Decrement comment count on the post by the total number of comments deleted
+    const postRef = doc(db, "posts", postId);
+    const postSnap = await getDoc(postRef);
+    await updateDoc(postRef, { 
+      commentsCount: Math.max((postSnap.data()?.commentsCount || 0) - commentIdsToDelete.length, 0) 
+    });
+  }, []);
+
+  // Edit a post
+  const handleEditPost = useCallback(async (postId: string, newContent: string) => {
+    const user = auth.currentUser;
+    if (!user || !newContent || !newContent.trim()) return;
+    const postRef = doc(db, "posts", postId);
+    await updateDoc(postRef, {
+      content: newContent,
+      editedAt: serverTimestamp(),
+    });
+    setEditingPost(null);
+    setEditPostContent((prev) => ({ ...prev, [postId]: "" }));
+  }, []);
+
+  const handleStartEditPost = useCallback((postId: string, currentContent: string) => {
+    setEditingPost(postId);
+    setEditPostContent((prev) => ({ ...prev, [postId]: currentContent }));
+  }, []);
+
+  const handleCancelEditPost = useCallback(() => {
+    setEditingPost(null);
+    setEditPostContent({});
+  }, []);
+
   function mapCommentWithProfile(comment: any, profileCache: Record<string, any>): any {
     const profile = profileCache[comment.createdBy] || {};
     const likesArray = Array.isArray(comment.likes) ? comment.likes : [];
@@ -590,7 +663,7 @@ export default function MemberHomePage() {
       userAvatar: profile.profileImageUrl || comment.profileImageUrl || '',
       likes: likesArray.length,
       isLiked: user ? likesArray.includes(user.uid) : false,
-      replies: (comment.replies || []).map((reply: any) => mapCommentWithProfile(reply, profileCache)),
+      // Don't try to map replies here - they will be handled by buildCommentTree in the component
     };
   }
 
@@ -619,11 +692,14 @@ export default function MemberHomePage() {
                 <form onSubmit={handlePostSubmit}>
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
-                      {profileImageUrl ? (
-                        <Image src={profileImageUrl} alt="Profile" width={40} height={40} />
-                      ) : (
-                        <User className="w-full h-full text-gray-500 p-2" />
-                      )}
+                      {(() => {
+                        const profileImageUrl = profileData.profileImageUrl && profileData.profileImageUrl.trim() !== '' ? profileData.profileImageUrl : (profileData.profilePic && profileData.profilePic.trim() !== '' ? profileData.profilePic : (profileData.profilePicture && profileData.profilePicture.trim() !== '' ? profileData.profilePicture : null));
+                        if (profileImageUrl) {
+                          return <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />;
+                        } else {
+                          return <User className="w-full h-full text-gray-500 p-2" />;
+                        }
+                      })()}
                     </div>
                     <div className="flex-1">
                       <input
@@ -745,7 +821,7 @@ export default function MemberHomePage() {
                           <div className="flex items-start space-x-3">
                             <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden">
                               {profile.profileImageUrl ? (
-                                <Image src={profile.profileImageUrl} alt={profile.firstName || "User"} width={48} height={48} />
+                                <img src={profile.profileImageUrl} alt={profile.firstName || "User"} className="w-full h-full object-cover" />
                               ) : (
                                 <User className="w-full h-full text-gray-500 p-2" />
                               )}
@@ -787,9 +863,16 @@ export default function MemberHomePage() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   {isOwner && (
-                                    <DropdownMenuItem onClick={handleDelete} className="text-red-600">
-                                      Delete
-                                    </DropdownMenuItem>
+                                    <>
+                                      <DropdownMenuItem onClick={() => handleStartEditPost(item.id, item.content || "")}>
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Edit
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={handleDelete} className="text-red-600">
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </>
                                   )}
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -798,15 +881,40 @@ export default function MemberHomePage() {
                         </div>
                         {/* Text content above media */}
                         <div className="px-4 pb-3">
-                          <div
-                            className="text-gray-700 leading-relaxed"
-                            dangerouslySetInnerHTML={{ __html: item.content || "" }}
-                          />
+                          {editingPost === item.id ? (
+                            <form onSubmit={(e) => {
+                              e.preventDefault();
+                              handleEditPost(item.id, editPostContent[item.id] || "");
+                            }}>
+                              <textarea
+                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-prologue-electric/20 resize-none"
+                                rows={3}
+                                value={editPostContent[item.id] || ""}
+                                onChange={(e) => setEditPostContent(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                placeholder="Edit your post..."
+                              />
+                              <div className="flex items-center justify-end space-x-2 mt-2">
+                                <Button type="button" variant="outline" size="sm" onClick={handleCancelEditPost}>
+                                  Cancel
+                                </Button>
+                                <Button type="submit" size="sm" className="bg-blue-500 hover:bg-blue-600 text-white">
+                                  Save
+                                </Button>
+                              </div>
+                            </form>
+                          ) : (
+                            <div className="text-gray-700 leading-relaxed">
+                              <div dangerouslySetInnerHTML={{ __html: item.content || "" }} />
+                              {item.editedAt && (
+                                <span className="text-xs text-gray-500 ml-2">(edited)</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         {/* Media display */}
                         {item.mediaUrl && item.mediaType === 'image' && (
                           <div className="w-full max-h-96 bg-black flex items-center justify-center">
-                            <Image src={item.mediaUrl} alt="Post media" width={600} height={400} className="object-contain max-h-96 w-full" />
+                            <img src={item.mediaUrl} alt="Post media" className="object-contain max-h-96 w-full" />
                           </div>
                         )}
                         {item.mediaUrl && item.mediaType === 'video' && (
@@ -861,6 +969,9 @@ export default function MemberHomePage() {
                             comments={(comments[item.id] || []).map(comment => mapCommentWithProfile(comment, profileCache))}
                             onAddComment={handleAddComment}
                             onLikeComment={(commentId) => handleLikeComment(item.id, commentId)}
+                            onEditComment={(commentId, newContent) => handleEditComment(item.id, commentId, newContent)}
+                            onDeleteComment={(commentId) => handleDeleteComment(item.id, commentId)}
+                            currentUserId={auth.currentUser?.uid}
                           />
                         </div>
                       </div>

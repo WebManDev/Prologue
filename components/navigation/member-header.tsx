@@ -31,6 +31,9 @@ interface MemberHeaderProps {
   profileData?: {
     firstName: string
     lastName: string
+    profileImageUrl?: string | null
+    profilePic?: string | null
+    profilePicture?: string | null
   }
 }
 
@@ -127,12 +130,14 @@ export function MemberHeader({
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="flex items-center space-x-2 p-2">
                     <Avatar className="w-8 h-8">
-                      <AvatarImage src={profileImageUrl || undefined} alt={profileData ? `${profileData.firstName} ${profileData.lastName}` : 'User'} />
-                      <AvatarFallback>
-                        {profileData && profileData.firstName && profileData.lastName
-                          ? `${profileData.firstName[0]}${profileData.lastName[0]}`.toUpperCase()
-                          : <User className="w-full h-full text-gray-500 p-1" />}
-                      </AvatarFallback>
+                      {(() => {
+                        const profileImageUrl = profileData && profileData.profileImageUrl && profileData.profileImageUrl.trim() !== '' ? profileData.profileImageUrl : (profileData && profileData.profilePic && profileData.profilePic.trim() !== '' ? profileData.profilePic : (profileData && profileData.profilePicture && profileData.profilePicture.trim() !== '' ? profileData.profilePicture : null));
+                        if (profileImageUrl) {
+                          return <AvatarImage src={profileImageUrl} alt={profileData ? `${profileData.firstName} ${profileData.lastName}` : 'User'} />;
+                        } else {
+                          return <AvatarFallback>{profileData && profileData.firstName && profileData.lastName ? `${profileData.firstName[0]}${profileData.lastName[0]}`.toUpperCase() : <User className="w-full h-full text-gray-500 p-1" />}</AvatarFallback>;
+                        }
+                      })()}
                     </Avatar>
                     <ChevronDown className="h-4 w-4 text-gray-500" />
                   </Button>
