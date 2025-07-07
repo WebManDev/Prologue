@@ -160,6 +160,26 @@ const CONTENT_DATA = {
   ],
 }
 
+// Helper to get video duration as mm:ss
+function getVideoDuration(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.onloadedmetadata = function () {
+      window.URL.revokeObjectURL(video.src);
+      const seconds = video.duration;
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      const formatted = `${mins}:${secs.toString().padStart(2, '0')}`;
+      resolve(formatted);
+    };
+    video.onerror = function () {
+      reject('Failed to load video metadata.');
+    };
+    video.src = URL.createObjectURL(file);
+  });
+}
+
 // Content Creation Modal Component
 const CreateContentModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const [step, setStep] = useState(1) // 1: Type selection, 2: Content creation
@@ -173,6 +193,7 @@ const CreateContentModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [articleContent, setArticleContent] = useState("")
   const [isUploading, setIsUploading] = useState(false)
+  const [videoDuration, setVideoDuration] = useState<string>("");
 
   // Lesson form state
   const [lessonType, setLessonType] = useState("video")
@@ -197,9 +218,17 @@ const CreateContentModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
     setShowAddLesson(false)
   }
 
-  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) setVideoFile(file)
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setVideoFile(file);
+      try {
+        const duration = await getVideoDuration(file);
+        setVideoDuration(duration);
+      } catch {
+        setVideoDuration("");
+      }
+    }
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -321,6 +350,7 @@ const CreateContentModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
           views: 0,
           rating: 0,
           tags,
+          duration: videoDuration,
         })
 
         console.log("Video document created with ID:", videoDoc.id)
@@ -514,6 +544,9 @@ const CreateContentModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                           {videoFile ? videoFile.name : "Click to upload or drag and drop"}
                         </p>
                         <p className="text-xs text-gray-500">MP4, MOV, AVI up to 500MB</p>
+                        {videoDuration && (
+                          <span className="text-xs text-gray-700 mt-2">Duration: {videoDuration}</span>
+                        )}
                       </div>
                     </label>
                   </div>
@@ -964,13 +997,6 @@ function ContentPageContent() {
               <div className="flex items-center space-x-1">
                 <Clock className="h-4 w-4" />
                 <span>{item.duration}</span>
-                {item.createdAt && (
-                  <span className="ml-2 text-xs text-gray-400">
-                    {typeof item.createdAt === "object" && item.createdAt.toDate
-                      ? format(item.createdAt.toDate(), "MMM d, yyyy")
-                      : format(new Date(item.createdAt), "MMM d, yyyy")}
-                  </span>
-                )}
               </div>
               <div className="flex items-center space-x-1">
                 <Eye className="h-4 w-4" />
@@ -984,13 +1010,6 @@ function ContentPageContent() {
               <div className="flex items-center space-x-1">
                 <Clock className="h-4 w-4" />
                 <span>{item.readTime}</span>
-                {item.createdAt && (
-                  <span className="ml-2 text-xs text-gray-400">
-                    {typeof item.createdAt === "object" && item.createdAt.toDate
-                      ? format(item.createdAt.toDate(), "MMM d, yyyy")
-                      : format(new Date(item.createdAt), "MMM d, yyyy")}
-                  </span>
-                )}
               </div>
               <div className="flex items-center space-x-1">
                 <Eye className="h-4 w-4" />
@@ -1004,13 +1023,6 @@ function ContentPageContent() {
               <div className="flex items-center space-x-1">
                 <BookOpen className="h-4 w-4" />
                 <span>{item.lessons} lessons</span>
-                {item.createdAt && (
-                  <span className="ml-2 text-xs text-gray-400">
-                    {typeof item.createdAt === "object" && item.createdAt.toDate
-                      ? format(item.createdAt.toDate(), "MMM d, yyyy")
-                      : format(new Date(item.createdAt), "MMM d, yyyy")}
-                  </span>
-                )}
               </div>
               <div className="flex items-center space-x-1">
                 <Users className="h-4 w-4" />
