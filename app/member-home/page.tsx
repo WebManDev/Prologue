@@ -49,7 +49,7 @@ import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, doc, u
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
-import { formatDistanceToNow, parseISO } from "date-fns";
+import { formatDistanceToNow, parseISO, isValid } from "date-fns";
 
 export default function MemberHomePage() {
   // Mobile detection
@@ -188,108 +188,24 @@ export default function MemberHomePage() {
 
   // Enhanced content with more variety and social media features
   const enhancedFeedContent = useMemo(() => {
-    const baseContent = [...followedContent, ...subscribedContent]
-
-    // Add variety of content types from creators
-    const varietyContent = [
-      {
-        id: "variety-1",
-        creatorId: "athlete-1",
-        creatorName: "Sarah Martinez",
-        creatorAvatar: "/placeholder.svg?height=40&width=40",
-        creatorVerified: true,
-        type: "video" as const,
-        title: "Morning Training Routine",
-        content:
-          "Starting my day with some serve practice and footwork drills. The key is consistency! 🎾 What's your morning routine looking like?",
-        timestamp: "3 hours ago",
-        likes: 234,
-        comments: 18,
-        shares: 12,
-        views: 1240,
-        isNew: true,
-        isPremium: false,
-        isRecommendation: false,
-        media: {
-          type: "video",
-          thumbnail: "/placeholder.svg?height=300&width=400",
-          duration: "2:45",
-        },
-      },
-      {
-        id: "variety-2",
-        creatorId: "coach-1",
-        creatorName: "Mike Johnson",
-        creatorAvatar: "/placeholder.svg?height=40&width=40",
-        creatorVerified: true,
-        type: "image" as const,
-        title: "Mental Preparation Tips",
-        content:
-          "5 key strategies I use with my athletes before big competitions. Visualization is everything! 🧠💪 Save this post for your next big game.",
-        timestamp: "6 hours ago",
-        likes: 189,
-        comments: 24,
-        shares: 8,
-        views: 892,
-        isNew: false,
-        isPremium: false,
-        isRecommendation: false,
-        media: {
-          type: "image",
-          thumbnail: "/placeholder.svg?height=300&width=400",
-        },
-      },
-      {
-        id: "variety-3",
-        creatorId: "athlete-2",
-        creatorName: "Alex Rodriguez",
-        creatorAvatar: "/placeholder.svg?height=40&width=40",
-        creatorVerified: false,
-        type: "blog" as const,
-        title: "The Science Behind Perfect Shooting Form",
-        content:
-          "Breaking down the biomechanics of shooting - from foot placement to follow-through. This changed my game completely! 🏀 Link in bio for the full breakdown.",
-        timestamp: "1 day ago",
-        likes: 456,
-        comments: 67,
-        shares: 23,
-        views: 2340,
-        isNew: false,
-        isPremium: true,
-        isRecommendation: false,
-      },
-      {
-        id: "variety-4",
-        creatorId: "coach-2",
-        creatorName: "Lisa Chen",
-        creatorAvatar: "/placeholder.svg?height=40&width=40",
-        creatorVerified: true,
-        type: "workout" as const,
-        title: "Pool Workout: Building Endurance",
-        content:
-          "Today's training session focused on building cardiovascular endurance. 2000m mixed strokes! 🏊‍♀️ Drop your favorite pool workout below 👇",
-        timestamp: "2 days ago",
-        likes: 312,
-        comments: 45,
-        shares: 19,
-        views: 1560,
-        isNew: false,
-        isPremium: true,
-        isRecommendation: false,
-        media: {
-          type: "image",
-          thumbnail: "/placeholder.svg?height=300&width=400",
-        },
-      },
-    ]
-
-    return [...baseContent, ...varietyContent].sort((a, b) => {
+    const baseContent = [...followedContent, ...subscribedContent];
+    return baseContent.sort((a, b) => {
       // Sort by timestamp, with "new" content first
-      if (a.isNew && !b.isNew) return -1
-      if (!a.isNew && b.isNew) return 1
-      return 0
-    })
-  }, [followedContent, subscribedContent])
+      if (a.isNew && !b.isNew) return -1;
+      if (!a.isNew && b.isNew) return 1;
+      return 0;
+    });
+  }, [followedContent, subscribedContent]);
+
+  // Filtered feed for public posts only
+  const filteredFeed = enhancedFeedContent.filter(
+    post => (post.visibility === undefined || post.visibility === 'public') && post.creatorName !== "Premium Creator 1"
+  );
+
+  // Filtered subscribed content for non-public posts only
+  const filteredSubscribed = enhancedFeedContent.filter(
+    post => post.visibility && post.visibility !== 'public'
+  );
 
   // Quick search suggestions
   const quickSearches = useMemo(
@@ -741,6 +657,7 @@ export default function MemberHomePage() {
                   <span>Feed</span>
                 </div>
               </button>
+              {/*
               <button
                 onClick={() => setActiveTab("subscribed")}
                 className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
@@ -754,6 +671,7 @@ export default function MemberHomePage() {
                   <span>Subscribed</span>
                 </div>
               </button>
+              */}
             </div>
 
             {/* Content Feed */}
@@ -794,26 +712,29 @@ export default function MemberHomePage() {
                             </div>
                             <div className="flex-1">
                               <h4 className="font-semibold text-gray-900">{profile.firstName || profile.name || item.createdBy}</h4>
-                              <p className="text-sm text-gray-600">
-                                {item.createdAt
-                                  ? (() => {
-                                      const date =
-                                        typeof item.createdAt === "string"
-                                          ? parseISO(item.createdAt)
-                                          : item.createdAt;
-                                      return isNaN(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
-                                    })()
-                                  : "Just now"}
-                              </p>
+                              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                <span>
+                                  {item.createdAt
+                                    ? (() => {
+                                        const date =
+                                          typeof item.createdAt === "string"
+                                            ? parseISO(item.createdAt)
+                                            : item.createdAt;
+                                        return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
+                                      })()
+                                    : "Just now"}
+                                </span>
+                                <span>•</span>
+                                <div className="flex items-center space-x-1">
+                                  <Eye className="h-3 w-3" />
+                                  <span>{item.views || 0}</span>
+                                </div>
+                              </div>
                             </div>
                             <div className="flex items-center space-x-2">
                               {isNew && (
                                 <Badge className="bg-prologue-electric text-white text-xs">New</Badge>
                               )}
-                              <div className="flex items-center space-x-1">
-                                <Eye className="h-3 w-3" />
-                                <span>{item.views || 0}</span>
-                              </div>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <button className="p-1 rounded hover:bg-gray-100">
@@ -939,8 +860,8 @@ export default function MemberHomePage() {
               {/* Existing static/demo content below */}
               {activeTab === "feed" && (
                 <>
-                  {enhancedFeedContent.length > 0 ? (
-                    enhancedFeedContent.map((item) => (
+                  {filteredFeed.length > 0 ? (
+                    filteredFeed.map((item) => (
                       <Card
                         key={item.id}
                         className={`bg-white border transition-all duration-300 hover:shadow-lg ${
@@ -991,7 +912,7 @@ export default function MemberHomePage() {
                                                   typeof item.timestamp === "string"
                                                     ? parseISO(item.timestamp)
                                                     : item.timestamp;
-                                                return isNaN(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
+                                                return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
                                               })()
                                             : "Just now"}
                                         </span>
@@ -1162,136 +1083,247 @@ export default function MemberHomePage() {
                       </Card>
                     ))
                   ) : (
-                    <Card className="bg-white border border-gray-200">
-                      <CardContent className="text-center py-16">
-                        <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-                          <Home className="h-10 w-10 text-gray-400" />
-                        </div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-3">Your feed is empty</h3>
-                        <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                          Start following creators and subscribing to content to see updates in your feed.
-                        </p>
-                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                          <Link href="/member-browse">
-                            <Button className="bg-prologue-electric hover:bg-prologue-blue text-white">
-                              Browse Creators
-                            </Button>
-                          </Link>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <div className="text-center text-gray-500 py-8"></div>
                   )}
                 </>
               )}
 
+              {/*
               {activeTab === "subscribed" && (
                 <>
-                  {subscribedContent.length > 0 ? (
-                    subscribedContent.map((item) => (
+                  {filteredSubscribed.length > 0 &&
+                    filteredSubscribed.map((item) => (
                       <Card
                         key={item.id}
                         className={`bg-white border transition-all duration-300 hover:shadow-lg ${
                           item.isNew ? "border-prologue-electric/30 shadow-md" : "border-gray-200"
                         }`}
                       >
-                        <CardContent className="p-6">
-                          <div className="space-y-4">
-                            <div className="flex items-start space-x-4">
-                              <Link href={`/creator/${item.creatorId}`}>
-                                <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden hover:ring-2 hover:ring-prologue-electric/30 transition-all cursor-pointer">
-                                  <User className="w-full h-full text-gray-500 p-2" />
-                                </div>
-                              </Link>
-                              <div className="flex-1">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <Link href={`/creator/${item.creatorId}`}>
-                                      <h4 className="font-semibold text-gray-900 hover:text-prologue-electric transition-colors cursor-pointer">
-                                        {item.creatorName}
-                                      </h4>
-                                    </Link>
-                                    <p className="text-sm text-gray-600">{formatDistanceToNow(typeof item.timestamp === "string" ? parseISO(item.timestamp) : item.timestamp, { addSuffix: true })}</p>
+                        <CardContent className="p-0">
+                          {/* Regular Content Card */}
+                          {/*
+                          <div className="space-y-0">
+                            {/* Post Header */}
+                            {/*
+                            <div className="p-4 pb-3">
+                              <div className="flex items-start space-x-3">
+                                <Link href={`/creator/${item.creatorId}`}>
+                                  <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden hover:ring-2 hover:ring-prologue-electric/30 transition-all cursor-pointer">
+                                    <User className="w-full h-full text-gray-500 p-2" />
                                   </div>
-                                  <div className="flex items-center space-x-2">
-                                    {item.isNew && (
-                                      <Badge className="bg-prologue-electric text-white text-xs">New</Badge>
-                                    )}
-                                    <Badge className="bg-prologue-fire text-white text-xs">
-                                      <Crown className="h-3 w-3 mr-1" />
-                                      Premium
-                                    </Badge>
-                                    <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">
-                                      <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
+                                </Link>
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <div className="flex items-center space-x-2">
+                                        <Link href={`/creator/${item.creatorId}`}>
+                                          <h4 className="font-semibold text-gray-900 hover:text-prologue-electric transition-colors cursor-pointer">
+                                            {item.creatorName}
+                                          </h4>
+                                        </Link>
+                                        {item.creatorVerified && (
+                                          <div className="w-4 h-4 bg-prologue-electric rounded-full flex items-center justify-center">
+                                            <svg
+                                              className="w-2.5 h-2.5 text-white"
+                                              fill="currentColor"
+                                              viewBox="0 0 20 20"
+                                            >
+                                              <path
+                                                fillRule="evenodd"
+                                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                                clipRule="evenodd"
+                                              />
+                                            </svg>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                        <span>
+                                          {item.timestamp
+                                            ? (() => {
+                                                const date =
+                                                  typeof item.timestamp === "string"
+                                                    ? parseISO(item.timestamp)
+                                                    : item.timestamp;
+                                                return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
+                                              })()
+                                            : "Just now"}
+                                        </span>
+                                        <span>•</span>
+                                        <div className="flex items-center space-x-1">
+                                          <Eye className="h-3 w-3" />
+                                          <span>{item.views}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      {item.isNew && (
+                                        <Badge className="bg-prologue-electric text-white text-xs">New</Badge>
+                                      )}
+                                      {item.isPremium && (
+                                        <Badge className="bg-prologue-fire text-white text-xs">
+                                          <Crown className="h-3 w-3 mr-1" />
+                                          Premium
+                                        </Badge>
+                                      )}
+                                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
 
-                            <div>
+                            {/* Post Content */}
+                            {/*
+                            <div className="px-4 pb-3">
                               <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
                               <p className="text-gray-700 leading-relaxed">{item.content}</p>
                             </div>
 
+                            {/* Media Content */}
+                            {/*
                             {item.media && (
                               <div className="relative">
-                                <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden">
+                                <div className="aspect-video bg-gray-200 overflow-hidden">
                                   <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
                                     {item.media.type === "video" ? (
-                                      <Play className="h-12 w-12 text-gray-600" />
+                                      <div className="text-center">
+                                        <div className="w-16 h-16 bg-black/70 rounded-full flex items-center justify-center mb-2 mx-auto">
+                                          <Play className="h-8 w-8 text-white ml-1" />
+                                        </div>
+                                        {item.media.duration && (
+                                          <Badge className="bg-black/70 text-white text-xs">
+                                            {item.media.duration}
+                                          </Badge>
+                                        )}
+                                      </div>
                                     ) : (
                                       <ImageIcon className="h-12 w-12 text-gray-600" />
                                     )}
                                   </div>
                                 </div>
+                                {item.isPremium && (
+                                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                    <div className="text-center text-white">
+                                      <Lock className="h-8 w-8 mx-auto mb-2" />
+                                      <p className="text-sm font-medium">Premium Content</p>
+                                      <p className="text-xs opacity-90">Subscribe to unlock</p>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
 
-                            <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                              <div className="flex items-center space-x-6">
-                                <button className="flex items-center space-x-2 text-gray-600 hover:text-prologue-electric transition-colors">
-                                  <ThumbsUp className="h-5 w-5" />
-                                  <span className="text-sm">{item.likes}</span>
-                                </button>
-                                <button className="flex items-center space-x-2 text-gray-600 hover:text-prologue-electric transition-colors">
-                                  <MessageSquare className="h-5 w-5" />
-                                  <span className="text-sm">{item.comments}</span>
-                                </button>
-                                <button className="flex items-center space-x-2 text-gray-600 hover:text-prologue-electric transition-colors">
-                                  <Share className="h-5 w-5" />
-                                  <span className="text-sm">{item.shares}</span>
-                                </button>
+                            {/* Engagement Stats */}
+                            {/*
+                            <div className="px-4 py-2 border-t border-gray-100">
+                              <div className="flex items-center justify-between text-sm text-gray-600">
+                                <div className="flex items-center space-x-4">
+                                  <div className="flex items-center space-x-1">
+                                    <div className="flex -space-x-1">
+                                      <div className="w-5 h-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
+                                        <Heart className="h-2.5 w-2.5 text-white fill-current" />
+                                      </div>
+                                      <div className="w-5 h-5 bg-prologue-electric rounded-full border-2 border-white flex items-center justify-center">
+                                        <ThumbsUp className="h-2.5 w-2.5 text-white fill-current" />
+                                      </div>
+                                    </div>
+                                    <span>{item.likes} likes</span>
+                                  </div>
+                                  <span>{item.comments} comments</span>
+                                  <span>{item.shares} shares</span>
+                                </div>
                               </div>
-                              <Button size="sm" variant="ghost" className="text-gray-600 hover:text-prologue-electric">
-                                <Bookmark className="h-4 w-4" />
-                              </Button>
+                            </div>
+
+                            {/* Action Buttons */}
+                            {/*
+                            <div className="px-4 py-3 border-t border-gray-100">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className={`flex-1 hover:bg-red-50 ${likedPosts.has(item.id) ? "text-red-500" : "text-gray-600 hover:text-red-500"}`}
+                                    onClick={() => handleLike(item.id)}
+                                  >
+                                    <Heart
+                                      className={`h-5 w-5 mr-2 ${likedPosts.has(item.id) ? "fill-current" : ""}`}
+                                    />
+                                    <span className="hidden sm:inline">Like</span>
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10"
+                                  >
+                                    <MessageSquare className="h-5 w-5 mr-2" />
+                                    <span className="hidden sm:inline">Comment</span>
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="flex-1 text-gray-600 hover:text-green-600 hover:bg-green-50"
+                                    onClick={() => handleShare(item.id)}
+                                  >
+                                    <Repeat2 className="h-5 w-5 mr-2" />
+                                    <span className="hidden sm:inline">Share</span>
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10"
+                                    onClick={() => handleShare(item.id)}
+                                  >
+                                    <Send className="h-5 w-5 mr-2" />
+                                    <span className="hidden sm:inline">Send</span>
+                                  </Button>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className={`${savedPosts.has(item.id) ? "text-prologue-electric" : "text-gray-600 hover:text-prologue-electric"}`}
+                                    onClick={() => handleSave(item.id)}
+                                  >
+                                    <Bookmark className={`h-4 w-4 ${savedPosts.has(item.id) ? "fill-current" : ""}`} />
+                                  </Button>
+                                  {item.isPremium && (
+                                    <Button size="sm" className="bg-prologue-fire hover:bg-prologue-fire/90 text-white">
+                                      <Crown className="h-3 w-3 mr-1" />
+                                      Subscribe
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Comment Preview */}
+                            {/*
+                            <div className="px-4 pb-4">
+                              <div className="flex items-start space-x-3">
+                                <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden">
+                                  <User className="w-full h-full text-gray-500 p-1.5" />
+                                </div>
+                                <div className="flex-1">
+                                  <input
+                                    type="text"
+                                    placeholder="Write a comment..."
+                                    className="w-full bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </CardContent>
                       </Card>
                     ))
-                  ) : (
-                    <Card className="bg-white border border-gray-200">
-                      <CardContent className="text-center py-16">
-                        <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-                          <Crown className="h-10 w-10 text-gray-400" />
-                        </div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-3">No subscribed content</h3>
-                        <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                          Subscribe to creators to see their premium content and exclusive updates here.
-                        </p>
-                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                          <Link href="/member-browse">
-                            <Button className="bg-prologue-electric hover:bg-prologue-blue text-white">
-                              Find Creators to Subscribe
-                            </Button>
-                          </Link>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                  }
                 </>
               )}
+              */}
             </div>
           </div>
 
@@ -1434,7 +1466,17 @@ export default function MemberHomePage() {
                     )}
                   </div>
                   <h3 className="text-lg font-bold text-gray-900">{selectedSpace.title}</h3>
-                  <p className="text-sm text-gray-600">{formatDistanceToNow(typeof selectedSpace.time === "string" ? parseISO(selectedSpace.time) : parseISO(selectedSpace.time), { addSuffix: true })}</p>
+                  <p className="text-sm text-gray-600">
+                    {selectedSpace.time
+                      ? (() => {
+                          const date =
+                            typeof selectedSpace.time === "string"
+                              ? parseISO(selectedSpace.time)
+                              : selectedSpace.time;
+                          return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
+                        })()
+                      : "Just now"}
+                  </p>
                 </div>
                 <Button
                   variant="ghost"
