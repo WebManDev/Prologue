@@ -13,12 +13,13 @@ import {
   LogOut,
   ThumbsUp,
   MessageSquare,
+  Share,
   Search,
   X,
   Home,
   MessageCircle,
   Bell,
-  FileText,
+  BookOpen,
   LayoutDashboard,
   Lock,
   Crown,
@@ -35,28 +36,32 @@ import {
   Eye,
   Target,
   TrendingUp,
+  Edit,
+  Trash2,
+  FileText,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { useNotifications } from "@/contexts/notification-context"
-import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import { useMemberNotifications } from "@/contexts/member-notification-context"
+import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
-import { auth, db, getAthleteProfile, getMemberProfile } from "@/lib/firebase"
-import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, doc, updateDoc, arrayUnion, getDoc } from "firebase/firestore"
+import { auth, getMemberProfile, db, getAthleteProfile } from "@/lib/firebase"
+import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, doc, updateDoc, arrayUnion, arrayRemove, getDoc, deleteDoc, setDoc, where, getDocs } from "firebase/firestore"
+import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
-import { formatDistanceToNow, parseISO } from "date-fns";
+import { formatDistanceToNow, parseISO, isValid } from "date-fns";
+import CommentSection from "@/components/ui/comment-section"
 
-export default function HomePage() {
+export default function MemberHomePage() {
   // Mobile detection
   const { isMobile, isTablet } = useMobileDetection()
 
-  // Unified logout hook
-  const { logout, loadingState } = useUnifiedLogout()
-
   // Contexts
-  const { hasUnreadMessages } = useNotifications()
+  const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
+  const { getCreatorContent, getSubscribedContent, hasNewContent, hasNewSubscribedContent, markContentAsViewed } =
+    useMemberSubscriptions()
 
   // Search dropdown state
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
@@ -180,108 +185,30 @@ export default function HomePage() {
     setWhoIsGoingDialogOpen(true)
   }, [])
 
+  // Get content from subscriptions
+  const followedContent = useMemo(() => getCreatorContent(), [getCreatorContent])
+  const subscribedContent = useMemo(() => getSubscribedContent(), [getSubscribedContent])
+
   // Enhanced content with more variety and social media features
   const enhancedFeedContent = useMemo(() => {
-    // Add variety of content types from creators
-    const varietyContent = [
-      {
-        id: "variety-1",
-        creatorId: "athlete-1",
-        creatorName: "Sarah Martinez",
-        creatorAvatar: "/placeholder.svg?height=40&width=40",
-        creatorVerified: true,
-        type: "video" as const,
-        title: "Morning Training Routine",
-        content:
-          "Starting my day with some serve practice and footwork drills. The key is consistency! 🎾 What's your morning routine looking like?",
-        timestamp: "3 hours ago",
-        likes: 234,
-        comments: 18,
-        shares: 12,
-        views: 1240,
-        isNew: true,
-        isPremium: false,
-        isRecommendation: false,
-        media: {
-          type: "video",
-          thumbnail: "/placeholder.svg?height=300&width=400",
-          duration: "2:45",
-        },
-      },
-      {
-        id: "variety-2",
-        creatorId: "coach-1",
-        creatorName: "Mike Johnson",
-        creatorAvatar: "/placeholder.svg?height=40&width=40",
-        creatorVerified: true,
-        type: "image" as const,
-        title: "Mental Preparation Tips",
-        content:
-          "5 key strategies I use with my athletes before big competitions. Visualization is everything! 🧠💪 Save this post for your next big game.",
-        timestamp: "6 hours ago",
-        likes: 189,
-        comments: 24,
-        shares: 8,
-        views: 892,
-        isNew: false,
-        isPremium: false,
-        isRecommendation: false,
-        media: {
-          type: "image",
-          thumbnail: "/placeholder.svg?height=300&width=400",
-        },
-      },
-      {
-        id: "variety-3",
-        creatorId: "athlete-2",
-        creatorName: "Alex Rodriguez",
-        creatorAvatar: "/placeholder.svg?height=40&width=40",
-        creatorVerified: false,
-        type: "blog" as const,
-        title: "The Science Behind Perfect Shooting Form",
-        content:
-          "Breaking down the biomechanics of shooting - from foot placement to follow-through. This changed my game completely! 🏀 Link in bio for the full breakdown.",
-        timestamp: "1 day ago",
-        likes: 456,
-        comments: 67,
-        shares: 23,
-        views: 2340,
-        isNew: false,
-        isPremium: true,
-        isRecommendation: false,
-      },
-      {
-        id: "variety-4",
-        creatorId: "coach-2",
-        creatorName: "Lisa Chen",
-        creatorAvatar: "/placeholder.svg?height=40&width=40",
-        creatorVerified: true,
-        type: "workout" as const,
-        title: "Pool Workout: Building Endurance",
-        content:
-          "Today's training session focused on building cardiovascular endurance. 2000m mixed strokes! 🏊‍♀️ Drop your favorite pool workout below 👇",
-        timestamp: "2 days ago",
-        likes: 312,
-        comments: 45,
-        shares: 19,
-        views: 1560,
-        isNew: false,
-        isPremium: true,
-        isRecommendation: false,
-        media: {
-          type: "image",
-          thumbnail: "/placeholder.svg?height=300&width=400",
-        },
-      },
-    ]
-
-    return varietyContent.sort((a, b) => {
+    const baseContent = [...followedContent, ...subscribedContent];
+    return baseContent.sort((a, b) => {
       // Sort by timestamp, with "new" content first
-      if (a.isNew && !b.isNew) return -1
-      if (!a.isNew && b.isNew) return 1
-      return 0
-    })
-  }, [])
+      if (a.isNew && !b.isNew) return -1;
+      if (!a.isNew && b.isNew) return 1;
+      return 0;
+    });
+  }, [followedContent, subscribedContent]);
+
+  // Filtered feed for public posts only
+  const filteredFeed = enhancedFeedContent.filter(
+    post => (post.visibility === undefined || post.visibility === 'public') && post.creatorName !== "Premium Creator 1"
+  );
+
+  // Filtered subscribed content for non-public posts only
+  const filteredSubscribed = enhancedFeedContent.filter(
+    post => post.visibility && post.visibility !== 'public'
+  );
 
   // Quick search suggestions
   const quickSearches = useMemo(
@@ -344,16 +271,17 @@ export default function HomePage() {
   }, [searchQuery])
 
   // Social media interaction handlers
-  const handleLike = useCallback((postId: string) => {
-    setLikedPosts((prev) => {
-      const newSet = new Set(prev)
-      if (newSet.has(postId)) {
-        newSet.delete(postId)
-      } else {
-        newSet.add(postId)
-      }
-      return newSet
-    })
+  const handleLike = useCallback(async (postId: string) => {
+    const user = auth.currentUser
+    if (!user) return
+    const postRef = doc(db, "posts", postId)
+    const postSnap = await getDoc(postRef)
+    const likes = postSnap.data()?.likes || []
+    if (likes.includes(user.uid)) {
+      await updateDoc(postRef, { likes: arrayRemove(user.uid) })
+    } else {
+      await updateDoc(postRef, { likes: arrayUnion(user.uid) })
+    }
   }, [])
 
   const handleSave = useCallback((postId: string) => {
@@ -397,15 +325,17 @@ export default function HomePage() {
 
   // Handle home visit
   useEffect(() => {
-    if (showNewContent) {
-      // Hide the "new" indicators after 10 seconds
+    if (hasNewContent || hasNewSubscribedContent) {
+      setShowNewContent(true)
+      // Mark content as viewed after a delay
       const timer = setTimeout(() => {
+        markContentAsViewed()
         setShowNewContent(false)
       }, 10000)
 
       return () => clearTimeout(timer)
     }
-  }, [showNewContent])
+  }, [hasNewContent, hasNewSubscribedContent, markContentAsViewed])
 
   // Handle clicks outside search dropdown
   useEffect(() => {
@@ -434,25 +364,73 @@ export default function HomePage() {
   }, [isMobileMenuOpen])
 
   // Optimized logout handler
-  const handleLogout = async () => {
-    try {
-      await logout({
-        customMessage: "Logging out...",
-        onComplete: () => {
-          console.log("Logout completed")
-        },
-        onError: (error) => {
-          console.error("Logout error:", error)
-        },
+  const { logout } = useUnifiedLogout()
+
+  const [firebasePosts, setFirebasePosts] = useState<any[]>([])
+  const [profileCache, setProfileCache] = useState<Record<string, any>>({})
+  const [commentInputs, setCommentInputs] = useState<{ [postId: string]: string }>({})
+  const [comments, setComments] = useState<{ [postId: string]: any[] }>({})
+
+  // Fetch posts
+  useEffect(() => {
+    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"))
+    const unsub = onSnapshot(q, (snapshot) => {
+      setFirebasePosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+    })
+    return () => unsub()
+  }, [])
+
+  // Fetch user profiles for posts
+  useEffect(() => {
+    const missingUids = firebasePosts
+      .map(post => post.createdBy)
+      .filter(uid => uid && !profileCache[uid])
+    if (missingUids.length === 0) return
+    missingUids.forEach(async (uid) => {
+      let profile = null
+      // Try member first
+      profile = await getMemberProfile(uid)
+      if (!profile) {
+        profile = await getAthleteProfile(uid)
+      }
+      setProfileCache(prev => ({ ...prev, [uid]: profile }))
+    })
+  }, [firebasePosts])
+
+  // Track post views (only once per user per post)
+  useEffect(() => {
+    const user = auth.currentUser
+    if (!user) return
+    firebasePosts.forEach(async (item) => {
+      if (!item.id) return
+      const postRef = doc(db, "posts", item.id)
+      const postSnap = await getDoc(postRef)
+      const viewedBy = postSnap.data()?.viewedBy || []
+      if (!viewedBy.includes(user.uid)) {
+        await updateDoc(postRef, {
+          views: (postSnap.data()?.views || 0) + 1,
+          viewedBy: arrayUnion(user.uid),
+        })
+      }
+    })
+  }, [firebasePosts])
+
+  // Listen for comments for each post
+  useEffect(() => {
+    firebasePosts.forEach((post) => {
+      if (!post.id) return
+      const commentsRef = collection(db, "posts", post.id, "comments")
+      const q = query(commentsRef, orderBy("createdAt", "asc"))
+      const unsub = onSnapshot(q, (snapshot) => {
+        setComments((prev) => ({ ...prev, [post.id]: snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) }))
       })
-    } catch (error) {
-      console.error("Logout failed:", error)
-      window.location.href = "/"
-    }
-  }
+      return () => unsub()
+    })
+  }, [firebasePosts])
 
   // Memoized search dropdown content
   const searchDropdownContent = useMemo(() => {
+    const displayItems = searchQuery ? searchResults : quickSearches.slice(0, 8)
     const isShowingResults = searchQuery && searchResults.length > 0
     const isShowingQuickSearches = !searchQuery
 
@@ -464,32 +442,34 @@ export default function HomePage() {
           </h4>
           <div className="space-y-1">
             {isShowingQuickSearches &&
-              quickSearches.slice(0, 8).map((search, index) => (
+              displayItems.map((search: string | { name?: string; title?: string }, index) => (
                 <button
                   key={index}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-blue-500 rounded transition-colors"
-                  onClick={() => handleSearchSelect(search)}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-prologue-electric rounded transition-colors"
+                  onClick={() => handleSearchSelect(typeof search === "string" ? search : (search.name || search.title || ""))}
                 >
-                  {search}
+                  {typeof search === "string" ? search : (search.name || search.title || "")}
                 </button>
               ))}
 
             {isShowingResults &&
-              searchResults.map((result, index) => (
+              displayItems.map((result: string | { name?: string; title?: string; type?: string; sport?: string; school?: string; creator?: string; views?: string }, index) => (
                 <div
                   key={index}
                   className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                  onClick={() => handleSearchSelect(result.name || result.title || "")}
+                  onClick={() => handleSearchSelect(typeof result === "string" ? result : (result.name || result.title || ""))}
                 >
                   <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
                     <User className="h-4 w-4 text-gray-500" />
                   </div>
                   <div className="flex-1">
-                    <h5 className="text-sm font-medium text-gray-900">{result.name || result.title}</h5>
+                    <h5 className="text-sm font-medium text-gray-900">{typeof result === "string" ? result : (result.name || result.title || "")}</h5>
                     <p className="text-xs text-gray-600">
-                      {result.type === "athlete"
-                        ? `${result.sport} • ${result.school}`
-                        : `${result.creator} • ${result.views} views`}
+                      {typeof result !== "string" && result.type === "athlete"
+                        ? `${result.sport || ""} • ${result.school || ""}`
+                        : typeof result !== "string" && result.creator && result.views
+                          ? `${result.creator} • ${result.views} views`
+                          : ""}
                     </p>
                   </div>
                 </div>
@@ -503,27 +483,31 @@ export default function HomePage() {
       </div>
     )
   }, [searchQuery, searchResults, quickSearches, handleSearchSelect])
-  
-  const [postContent, setPostContent] = useState("")
-  const [posting, setPosting] = useState(false)
-  const [profileCache, setProfileCache] = useState<Record<string, any>>({})
-  const [postFile, setPostFile] = useState<File | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [profileData, setProfileData] = useState<{ firstName: string; lastName: string; profileImageUrl: string | null; profilePic?: string; profilePicture?: string }>({ firstName: "", lastName: "", profileImageUrl: null });
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
   useEffect(() => {
     const loadProfile = async () => {
       if (!auth.currentUser) return
-      // Try to get athlete profile first
-      let profile = await getAthleteProfile(auth.currentUser.uid)
-      if (!profile) {
-        profile = await getMemberProfile(auth.currentUser.uid)
-      }
-      if (profile) {
-        setProfileImageUrl(profile.profileImageUrl || null)
+      const memberProfile = await getMemberProfile(auth.currentUser.uid)
+      if (memberProfile) {
+        setProfileData({
+          firstName: memberProfile.firstName || "",
+          lastName: memberProfile.lastName || "",
+          profileImageUrl: memberProfile.profileImageUrl || null,
+        })
+        setProfileImageUrl(memberProfile.profileImageUrl || null)
       }
     }
     loadProfile()
   }, [])
+
+  const [postContent, setPostContent] = useState("")
+  const [posting, setPosting] = useState(false)
+  const [postFile, setPostFile] = useState<File | null>(null)
+  const [editingPost, setEditingPost] = useState<string | null>(null)
+  const [editPostContent, setEditPostContent] = useState<{ [key: string]: string }>({})
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Post submit handler
   async function handlePostSubmit(e?: React.FormEvent) {
@@ -546,7 +530,7 @@ export default function HomePage() {
       await addDoc(collection(db, "posts"), {
         content: postContent,
         createdBy: user ? user.uid : "anon",
-        userType: "athlete",
+        userType: "member",
         createdAt: serverTimestamp(),
         mediaUrl,
         mediaType,
@@ -560,148 +544,131 @@ export default function HomePage() {
       setPosting(false)
     }
   }
-  
-  const [firebasePosts, setFirebasePosts] = useState<any[]>([])
-  useEffect(() => {
-    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"))
-    const unsub = onSnapshot(q, (snapshot) => {
-      setFirebasePosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
-    })
-    return () => unsub()
-  }, [])
 
-  // Track post views (only once per user per post)
-  useEffect(() => {
-    const user = auth.currentUser
-    if (!user) return
-    firebasePosts.forEach(async (item) => {
-      if (!item.id) return
-      const postRef = doc(db, "posts", item.id)
-      const postSnap = await getDoc(postRef)
-      const viewedBy = postSnap.data()?.viewedBy || []
-      if (!viewedBy.includes(user.uid)) {
-        await updateDoc(postRef, {
-          views: (postSnap.data()?.views || 0) + 1,
-          viewedBy: arrayUnion(user.uid),
-        })
+  // Like a comment (toggle like)
+  const handleLikeComment = useCallback(async (postId: string, commentId: string) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const commentRef = doc(db, "posts", postId, "comments", commentId);
+    const commentSnap = await getDoc(commentRef);
+    const likes = commentSnap.data()?.likes || [];
+    if (likes.includes(user.uid)) {
+      await updateDoc(commentRef, { likes: arrayRemove(user.uid) });
+    } else {
+      await updateDoc(commentRef, { likes: arrayUnion(user.uid) });
+    }
+  }, []);
+
+  // Add a comment or reply
+  const handleAddComment = useCallback(async (postId: string, content: string, parentId?: string) => {
+    const user = auth.currentUser;
+    if (!user || !content || !content.trim()) return;
+    const commentsRef = collection(db, "posts", postId, "comments");
+    await addDoc(commentsRef, {
+      content,
+      createdBy: user.uid,
+      userType: "member",
+      createdAt: serverTimestamp(),
+      profileImageUrl: profileImageUrl,
+      firstName: profileData.firstName,
+      lastName: profileData.lastName,
+      parentId: parentId || null,
+      likes: [],
+    });
+    // Increment comment count on the post
+    const postRef = doc(db, "posts", postId);
+    const postSnap = await getDoc(postRef);
+    await updateDoc(postRef, { commentsCount: (postSnap.data()?.commentsCount || 0) + 1 });
+    // Optionally clear input for top-level comments
+    if (!parentId) {
+      setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
+    }
+  }, [profileImageUrl, profileData]);
+
+  // Edit a comment
+  const handleEditComment = useCallback(async (postId: string, commentId: string, newContent: string) => {
+    const user = auth.currentUser;
+    if (!user || !newContent || !newContent.trim()) return;
+    const commentRef = doc(db, "posts", postId, "comments", commentId);
+    await updateDoc(commentRef, {
+      content: newContent,
+      editedAt: serverTimestamp(),
+    });
+  }, []);
+
+  // Delete a comment
+  const handleDeleteComment = useCallback(async (postId: string, commentId: string) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    
+    // First, get all replies to this comment recursively
+    const getAllReplies = async (parentId: string): Promise<string[]> => {
+      const repliesQuery = query(collection(db, "posts", postId, "comments"), where("parentId", "==", parentId));
+      const repliesSnap = await getDocs(repliesQuery);
+      let allIds = [parentId];
+      
+      for (const replyDoc of repliesSnap.docs) {
+        const replyIds = await getAllReplies(replyDoc.id);
+        allIds = allIds.concat(replyIds);
       }
-    })
-  }, [firebasePosts])
+      
+      return allIds;
+    };
+    
+    const commentIdsToDelete = await getAllReplies(commentId);
+    
+    // Delete all comments and replies
+    for (const id of commentIdsToDelete) {
+      const commentRef = doc(db, "posts", postId, "comments", id);
+      await deleteDoc(commentRef);
+    }
+    
+    // Decrement comment count on the post by the total number of comments deleted
+    const postRef = doc(db, "posts", postId);
+    const postSnap = await getDoc(postRef);
+    await updateDoc(postRef, { 
+      commentsCount: Math.max((postSnap.data()?.commentsCount || 0) - commentIdsToDelete.length, 0) 
+    });
+  }, []);
+
+  // Edit a post
+  const handleEditPost = useCallback(async (postId: string, newContent: string) => {
+    const user = auth.currentUser;
+    if (!user || !newContent || !newContent.trim()) return;
+    const postRef = doc(db, "posts", postId);
+    await updateDoc(postRef, {
+      content: newContent,
+      editedAt: serverTimestamp(),
+    });
+    setEditingPost(null);
+    setEditPostContent((prev) => ({ ...prev, [postId]: "" }));
+  }, []);
+
+  const handleStartEditPost = useCallback((postId: string, currentContent: string) => {
+    setEditingPost(postId);
+    setEditPostContent((prev) => ({ ...prev, [postId]: currentContent }));
+  }, []);
+
+  const handleCancelEditPost = useCallback(() => {
+    setEditingPost(null);
+    setEditPostContent({});
+  }, []);
+
+  function mapCommentWithProfile(comment: any, profileCache: Record<string, any>): any {
+    const profile = profileCache[comment.createdBy] || {};
+    const likesArray = Array.isArray(comment.likes) ? comment.likes : [];
+    const user = auth.currentUser;
+    return {
+      ...comment,
+      userAvatar: profile.profileImageUrl || comment.profileImageUrl || '',
+      likes: likesArray.length,
+      isLiked: user ? likesArray.includes(user.uid) : false,
+      // Don't try to map replies here - they will be handled by buildCommentTree in the component
+    };
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile Header - Fixed Navigation */}
-      <header className="lg:hidden bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="flex items-center justify-between h-16 px-4">
-          {/* Logo */}
-          <Link href="/home" className="flex items-center space-x-2">
-            <div className="w-8 h-8 relative">
-              <Image
-                src="/Prologue LOGO-1.png"
-                alt="PROLOGUE"
-                width={32}
-                height={32}
-                className="w-full h-full object-contain"
-                priority
-              />
-            </div>
-            <span className="text-lg font-bold text-gray-900 tracking-wider">PROLOGUE</span>
-          </Link>
-
-          {/* Right Actions - Search, Bell, Dropdown */}
-          <div className="flex items-center space-x-2">
-            {/* Search Button */}
-            <Button variant="ghost" size="sm" className="p-2" onClick={() => setShowSearchDropdown(true)}>
-              <Search className="h-5 w-5 text-gray-600" />
-            </Button>
-
-            {/* Notification Bell */}
-            <Link href="/notifications" className="relative">
-              <Button variant="ghost" size="sm" className="p-2 relative">
-                <Bell className="h-5 w-5 text-gray-600" />
-                {hasUnreadMessages && (
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div>
-                )}
-              </Button>
-            </Link>
-
-            {/* User Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2 p-2" disabled={loadingState.isLoading}>
-                  <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                    <User className="w-full h-full text-gray-500 p-1" />
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-gray-500" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard" className="flex items-center w-full cursor-pointer">
-                    <LayoutDashboard className="h-4 w-4 mr-2" />
-                    Profile
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/promote" className="flex items-center w-full cursor-pointer">
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Promote
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="flex items-center w-full cursor-pointer">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Settings
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer" disabled={loadingState.isLoading}>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  {loadingState.isLoading ? "Logging out..." : "Logout"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
-        {/* Mobile Search Overlay */}
-        {showSearchDropdown && (
-          <div className="fixed inset-0 z-50 bg-white">
-            <div className="flex items-center h-16 px-4 border-b border-gray-200">
-              <Button variant="ghost" size="sm" className="p-2 mr-2" onClick={() => setShowSearchDropdown(false)}>
-                <X className="h-5 w-5 text-gray-600" />
-              </Button>
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search athletes, content..."
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            <div className="p-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick Searches</h3>
-              <div className="space-y-2">
-                {quickSearches.slice(0, 8).map((search, index) => (
-                  <button
-                    key={index}
-                    className="w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors"
-                    onClick={() => handleSearchSelect(search)}
-                  >
-                    <span className="text-gray-700">{search}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-                 )}
-       </header>
-
-      {/* Desktop Header */}
       <header className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between h-16">
@@ -709,122 +676,89 @@ export default function HomePage() {
               <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
                 <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
                   <Image
-                    src="/Prologue LOGO-1.png"
+                    src="/prologue-logo.png"
                     alt="PROLOGUE"
                     width={32}
                     height={32}
                     className="w-full h-full object-contain"
                   />
                 </div>
-                <span className="text-xl font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
+                <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
                   PROLOGUE
                 </span>
               </Link>
-
-              <div className="flex items-center space-x-1 relative" ref={searchRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search athletes, content..."
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    onFocus={handleSearchFocus}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={clearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Search Dropdown */}
-                {showSearchDropdown && searchDropdownContent}
-              </div>
             </div>
-
             <div className="flex items-center space-x-6">
               <nav className="flex items-center space-x-6">
-                <Link
-                  href="/home"
-                  className="flex flex-col items-center space-y-1 text-blue-500 transition-colors group relative"
-                >
+                <Link href="/home" className="flex flex-col items-center space-y-1 text-blue-600 group">
                   <Home className="h-5 w-5" />
                   <span className="text-xs font-medium">Home</span>
-                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full"></div>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-100 transition-opacity"></div>
                 </Link>
-                <Link
-                  href="/content"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
-                >
+                <Link href="/content" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
                   <FileText className="h-5 w-5" />
                   <span className="text-xs font-medium">Content</span>
                   <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </Link>
-                <Link
-                  href="/feedback"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
-                >
+                <Link href="/feedback" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
                   <MessageSquare className="h-5 w-5" />
                   <span className="text-xs font-medium">Feedback</span>
                   <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </Link>
-                <Link
-                  href="/messaging"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group"
-                >
+                <Link href="/messaging" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
                   <MessageCircle className="h-5 w-5" />
                   <span className="text-xs font-medium">Messages</span>
                   <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
                 </Link>
-                <Link
-                  href="/notifications"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group"
-                >
+                <Link href="/notifications" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group">
                   <Bell className="h-5 w-5" />
                   <span className="text-xs font-medium">Notifications</span>
                   <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
+                  {unreadNotificationsCount > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
                 </Link>
               </nav>
-
               <div className="flex items-center space-x-3">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center space-x-2 p-2" disabled={loadingState.isLoading}>
-                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                        <User className="w-full h-full text-gray-500 p-1" />
-                      </div>
+                    <Button variant="ghost" className="flex items-center space-x-2 p-2">
+                      {profileImageUrl ? (
+                        <Image
+                          src={profileImageUrl}
+                          alt="Profile"
+                          width={32}
+                          height={32}
+                          className="w-8 h-8 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
+                          <User className="w-full h-full text-gray-500 p-1" />
+                        </div>
+                      )}
                       <ChevronDown className="h-4 w-4 text-gray-500" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem asChild>
-                      <Link href="/dashboard" className="flex items-center w-full cursor-pointer">
+                    <DropdownMenuItem>
+                      <Link href="/member-dashboard" className="flex items-center w-full">
                         <LayoutDashboard className="h-4 w-4 mr-2" />
                         Profile
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/promote" className="flex items-center w-full cursor-pointer">
+                    <DropdownMenuItem>
+                      <Link href="/promote" className="flex items-center w-full">
                         <TrendingUp className="h-4 w-4 mr-2" />
                         Promote
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/settings" className="flex items-center w-full cursor-pointer">
+                    <DropdownMenuItem>
+                      <Link href="/member-settings" className="flex items-center w-full">
                         <Settings className="h-4 w-4 mr-2" />
                         Settings
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer" disabled={loadingState.isLoading}>
+                    <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
                       <LogOut className="h-4 w-4 mr-2" />
-                      {loadingState.isLoading ? "Logging out..." : "Logout"}
+                      Logout
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -839,32 +773,44 @@ export default function HomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Main Feed */}
           <div className="lg:col-span-8">
+            {/* Stories Section */}
+
             {/* Create Post Section */}
             <Card className="bg-white border border-gray-200 mb-6">
               <CardContent className="p-4">
                 <form onSubmit={handlePostSubmit}>
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
-                      {profileImageUrl ? (
-                        <Image src={profileImageUrl} alt="Profile" width={40} height={40} />
-                      ) : (
-                        <User className="w-full h-full text-gray-500 p-2" />
-                      )}
+                      {(() => {
+                        const profileImageUrl = profileData.profileImageUrl && profileData.profileImageUrl.trim() !== '' ? profileData.profileImageUrl : (profileData.profilePic && profileData.profilePic.trim() !== '' ? profileData.profilePic : (profileData.profilePicture && profileData.profilePicture.trim() !== '' ? profileData.profilePicture : null));
+                        if (profileImageUrl) {
+                          return <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />;
+                        } else {
+                          return <User className="w-full h-full text-gray-500 p-2" />;
+                        }
+                      })()}
                     </div>
                     <div className="flex-1">
-                      <LexicalRichTextEditor value={postContent} onChange={setPostContent} />
+                      <input
+                        type="text"
+                        placeholder="What's on your mind?"
+                        className="w-full bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
+                        value={postContent}
+                        onChange={e => setPostContent(e.target.value)}
+                        disabled={posting}
+                      />
                     </div>
                   </div>
                   <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
                     <div className="flex items-center space-x-4">
-                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-blue-500">
+                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-prologue-electric">
                         <Video className="h-4 w-4 mr-2" />
                         Live Video
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-gray-600 hover:text-blue-500"
+                        className="text-gray-600 hover:text-prologue-electric"
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                       >
@@ -879,7 +825,7 @@ export default function HomePage() {
                         onChange={e => setPostFile(e.target.files?.[0] || null)}
                         disabled={posting}
                       />
-                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-blue-500">
+                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-prologue-electric">
                         <Target className="h-4 w-4 mr-2" />
                         Train
                       </Button>
@@ -890,7 +836,7 @@ export default function HomePage() {
                     <div className="flex-1 flex justify-end">
                       <Button
                         type="submit"
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-6"
+                        className="bg-prologue-electric hover:bg-prologue-blue text-white px-6"
                         disabled={posting || (!postContent.trim() && !postFile)}
                       >
                         {posting ? "Posting..." : "Post"}
@@ -906,7 +852,9 @@ export default function HomePage() {
               <button
                 onClick={() => setActiveTab("feed")}
                 className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                  activeTab === "feed" ? "bg-white text-blue-500 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                  activeTab === "feed"
+                    ? "bg-white text-prologue-electric shadow-sm"
+                    : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 <div className="flex items-center justify-center space-x-2">
@@ -914,10 +862,13 @@ export default function HomePage() {
                   <span>Feed</span>
                 </div>
               </button>
+              {/*
               <button
                 onClick={() => setActiveTab("subscribed")}
                 className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                  activeTab === "subscribed" ? "bg-white text-blue-500 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                  activeTab === "subscribed"
+                    ? "bg-white text-prologue-electric shadow-sm"
+                    : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 <div className="flex items-center justify-center space-x-2">
@@ -925,6 +876,7 @@ export default function HomePage() {
                   <span>Subscribed</span>
                 </div>
               </button>
+              */}
             </div>
 
             {/* Content Feed */}
@@ -939,11 +891,18 @@ export default function HomePage() {
                   const created = item.createdAt.toDate()
                   isNew = (now.getTime() - created.getTime()) < 24 * 60 * 60 * 1000
                 }
+                const isOwner = auth.currentUser && auth.currentUser.uid === item.createdBy
+                const handleDelete = async () => {
+                  if (!item.id) return
+                  await deleteDoc(doc(db, "posts", item.id))
+                }
+                const likeCount = item.likes ? item.likes.length : 0
+                const isLiked = item.likes && auth.currentUser ? item.likes.includes(auth.currentUser.uid) : false
+                const postComments = comments[item.id] || []
+                const commentCount = postComments.length
+                const shareCount = item.shares || 0
                 return (
-                  <Card
-                    key={item.id}
-                    className="bg-white border transition-all duration-300 hover:shadow-lg border-blue-500/30 shadow-md"
-                  >
+                  <Card key={item.id} className="bg-white border transition-all duration-300 hover:shadow-lg border-prologue-electric/30 shadow-md">
                     <CardContent className="p-0">
                       <div className="space-y-0">
                         {/* Post Header */}
@@ -951,30 +910,100 @@ export default function HomePage() {
                           <div className="flex items-start space-x-3">
                             <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden">
                               {profile.profileImageUrl ? (
-                                <Image src={profile.profileImageUrl} alt={profile.firstName || "User"} width={48} height={48} />
+                                <img src={profile.profileImageUrl} alt={profile.firstName || "User"} className="w-full h-full object-cover" />
                               ) : (
                                 <User className="w-full h-full text-gray-500 p-2" />
                               )}
                             </div>
                             <div className="flex-1">
-                              <h4 className="font-semibold text-gray-900">{profile.firstName || profile.name || item.createdBy}</h4>
-                              <p className="text-sm text-gray-600">{formatDistanceToNow(typeof item.createdAt === "string" ? parseISO(item.createdAt) : item.createdAt, { addSuffix: true })}</p>
+                              <h4 className="font-semibold text-gray-900">
+                                {profile.firstName && profile.lastName
+                                  ? `${profile.firstName} ${profile.lastName}`
+                                  : profile.firstName || profile.name || item.createdBy}
+                              </h4>
+                              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                <span>
+                                  {item.createdAt
+                                    ? (() => {
+                                        const date =
+                                          typeof item.createdAt === "string"
+                                            ? parseISO(item.createdAt)
+                                            : item.createdAt;
+                                        return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
+                                      })()
+                                    : "Just now"}
+                                </span>
+                                <span>•</span>
+                                <div className="flex items-center space-x-1">
+                                  <Eye className="h-3 w-3" />
+                                  <span>{item.views || 0}</span>
+                                </div>
+                              </div>
                             </div>
                             <div className="flex items-center space-x-2">
                               {isNew && (
-                                <Badge className="bg-blue-500 text-white text-xs">New</Badge>
+                                <Badge className="bg-prologue-electric text-white text-xs">New</Badge>
                               )}
-                              <div className="flex items-center space-x-1">
-                                <Eye className="h-3 w-3" />
-                                <span>{item.views || 0}</span>
-                              </div>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button className="p-1 rounded hover:bg-gray-100">
+                                    <MoreHorizontal className="h-5 w-5 text-gray-400" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {isOwner && (
+                                    <>
+                                      <DropdownMenuItem onClick={() => handleStartEditPost(item.id, item.content || "")}>
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Edit
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={handleDelete} className="text-red-600">
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </div>
+                        </div>
+                        {/* Text content above media */}
+                        <div className="px-4 pb-3">
+                          {editingPost === item.id ? (
+                            <form onSubmit={(e) => {
+                              e.preventDefault();
+                              handleEditPost(item.id, editPostContent[item.id] || "");
+                            }}>
+                              <textarea
+                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-prologue-electric/20 resize-none"
+                                rows={3}
+                                value={editPostContent[item.id] || ""}
+                                onChange={(e) => setEditPostContent(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                placeholder="Edit your post..."
+                              />
+                              <div className="flex items-center justify-end space-x-2 mt-2">
+                                <Button type="button" variant="outline" size="sm" onClick={handleCancelEditPost}>
+                                  Cancel
+                                </Button>
+                                <Button type="submit" size="sm" className="bg-blue-500 hover:bg-blue-600 text-white">
+                                  Save
+                                </Button>
+                              </div>
+                            </form>
+                          ) : (
+                            <div className="text-gray-700 leading-relaxed">
+                              <div dangerouslySetInnerHTML={{ __html: item.content || "" }} />
+                              {item.editedAt && (
+                                <span className="text-xs text-gray-500 ml-2">(edited)</span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         {/* Media display */}
                         {item.mediaUrl && item.mediaType === 'image' && (
                           <div className="w-full max-h-96 bg-black flex items-center justify-center">
-                            <Image src={item.mediaUrl} alt="Post media" width={600} height={400} className="object-contain max-h-96 w-full" />
+                            <img src={item.mediaUrl} alt="Post media" className="object-contain max-h-96 w-full" />
                           </div>
                         )}
                         {item.mediaUrl && item.mediaType === 'video' && (
@@ -982,34 +1011,85 @@ export default function HomePage() {
                             <video src={item.mediaUrl} controls className="object-contain max-h-96 w-full" />
                           </div>
                         )}
-                        {/* Post Content */}
-                        <div className="px-4 pb-3">
-                          <p className="text-gray-700 leading-relaxed">{item.content}</p>
+                        {/* Engagement Stats Row */}
+                        <div className="px-4 py-2 border-t border-gray-100">
+                          <div className="flex items-center justify-between text-sm text-gray-600">
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-1">
+                                <div className="flex -space-x-1">
+                                  <div className="w-5 h-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
+                                    <Heart className="h-2.5 w-2.5 text-white fill-current" />
+                                  </div>
+                                  <div className="w-5 h-5 bg-prologue-electric rounded-full border-2 border-white flex items-center justify-center">
+                                    <ThumbsUp className="h-2.5 w-2.5 text-white fill-current" />
+                                  </div>
+                                </div>
+                                <span>{likeCount} {likeCount === 1 ? "like" : "likes"}</span>
+                              </div>
+                              <span>{commentCount} {commentCount === 1 ? "comment" : "comments"}</span>
+                              <span>{shareCount} {shareCount === 1 ? "share" : "shares"}</span>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Action Buttons */}
+                        <div className="px-4 py-3 border-t border-gray-100">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-1">
+                              <Button variant="ghost" size="sm" className={`flex-1 ${isLiked ? "text-red-500" : "text-gray-600 hover:text-red-500"}`} onClick={() => handleLike(item.id)}>
+                                <Heart className={`h-5 w-5 mr-2 ${isLiked ? "fill-current" : ""}`} />
+                                <span className="hidden sm:inline">Like</span>
+                                <span className="ml-1">{likeCount}</span>
+                              </Button>
+                              <Button variant="ghost" size="sm" className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10">
+                                <MessageSquare className="h-5 w-5 mr-2" />
+                                <span className="hidden sm:inline">Comment</span>
+                              </Button>
+                              <Button variant="ghost" size="sm" className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10">
+                                <Share className="h-5 w-5 mr-2" />
+                                <span className="hidden sm:inline">Share</span>
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Replace old comment input and list with new CommentSection */}
+                        <div className="px-4 pb-4">
+                          <CommentSection
+                            postId={item.id}
+                            comments={(comments[item.id] || []).map(comment => mapCommentWithProfile(comment, profileCache))}
+                            onAddComment={handleAddComment}
+                            onLikeComment={(commentId) => handleLikeComment(item.id, commentId)}
+                            onEditComment={(commentId, newContent) => handleEditComment(item.id, commentId, newContent)}
+                            onDeleteComment={(commentId) => handleDeleteComment(item.id, commentId)}
+                            currentUserId={auth.currentUser?.uid}
+                          />
                         </div>
                       </div>
                     </CardContent>
                   </Card>
                 )
               })}
-              {/* Existing static/demo content below */}
-              {activeTab === "feed" && (
+
+              {/*
+              {activeTab === "subscribed" && (
                 <>
-                  {enhancedFeedContent.length > 0 ? (
-                    enhancedFeedContent.map((item) => (
+                  {filteredSubscribed.length > 0 &&
+                    filteredSubscribed.map((item) => (
                       <Card
                         key={item.id}
                         className={`bg-white border transition-all duration-300 hover:shadow-lg ${
-                          item.isNew ? "border-blue-500/30 shadow-md" : "border-gray-200"
+                          item.isNew ? "border-prologue-electric/30 shadow-md" : "border-gray-200"
                         }`}
                       >
                         <CardContent className="p-0">
                           {/* Regular Content Card */}
+                          {/*
                           <div className="space-y-0">
                             {/* Post Header */}
+                            {/*
                             <div className="p-4 pb-3">
                               <div className="flex items-start space-x-3">
                                 <Link href={`/creator/${item.creatorId}`}>
-                                  <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden hover:ring-2 hover:ring-blue-500/30 transition-all cursor-pointer">
+                                  <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden hover:ring-2 hover:ring-prologue-electric/30 transition-all cursor-pointer">
                                     <User className="w-full h-full text-gray-500 p-2" />
                                   </div>
                                 </Link>
@@ -1018,12 +1098,12 @@ export default function HomePage() {
                                     <div>
                                       <div className="flex items-center space-x-2">
                                         <Link href={`/creator/${item.creatorId}`}>
-                                          <h4 className="font-semibold text-gray-900 hover:text-blue-500 transition-colors cursor-pointer">
+                                          <h4 className="font-semibold text-gray-900 hover:text-prologue-electric transition-colors cursor-pointer">
                                             {item.creatorName}
                                           </h4>
                                         </Link>
                                         {item.creatorVerified && (
-                                          <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                                          <div className="w-4 h-4 bg-prologue-electric rounded-full flex items-center justify-center">
                                             <svg
                                               className="w-2.5 h-2.5 text-white"
                                               fill="currentColor"
@@ -1039,7 +1119,17 @@ export default function HomePage() {
                                         )}
                                       </div>
                                       <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                        <span>{item.timestamp}</span>
+                                        <span>
+                                          {item.timestamp
+                                            ? (() => {
+                                                const date =
+                                                  typeof item.timestamp === "string"
+                                                    ? parseISO(item.timestamp)
+                                                    : item.timestamp;
+                                                return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
+                                              })()
+                                            : "Just now"}
+                                        </span>
                                         <span>•</span>
                                         <div className="flex items-center space-x-1">
                                           <Eye className="h-3 w-3" />
@@ -1048,9 +1138,11 @@ export default function HomePage() {
                                       </div>
                                     </div>
                                     <div className="flex items-center space-x-2">
-                                      {item.isNew && <Badge className="bg-blue-500 text-white text-xs">New</Badge>}
+                                      {item.isNew && (
+                                        <Badge className="bg-prologue-electric text-white text-xs">New</Badge>
+                                      )}
                                       {item.isPremium && (
-                                        <Badge className="bg-orange-500 text-white text-xs">
+                                        <Badge className="bg-prologue-fire text-white text-xs">
                                           <Crown className="h-3 w-3 mr-1" />
                                           Premium
                                         </Badge>
@@ -1065,12 +1157,14 @@ export default function HomePage() {
                             </div>
 
                             {/* Post Content */}
+                            {/*
                             <div className="px-4 pb-3">
                               <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
                               <p className="text-gray-700 leading-relaxed">{item.content}</p>
                             </div>
 
                             {/* Media Content */}
+                            {/*
                             {item.media && (
                               <div className="relative">
                                 <div className="aspect-video bg-gray-200 overflow-hidden">
@@ -1104,6 +1198,7 @@ export default function HomePage() {
                             )}
 
                             {/* Engagement Stats */}
+                            {/*
                             <div className="px-4 py-2 border-t border-gray-100">
                               <div className="flex items-center justify-between text-sm text-gray-600">
                                 <div className="flex items-center space-x-4">
@@ -1112,7 +1207,7 @@ export default function HomePage() {
                                       <div className="w-5 h-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
                                         <Heart className="h-2.5 w-2.5 text-white fill-current" />
                                       </div>
-                                      <div className="w-5 h-5 bg-blue-500 rounded-full border-2 border-white flex items-center justify-center">
+                                      <div className="w-5 h-5 bg-prologue-electric rounded-full border-2 border-white flex items-center justify-center">
                                         <ThumbsUp className="h-2.5 w-2.5 text-white fill-current" />
                                       </div>
                                     </div>
@@ -1125,6 +1220,7 @@ export default function HomePage() {
                             </div>
 
                             {/* Action Buttons */}
+                            {/*
                             <div className="px-4 py-3 border-t border-gray-100">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-1">
@@ -1142,7 +1238,7 @@ export default function HomePage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="flex-1 text-gray-600 hover:text-blue-500 hover:bg-blue-50"
+                                    className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10"
                                   >
                                     <MessageSquare className="h-5 w-5 mr-2" />
                                     <span className="hidden sm:inline">Comment</span>
@@ -1159,7 +1255,7 @@ export default function HomePage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="flex-1 text-gray-600 hover:text-blue-500 hover:bg-blue-50"
+                                    className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10"
                                     onClick={() => handleShare(item.id)}
                                   >
                                     <Send className="h-5 w-5 mr-2" />
@@ -1170,13 +1266,13 @@ export default function HomePage() {
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    className={`${savedPosts.has(item.id) ? "text-blue-500" : "text-gray-600 hover:text-blue-500"}`}
+                                    className={`${savedPosts.has(item.id) ? "text-prologue-electric" : "text-gray-600 hover:text-prologue-electric"}`}
                                     onClick={() => handleSave(item.id)}
                                   >
                                     <Bookmark className={`h-4 w-4 ${savedPosts.has(item.id) ? "fill-current" : ""}`} />
                                   </Button>
                                   {item.isPremium && (
-                                    <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white">
+                                    <Button size="sm" className="bg-prologue-fire hover:bg-prologue-fire/90 text-white">
                                       <Crown className="h-3 w-3 mr-1" />
                                       Subscribe
                                     </Button>
@@ -1186,6 +1282,7 @@ export default function HomePage() {
                             </div>
 
                             {/* Comment Preview */}
+                            {/*
                             <div className="px-4 pb-4">
                               <div className="flex items-start space-x-3">
                                 <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden">
@@ -1195,7 +1292,7 @@ export default function HomePage() {
                                   <input
                                     type="text"
                                     placeholder="Write a comment..."
-                                    className="w-full bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                    className="w-full bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
                                   />
                                 </div>
                               </div>
@@ -1204,45 +1301,10 @@ export default function HomePage() {
                         </CardContent>
                       </Card>
                     ))
-                  ) : (
-                    <Card className="bg-white border border-gray-200">
-                      <CardContent className="text-center py-16">
-                        <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-                          <Home className="h-10 w-10 text-gray-400" />
-                        </div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-3">Your feed is empty</h3>
-                        <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                          Start following creators and subscribing to content to see updates in your feed.
-                        </p>
-                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                          <Link href="/browse-creators">
-                            <Button className="bg-blue-500 hover:bg-blue-600 text-white">Browse Creators</Button>
-                          </Link>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                  }
                 </>
               )}
-
-              {activeTab === "subscribed" && (
-                <Card className="bg-white border border-gray-200">
-                  <CardContent className="text-center py-16">
-                    <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-                      <Crown className="h-10 w-10 text-gray-400" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-3">No subscribed content</h3>
-                    <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                      Subscribe to creators to see their premium content and exclusive updates here.
-                    </p>
-                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                      <Link href="/browse-creators">
-                        <Button className="bg-blue-500 hover:bg-blue-600 text-white">Find Creators to Subscribe</Button>
-                      </Link>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              */}
             </div>
           </div>
 
@@ -1253,18 +1315,18 @@ export default function HomePage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-gray-900">Spaces Near You</h3>
-                  <Badge className="bg-blue-500 text-white text-xs">Live</Badge>
+                  <Badge className="bg-prologue-electric text-white text-xs">Live</Badge>
                 </div>
                 <div className="space-y-4">
                   {mockSpaces.map((space) => (
                     <div
                       key={space.id}
-                      className="p-4 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors border border-gray-100 hover:border-blue-500/30"
+                      className="p-4 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors border border-gray-100 hover:border-prologue-electric/30"
                       onClick={() => handleSpaceClick(space)}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center space-x-2">
-                          <Badge className="bg-blue-500 text-white text-xs">{space.sport}</Badge>
+                          <Badge className="bg-prologue-electric text-white text-xs">{space.sport}</Badge>
                           {space.isPublic ? (
                             <Badge className="bg-green-100 text-green-700 text-xs">Public</Badge>
                           ) : (
@@ -1276,7 +1338,7 @@ export default function HomePage() {
                         </div>
                         <span className="text-xs text-gray-500">{space.time}</span>
                       </div>
-                      <h4 className="font-semibold text-gray-900 mb-1 hover:text-blue-500 transition-colors">
+                      <h4 className="font-semibold text-gray-900 mb-1 hover:text-prologue-electric transition-colors">
                         {space.title}
                       </h4>
                       <p className="text-sm text-gray-600">{space.location}</p>
@@ -1294,7 +1356,7 @@ export default function HomePage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-gray-900">Trending Topics</h3>
-                  <TrendingUp className="h-5 w-5 text-blue-500" />
+                  <TrendingUp className="h-5 w-5 text-prologue-electric" />
                 </div>
                 <div className="space-y-3">
                   {trendingTopics.map((topic, index) => (
@@ -1303,7 +1365,7 @@ export default function HomePage() {
                       className="flex items-center justify-between hover:bg-gray-50 p-2 rounded cursor-pointer"
                     >
                       <div>
-                        <h4 className="font-medium text-gray-900 hover:text-blue-500 transition-colors">
+                        <h4 className="font-medium text-gray-900 hover:text-prologue-electric transition-colors">
                           #{topic.name}
                         </h4>
                         <p className="text-sm text-gray-600">{topic.posts}</p>
@@ -1359,16 +1421,6 @@ export default function HomePage() {
                     </Button>
                   </div>
                 </div>
-                <div className="mt-4 pt-4 border-t border-gray-100">
-                  <Link href="/browse-creators">
-                    <Button
-                      variant="outline"
-                      className="w-full bg-transparent hover:bg-blue-50 hover:text-blue-600 hover:border-blue-600"
-                    >
-                      Browse Other Creators
-                    </Button>
-                  </Link>
-                </div>
               </CardContent>
             </Card>
           </div>
@@ -1384,7 +1436,7 @@ export default function HomePage() {
               <div className="flex items-start justify-between mb-3">
                 <div className="flex-1">
                   <div className="flex items-center space-x-2 mb-1">
-                    <Badge className="bg-blue-500 text-white text-xs">{selectedSpace.sport}</Badge>
+                    <Badge className="bg-prologue-electric text-white text-xs">{selectedSpace.sport}</Badge>
                     {selectedSpace.isPublic ? (
                       <Badge className="bg-green-100 text-green-700 text-xs">Public</Badge>
                     ) : (
@@ -1395,7 +1447,17 @@ export default function HomePage() {
                     )}
                   </div>
                   <h3 className="text-lg font-bold text-gray-900">{selectedSpace.title}</h3>
-                  <p className="text-sm text-gray-600">{selectedSpace.time}</p>
+                  <p className="text-sm text-gray-600">
+                    {selectedSpace.time
+                      ? (() => {
+                          const date =
+                            typeof selectedSpace.time === "string"
+                              ? parseISO(selectedSpace.time)
+                              : selectedSpace.time;
+                          return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
+                        })()
+                      : "Just now"}
+                  </p>
                 </div>
                 <Button
                   variant="ghost"
@@ -1450,20 +1512,20 @@ export default function HomePage() {
                     variant="ghost"
                     size="sm"
                     onClick={handleWhoIsGoing}
-                    className="text-blue-500 hover:text-blue-600 text-xs"
+                    className="text-prologue-electric hover:text-prologue-blue text-xs"
                   >
                     See all
                   </Button>
                 </div>
-                                 <div className="flex flex-wrap gap-1">
-                   {selectedSpace.attendees.slice(0, 6).map((attendee: string, index: number) => (
-                     <div key={index} className="flex items-center space-x-1 bg-gray-50 rounded-full px-2 py-1">
-                       <div className="w-5 h-5 bg-gray-200 rounded-full overflow-hidden">
-                         <User className="w-full h-full text-gray-500 p-0.5" />
-                       </div>
-                       <span className="text-xs text-gray-700">{attendee}</span>
-                     </div>
-                   ))}
+                <div className="flex flex-wrap gap-1">
+                  {selectedSpace.attendees.slice(0, 6).map((attendee: string, index: number) => (
+                    <div key={index} className="flex items-center space-x-1 bg-gray-50 rounded-full px-2 py-1">
+                      <div className="w-5 h-5 bg-gray-200 rounded-full overflow-hidden">
+                        <User className="w-full h-full text-gray-500 p-0.5" />
+                      </div>
+                      <span className="text-xs text-gray-700">{attendee}</span>
+                    </div>
+                  ))}
                   {selectedSpace.attendees.length > 6 && (
                     <div className="flex items-center justify-center w-6 h-6 bg-gray-100 rounded-full">
                       <span className="text-xs text-gray-600">+{selectedSpace.attendees.length - 6}</span>
@@ -1480,14 +1542,14 @@ export default function HomePage() {
                   </Button>
                 ) : selectedSpace.isPublic ? (
                   <Button
-                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+                    className="flex-1 bg-prologue-electric hover:bg-prologue-blue text-white"
                     onClick={() => handleJoinSpace(selectedSpace.id)}
                   >
                     Join Space
                   </Button>
                 ) : (
                   <Button
-                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+                    className="flex-1 bg-prologue-electric hover:bg-prologue-blue text-white"
                     onClick={() => handleRequestJoin(selectedSpace.id)}
                   >
                     Request to Join
@@ -1518,56 +1580,72 @@ export default function HomePage() {
                   <X className="h-5 w-5" />
                 </Button>
               </div>
-                             <div className="space-y-3">
-                 {selectedSpace.attendees.map((attendee: string, index: number) => (
-                   <div key={index} className="flex items-center space-x-3">
-                     <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
-                       <User className="w-full h-full text-gray-500 p-2" />
-                     </div>
-                     <div className="flex-1">
-                       <p className="font-medium text-gray-900">{attendee}</p>
-                       <p className="text-sm text-gray-600">Member</p>
-                     </div>
-                     {index === 0 && <Badge className="bg-blue-500 text-white text-xs">Organizer</Badge>}
-                   </div>
-                 ))}
-               </div>
+              <div className="space-y-3">
+                {selectedSpace.attendees.map((attendee: string, index: number) => (
+                  <div key={index} className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
+                      <User className="w-full h-full text-gray-500 p-2" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{attendee}</p>
+                      <p className="text-sm text-gray-600">Member</p>
+                    </div>
+                    {index === 0 && <Badge className="bg-prologue-electric text-white text-xs">Organizer</Badge>}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       )}
-
       {/* Mobile Bottom Navigation */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40">
-        <div className="flex items-center justify-around py-2">
-          <Link href="/home" className="flex flex-col items-center space-y-1 p-2 text-blue-500 relative">
-            <Home className="h-5 w-5" />
-            <span className="text-xs font-medium">Home</span>
-            <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full"></div>
-          </Link>
-
-          <Link href="/content" className="flex flex-col items-center space-y-1 p-2 text-gray-600">
-            <FileText className="h-5 w-5" />
-            <span className="text-xs font-medium">Content</span>
-          </Link>
-
-          <Link href="/feedback" className="flex flex-col items-center space-y-1 p-2 text-gray-600">
-            <MessageSquare className="h-5 w-5" />
-            <span className="text-xs font-medium">Feedback</span>
-          </Link>
-
-          <Link href="/messaging" className="flex flex-col items-center space-y-1 p-2 text-gray-600 relative">
-            <MessageCircle className="h-5 w-5" />
-            <span className="text-xs font-medium">Messages</span>
-            {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
-          </Link>
-
-          <Link href="/dashboard" className="flex flex-col items-center space-y-1 p-2 text-gray-600">
-            <User className="h-5 w-5" />
-            <span className="text-xs font-medium">Profile</span>
-          </Link>
+      {isMobile && (
+        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 z-50 mobile-menu">
+          <div className="flex items-center justify-around h-16 px-4">
+            <Link
+              href="/member-home"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <Home className="h-5 w-5" />
+              <span className="text-xs font-medium">Home</span>
+            </Link>
+            <Link
+              href="/member-training"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
+            >
+              <BookOpen className="h-5 w-5" />
+              <span className="text-xs font-medium">Training</span>
+              {hasNewTrainingContent && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+              )}
+            </Link>
+            <Link
+              href="/member-discover"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <Search className="h-5 w-5" />
+              <span className="text-xs font-medium">Discover</span>
+            </Link>
+            <Link
+              href="/member-feedback"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <MessageSquare className="h-5 w-5" />
+              <span className="text-xs font-medium">Feedback</span>
+            </Link>
+            <Link
+              href="/member-messaging"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
+            >
+              <MessageCircle className="h-5 w-5" />
+              <span className="text-xs font-medium">Messages</span>
+              {unreadMessagesCount > 0 && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+              )}
+            </Link>
+          </div>
         </div>
-      </nav>
+      )}
     </div>
   )
 }

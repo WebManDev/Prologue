@@ -46,6 +46,8 @@ import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
+import { NotificationProvider } from "@/contexts/notification-context"
+import { LogoutNotification } from "@/components/ui/logout-notification"
 import { auth, getMemberProfile, db, getAthleteProfile } from "@/lib/firebase"
 import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, doc, updateDoc, arrayUnion, arrayRemove, getDoc, deleteDoc, setDoc, where, getDocs } from "firebase/firestore"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
@@ -53,6 +55,10 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
 import { formatDistanceToNow, parseISO, isValid } from "date-fns";
 import CommentSection from "@/components/ui/comment-section"
+import ProfileHeader from "@/components/profile-header"
+import StatsCards from "@/components/stats-cards"
+import ProfileEditor from "@/components/profile-editor"
+import Sidebar from "@/components/sidebar"
 
 export default function MemberHomePage() {
   // Mobile detection
@@ -67,6 +73,7 @@ export default function MemberHomePage() {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const searchRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [showNewContent, setShowNewContent] = useState(false)
   const [activeTab, setActiveTab] = useState<"feed" | "subscribed">("feed")
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -303,24 +310,26 @@ export default function MemberHomePage() {
   }, [])
 
   // Search handlers
-  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setSearchQuery(value)
+  const handleSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value)
   }, [])
 
   const handleSearchFocus = useCallback(() => {
     setShowSearchDropdown(true)
   }, [])
 
-  const handleSearchSelect = useCallback((search: string) => {
-    setSearchQuery(search)
+  const handleQuickSearchSelect = useCallback((searchTerm: string) => {
+    setSearchQuery(searchTerm)
     setShowSearchDropdown(false)
-    console.log("Searching for:", search)
+    console.log("Searching for:", searchTerm)
   }, [])
 
-  const clearSearch = useCallback(() => {
+  const handleClearSearch = useCallback(() => {
     setSearchQuery("")
     setShowSearchDropdown(false)
+    if (searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
   }, [])
 
   // Handle home visit
@@ -364,7 +373,7 @@ export default function MemberHomePage() {
   }, [isMobileMenuOpen])
 
   // Optimized logout handler
-  const { logout } = useUnifiedLogout()
+  const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
 
   const [firebasePosts, setFirebasePosts] = useState<any[]>([])
   const [profileCache, setProfileCache] = useState<Record<string, any>>({})
@@ -428,79 +437,229 @@ export default function MemberHomePage() {
     })
   }, [firebasePosts])
 
-  // Memoized search dropdown content
-  const searchDropdownContent = useMemo(() => {
-    const displayItems = searchQuery ? searchResults : quickSearches.slice(0, 8)
-    const isShowingResults = searchQuery && searchResults.length > 0
-    const isShowingQuickSearches = !searchQuery
-
-    return (
-      <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-        <div className="p-3 border-b border-gray-100">
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">
-            {isShowingResults ? `Results for "${searchQuery}"` : "Quick Searches"}
-          </h4>
-          <div className="space-y-1">
-            {isShowingQuickSearches &&
-              displayItems.map((search: string | { name?: string; title?: string }, index) => (
-                <button
-                  key={index}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-prologue-electric rounded transition-colors"
-                  onClick={() => handleSearchSelect(typeof search === "string" ? search : (search.name || search.title || ""))}
-                >
-                  {typeof search === "string" ? search : (search.name || search.title || "")}
-                </button>
-              ))}
-
-            {isShowingResults &&
-              displayItems.map((result: string | { name?: string; title?: string; type?: string; sport?: string; school?: string; creator?: string; views?: string }, index) => (
-                <div
-                  key={index}
-                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                  onClick={() => handleSearchSelect(typeof result === "string" ? result : (result.name || result.title || ""))}
-                >
-                  <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                    <User className="h-4 w-4 text-gray-500" />
-                  </div>
-                  <div className="flex-1">
-                    <h5 className="text-sm font-medium text-gray-900">{typeof result === "string" ? result : (result.name || result.title || "")}</h5>
-                    <p className="text-xs text-gray-600">
-                      {typeof result !== "string" && result.type === "athlete"
-                        ? `${result.sport || ""} • ${result.school || ""}`
-                        : typeof result !== "string" && result.creator && result.views
-                          ? `${result.creator} • ${result.views} views`
-                          : ""}
-                    </p>
-                  </div>
-                </div>
-              ))}
-
-            {searchQuery && searchResults.length === 0 && (
-              <div className="px-3 py-2 text-sm text-gray-500">No results found for "{searchQuery}"</div>
-            )}
-          </div>
+  // Memoized search component to prevent re-renders
+  const SearchComponent = useMemo(
+    () => (
+      <div className="flex items-center space-x-1 relative" ref={searchRef}>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search athletes, content..."
+            value={searchQuery}
+            onChange={handleSearchInputChange}
+            onFocus={handleSearchFocus}
+            className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+          />
+          {searchQuery && (
+            <button
+              onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
-      </div>
-    )
-  }, [searchQuery, searchResults, quickSearches, handleSearchSelect])
 
-  const [profileData, setProfileData] = useState<{ firstName: string; lastName: string; profileImageUrl: string | null; profilePic?: string; profilePicture?: string }>({ firstName: "", lastName: "", profileImageUrl: null });
+        {showSearchDropdown && (
+          <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+            <div className="p-3 border-b border-gray-100">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Quick Searches</h4>
+              <div className="space-y-1">
+                {quickSearches.map((search) => (
+                  <button
+                    key={search}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-blue-500 rounded transition-colors"
+                    onClick={() => handleQuickSearchSelect(search)}
+                  >
+                    {search}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    ),
+    [
+      searchQuery,
+      showSearchDropdown,
+      handleSearchInputChange,
+      handleSearchFocus,
+      handleClearSearch,
+      handleQuickSearchSelect,
+      quickSearches,
+    ],
+  )
+
+  // Extend profileData to match athleteDashboard
+  const [profileData, setProfileData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    bio: "",
+    location: "",
+    school: "",
+    graduationYear: "",
+    sport: "",
+    position: "",
+    certifications: [],
+    specialties: [],
+    experience: "",
+    achievements: [],
+    profilePhotoUrl: "",
+    coverPhotoUrl: "",
+  });
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
   useEffect(() => {
     const loadProfile = async () => {
-      if (!auth.currentUser) return
-      const memberProfile = await getMemberProfile(auth.currentUser.uid)
+      if (!auth.currentUser) return;
+      const memberProfile = await getMemberProfile(auth.currentUser.uid);
       if (memberProfile) {
         setProfileData({
           firstName: memberProfile.firstName || "",
           lastName: memberProfile.lastName || "",
-          profileImageUrl: memberProfile.profileImageUrl || null,
-        })
-        setProfileImageUrl(memberProfile.profileImageUrl || null)
+          email: memberProfile.email || "",
+          phone: memberProfile.phone || "",
+          bio: memberProfile.bio || "",
+          location: memberProfile.location || "",
+          school: memberProfile.school || "",
+          graduationYear: memberProfile.graduationYear || "",
+          sport: memberProfile.sport || "",
+          position: memberProfile.position || "",
+          certifications: memberProfile.certifications || [],
+          specialties: memberProfile.specialties || [],
+          experience: memberProfile.experience || "",
+          achievements: memberProfile.achievements || [],
+          profilePhotoUrl: memberProfile.profilePhotoUrl || "",
+          coverPhotoUrl: memberProfile.coverPhotoUrl || "",
+        });
+        setProfileImageUrl(memberProfile.profilePhotoUrl || null);
       }
-    }
-    loadProfile()
-  }, [])
+    };
+    loadProfile();
+  }, []);
+
+  const DesktopHeader = useMemo(
+    () => (
+      <header className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-8">
+              <Link href="/member-home" className="flex items-center space-x-3 group cursor-pointer">
+                <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
+                  <Image
+                    src="/Prologue LOGO-1.png"
+                    alt="PROLOGUE"
+                    width={32}
+                    height={32}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
+                  PROLOGUE
+                </span>
+              </Link>
+
+              {SearchComponent}
+            </div>
+
+            <div className="flex items-center space-x-6">
+              <nav className="flex items-center space-x-6">
+                <Link
+                  href="/member-home"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
+                >
+                  <Home className="h-5 w-5" />
+                  <span className="text-xs font-medium">Home</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </Link>
+                <Link
+                  href="/member-training"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
+                >
+                  <BookOpen className="h-5 w-5" />
+                  <span className="text-xs font-medium">Training</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </Link>
+                <Link
+                  href="/member-feedback"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
+                >
+                  <MessageSquare className="h-5 w-5" />
+                  <span className="text-xs font-medium">Feedback</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </Link>
+                <Link
+                  href="/member-messaging"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  <span className="text-xs font-medium">Messages</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </Link>
+                <Link
+                  href="/member-notifications"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group"
+                >
+                  <Bell className="h-5 w-5" />
+                  <span className="text-xs font-medium">Notifications</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  {unreadNotificationsCount > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
+                </Link>
+              </nav>
+
+              <div className="flex items-center space-x-3">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="flex items-center space-x-2 p-2"
+                      disabled={loadingState.isLoading}
+                    >
+                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
+                        {profileImageUrl ? (
+                          <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                          <User className="w-full h-full text-gray-500 p-1" />
+                        )}
+                      </div>
+                      <ChevronDown className="h-4 w-4 text-gray-500" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem>
+                      <Link href="/member-dashboard" className="flex items-center w-full">
+                        <LayoutDashboard className="h-4 w-4 mr-2" />
+                        Dashboard
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Link href="/member-settings" className="flex items-center w-full">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Settings
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => logout()}
+                      className="cursor-pointer"
+                      disabled={loadingState.isLoading}
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      {loadingState.isLoading ? "Logging out..." : "Logout"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+    ),
+    [SearchComponent, unreadNotificationsCount, loadingState.isLoading, logout, profileImageUrl],
+  )
 
   const [postContent, setPostContent] = useState("")
   const [posting, setPosting] = useState(false)
@@ -668,558 +827,38 @@ export default function MemberHomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <MemberHeader
-        currentPath="/member-home"
-        onLogout={logout}
-        unreadNotifications={unreadNotificationsCount}
-        unreadMessages={unreadMessagesCount}
-        hasNewContent={hasNewTrainingContent}
-        profileImageUrl={profileImageUrl}
-        profileData={profileData}
-      />
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 lg:px-6 py-8 pb-20 lg:pb-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Main Feed */}
-          <div className="lg:col-span-8">
-            {/* Stories Section */}
-
-            {/* Create Post Section */}
-            <Card className="bg-white border border-gray-200 mb-6">
-              <CardContent className="p-4">
-                <form onSubmit={handlePostSubmit}>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
-                      {(() => {
-                        const profileImageUrl = profileData.profileImageUrl && profileData.profileImageUrl.trim() !== '' ? profileData.profileImageUrl : (profileData.profilePic && profileData.profilePic.trim() !== '' ? profileData.profilePic : (profileData.profilePicture && profileData.profilePicture.trim() !== '' ? profileData.profilePicture : null));
-                        if (profileImageUrl) {
-                          return <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />;
-                        } else {
-                          return <User className="w-full h-full text-gray-500 p-2" />;
-                        }
-                      })()}
-                    </div>
-                    <div className="flex-1">
-                      <input
-                        type="text"
-                        placeholder="What's on your mind?"
-                        className="w-full bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
-                        value={postContent}
-                        onChange={e => setPostContent(e.target.value)}
-                        disabled={posting}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-                    <div className="flex items-center space-x-4">
-                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-prologue-electric">
-                        <Video className="h-4 w-4 mr-2" />
-                        Live Video
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-gray-600 hover:text-prologue-electric"
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        <Camera className="h-4 w-4 mr-2" />
-                        Photo/Video
-                      </Button>
-                      <input
-                        type="file"
-                        accept="image/*,video/*"
-                        className="hidden"
-                        ref={fileInputRef}
-                        onChange={e => setPostFile(e.target.files?.[0] || null)}
-                        disabled={posting}
-                      />
-                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-prologue-electric">
-                        <Target className="h-4 w-4 mr-2" />
-                        Train
-                      </Button>
-                      {postFile && (
-                        <span className="text-xs text-gray-500 ml-2">{postFile.name}</span>
-                      )}
-                    </div>
-                    <div className="flex-1 flex justify-end">
-                      <Button
-                        type="submit"
-                        className="bg-prologue-electric hover:bg-prologue-blue text-white px-6"
-                        disabled={posting || (!postContent.trim() && !postFile)}
-                      >
-                        {posting ? "Posting..." : "Post"}
-                      </Button>
-                    </div>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-
-            {/* Tab Navigation */}
-            <div className="flex items-center space-x-1 mb-8 bg-white/50 backdrop-blur-sm rounded-lg p-1">
-              <button
-                onClick={() => setActiveTab("feed")}
-                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                  activeTab === "feed"
-                    ? "bg-white text-prologue-electric shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <Zap className="h-4 w-4" />
-                  <span>Feed</span>
-                </div>
-              </button>
-              {/*
-              <button
-                onClick={() => setActiveTab("subscribed")}
-                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                  activeTab === "subscribed"
-                    ? "bg-white text-prologue-electric shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                <div className="flex items-center justify-center space-x-2">
-                  <Crown className="h-4 w-4" />
-                  <span>Subscribed</span>
-                </div>
-              </button>
-              */}
+    <NotificationProvider>
+      <div className="min-h-screen bg-gray-50">
+        {DesktopHeader}
+        {!isMobile && (
+          <main className="max-w-7xl mx-auto px-6 py-8">
+            <ProfileHeader
+              profileData={profileData}
+              isEditing={false}
+              isLoading={false}
+              onEditToggle={() => {}}
+              onSave={() => {}}
+              onProfileImageChange={() => {}}
+              onCoverImageChange={() => {}}
+            />
+            <StatsCards />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
+              <div className="lg:col-span-2">
+                <ProfileEditor
+                  ref={null}
+                  isEditing={false}
+                  isLoading={false}
+                  initialData={profileData}
+                  onSave={() => {}}
+                />
+              </div>
+              <Sidebar profileData={profileData} />
             </div>
+          </main>
+        )}
 
-            {/* Content Feed */}
-            <div className="space-y-6">
-              {/* Firebase posts at the top */}
-              {firebasePosts.map((item) => {
-                const profile = profileCache[item.createdBy] || {}
-                // Check if post is new (within 24 hours)
-                let isNew = false
-                if (item.createdAt && item.createdAt.toDate) {
-                  const now = new Date()
-                  const created = item.createdAt.toDate()
-                  isNew = (now.getTime() - created.getTime()) < 24 * 60 * 60 * 1000
-                }
-                const isOwner = auth.currentUser && auth.currentUser.uid === item.createdBy
-                const handleDelete = async () => {
-                  if (!item.id) return
-                  await deleteDoc(doc(db, "posts", item.id))
-                }
-                const likeCount = item.likes ? item.likes.length : 0
-                const isLiked = item.likes && auth.currentUser ? item.likes.includes(auth.currentUser.uid) : false
-                const postComments = comments[item.id] || []
-                const commentCount = postComments.length
-                const shareCount = item.shares || 0
-                return (
-                  <Card key={item.id} className="bg-white border transition-all duration-300 hover:shadow-lg border-prologue-electric/30 shadow-md">
-                    <CardContent className="p-0">
-                      <div className="space-y-0">
-                        {/* Post Header */}
-                        <div className="p-4 pb-3">
-                          <div className="flex items-start space-x-3">
-                            <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden">
-                              {profile.profileImageUrl ? (
-                                <img src={profile.profileImageUrl} alt={profile.firstName || "User"} className="w-full h-full object-cover" />
-                              ) : (
-                                <User className="w-full h-full text-gray-500 p-2" />
-                              )}
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-gray-900">
-                                {profile.firstName && profile.lastName
-                                  ? `${profile.firstName} ${profile.lastName}`
-                                  : profile.firstName || profile.name || item.createdBy}
-                              </h4>
-                              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                <span>
-                                  {item.createdAt
-                                    ? (() => {
-                                        const date =
-                                          typeof item.createdAt === "string"
-                                            ? parseISO(item.createdAt)
-                                            : item.createdAt;
-                                        return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
-                                      })()
-                                    : "Just now"}
-                                </span>
-                                <span>•</span>
-                                <div className="flex items-center space-x-1">
-                                  <Eye className="h-3 w-3" />
-                                  <span>{item.views || 0}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              {isNew && (
-                                <Badge className="bg-prologue-electric text-white text-xs">New</Badge>
-                              )}
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button className="p-1 rounded hover:bg-gray-100">
-                                    <MoreHorizontal className="h-5 w-5 text-gray-400" />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {isOwner && (
-                                    <>
-                                      <DropdownMenuItem onClick={() => handleStartEditPost(item.id, item.content || "")}>
-                                        <Edit className="h-4 w-4 mr-2" />
-                                        Edit
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem onClick={handleDelete} className="text-red-600">
-                                        <Trash2 className="h-4 w-4 mr-2" />
-                                        Delete
-                                      </DropdownMenuItem>
-                                    </>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </div>
-                        </div>
-                        {/* Text content above media */}
-                        <div className="px-4 pb-3">
-                          {editingPost === item.id ? (
-                            <form onSubmit={(e) => {
-                              e.preventDefault();
-                              handleEditPost(item.id, editPostContent[item.id] || "");
-                            }}>
-                              <textarea
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-prologue-electric/20 resize-none"
-                                rows={3}
-                                value={editPostContent[item.id] || ""}
-                                onChange={(e) => setEditPostContent(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                placeholder="Edit your post..."
-                              />
-                              <div className="flex items-center justify-end space-x-2 mt-2">
-                                <Button type="button" variant="outline" size="sm" onClick={handleCancelEditPost}>
-                                  Cancel
-                                </Button>
-                                <Button type="submit" size="sm" className="bg-blue-500 hover:bg-blue-600 text-white">
-                                  Save
-                                </Button>
-                              </div>
-                            </form>
-                          ) : (
-                            <div className="text-gray-700 leading-relaxed">
-                              <div dangerouslySetInnerHTML={{ __html: item.content || "" }} />
-                              {item.editedAt && (
-                                <span className="text-xs text-gray-500 ml-2">(edited)</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        {/* Media display */}
-                        {item.mediaUrl && item.mediaType === 'image' && (
-                          <div className="w-full max-h-96 bg-black flex items-center justify-center">
-                            <img src={item.mediaUrl} alt="Post media" className="object-contain max-h-96 w-full" />
-                          </div>
-                        )}
-                        {item.mediaUrl && item.mediaType === 'video' && (
-                          <div className="w-full max-h-96 bg-black flex items-center justify-center">
-                            <video src={item.mediaUrl} controls className="object-contain max-h-96 w-full" />
-                          </div>
-                        )}
-                        {/* Engagement Stats Row */}
-                        <div className="px-4 py-2 border-t border-gray-100">
-                          <div className="flex items-center justify-between text-sm text-gray-600">
-                            <div className="flex items-center space-x-4">
-                              <div className="flex items-center space-x-1">
-                                <div className="flex -space-x-1">
-                                  <div className="w-5 h-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
-                                    <Heart className="h-2.5 w-2.5 text-white fill-current" />
-                                  </div>
-                                  <div className="w-5 h-5 bg-prologue-electric rounded-full border-2 border-white flex items-center justify-center">
-                                    <ThumbsUp className="h-2.5 w-2.5 text-white fill-current" />
-                                  </div>
-                                </div>
-                                <span>{likeCount} {likeCount === 1 ? "like" : "likes"}</span>
-                              </div>
-                              <span>{commentCount} {commentCount === 1 ? "comment" : "comments"}</span>
-                              <span>{shareCount} {shareCount === 1 ? "share" : "shares"}</span>
-                            </div>
-                          </div>
-                        </div>
-                        {/* Action Buttons */}
-                        <div className="px-4 py-3 border-t border-gray-100">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-1">
-                              <Button variant="ghost" size="sm" className={`flex-1 ${isLiked ? "text-red-500" : "text-gray-600 hover:text-red-500"}`} onClick={() => handleLike(item.id)}>
-                                <Heart className={`h-5 w-5 mr-2 ${isLiked ? "fill-current" : ""}`} />
-                                <span className="hidden sm:inline">Like</span>
-                                <span className="ml-1">{likeCount}</span>
-                              </Button>
-                              <Button variant="ghost" size="sm" className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10">
-                                <MessageSquare className="h-5 w-5 mr-2" />
-                                <span className="hidden sm:inline">Comment</span>
-                              </Button>
-                              <Button variant="ghost" size="sm" className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10">
-                                <Share className="h-5 w-5 mr-2" />
-                                <span className="hidden sm:inline">Share</span>
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                        {/* Replace old comment input and list with new CommentSection */}
-                        <div className="px-4 pb-4">
-                          <CommentSection
-                            postId={item.id}
-                            comments={(comments[item.id] || []).map(comment => mapCommentWithProfile(comment, profileCache))}
-                            onAddComment={handleAddComment}
-                            onLikeComment={(commentId) => handleLikeComment(item.id, commentId)}
-                            onEditComment={(commentId, newContent) => handleEditComment(item.id, commentId, newContent)}
-                            onDeleteComment={(commentId) => handleDeleteComment(item.id, commentId)}
-                            currentUserId={auth.currentUser?.uid}
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-
-              {/*
-              {activeTab === "subscribed" && (
-                <>
-                  {filteredSubscribed.length > 0 &&
-                    filteredSubscribed.map((item) => (
-                      <Card
-                        key={item.id}
-                        className={`bg-white border transition-all duration-300 hover:shadow-lg ${
-                          item.isNew ? "border-prologue-electric/30 shadow-md" : "border-gray-200"
-                        }`}
-                      >
-                        <CardContent className="p-0">
-                          {/* Regular Content Card */}
-                          {/*
-                          <div className="space-y-0">
-                            {/* Post Header */}
-                            {/*
-                            <div className="p-4 pb-3">
-                              <div className="flex items-start space-x-3">
-                                <Link href={`/creator/${item.creatorId}`}>
-                                  <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden hover:ring-2 hover:ring-prologue-electric/30 transition-all cursor-pointer">
-                                    <User className="w-full h-full text-gray-500 p-2" />
-                                  </div>
-                                </Link>
-                                <div className="flex-1">
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <div className="flex items-center space-x-2">
-                                        <Link href={`/creator/${item.creatorId}`}>
-                                          <h4 className="font-semibold text-gray-900 hover:text-prologue-electric transition-colors cursor-pointer">
-                                            {item.creatorName}
-                                          </h4>
-                                        </Link>
-                                        {item.creatorVerified && (
-                                          <div className="w-4 h-4 bg-prologue-electric rounded-full flex items-center justify-center">
-                                            <svg
-                                              className="w-2.5 h-2.5 text-white"
-                                              fill="currentColor"
-                                              viewBox="0 0 20 20"
-                                            >
-                                              <path
-                                                fillRule="evenodd"
-                                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                                clipRule="evenodd"
-                                              />
-                                            </svg>
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                        <span>
-                                          {item.timestamp
-                                            ? (() => {
-                                                const date =
-                                                  typeof item.timestamp === "string"
-                                                    ? parseISO(item.timestamp)
-                                                    : item.timestamp;
-                                                return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
-                                              })()
-                                            : "Just now"}
-                                        </span>
-                                        <span>•</span>
-                                        <div className="flex items-center space-x-1">
-                                          <Eye className="h-3 w-3" />
-                                          <span>{item.views}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      {item.isNew && (
-                                        <Badge className="bg-prologue-electric text-white text-xs">New</Badge>
-                                      )}
-                                      {item.isPremium && (
-                                        <Badge className="bg-prologue-fire text-white text-xs">
-                                          <Crown className="h-3 w-3 mr-1" />
-                                          Premium
-                                        </Badge>
-                                      )}
-                                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">
-                                        <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Post Content */}
-                            {/*
-                            <div className="px-4 pb-3">
-                              <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
-                              <p className="text-gray-700 leading-relaxed">{item.content}</p>
-                            </div>
-
-                            {/* Media Content */}
-                            {/*
-                            {item.media && (
-                              <div className="relative">
-                                <div className="aspect-video bg-gray-200 overflow-hidden">
-                                  <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                                    {item.media.type === "video" ? (
-                                      <div className="text-center">
-                                        <div className="w-16 h-16 bg-black/70 rounded-full flex items-center justify-center mb-2 mx-auto">
-                                          <Play className="h-8 w-8 text-white ml-1" />
-                                        </div>
-                                        {item.media.duration && (
-                                          <Badge className="bg-black/70 text-white text-xs">
-                                            {item.media.duration}
-                                          </Badge>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <ImageIcon className="h-12 w-12 text-gray-600" />
-                                    )}
-                                  </div>
-                                </div>
-                                {item.isPremium && (
-                                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                                    <div className="text-center text-white">
-                                      <Lock className="h-8 w-8 mx-auto mb-2" />
-                                      <p className="text-sm font-medium">Premium Content</p>
-                                      <p className="text-xs opacity-90">Subscribe to unlock</p>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Engagement Stats */}
-                            {/*
-                            <div className="px-4 py-2 border-t border-gray-100">
-                              <div className="flex items-center justify-between text-sm text-gray-600">
-                                <div className="flex items-center space-x-4">
-                                  <div className="flex items-center space-x-1">
-                                    <div className="flex -space-x-1">
-                                      <div className="w-5 h-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
-                                        <Heart className="h-2.5 w-2.5 text-white fill-current" />
-                                      </div>
-                                      <div className="w-5 h-5 bg-prologue-electric rounded-full border-2 border-white flex items-center justify-center">
-                                        <ThumbsUp className="h-2.5 w-2.5 text-white fill-current" />
-                                      </div>
-                                    </div>
-                                    <span>{item.likes} likes</span>
-                                  </div>
-                                  <span>{item.comments} comments</span>
-                                  <span>{item.shares} shares</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Action Buttons */}
-                            {/*
-                            <div className="px-4 py-3 border-t border-gray-100">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className={`flex-1 hover:bg-red-50 ${likedPosts.has(item.id) ? "text-red-500" : "text-gray-600 hover:text-red-500"}`}
-                                    onClick={() => handleLike(item.id)}
-                                  >
-                                    <Heart
-                                      className={`h-5 w-5 mr-2 ${likedPosts.has(item.id) ? "fill-current" : ""}`}
-                                    />
-                                    <span className="hidden sm:inline">Like</span>
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10"
-                                  >
-                                    <MessageSquare className="h-5 w-5 mr-2" />
-                                    <span className="hidden sm:inline">Comment</span>
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="flex-1 text-gray-600 hover:text-green-600 hover:bg-green-50"
-                                    onClick={() => handleShare(item.id)}
-                                  >
-                                    <Repeat2 className="h-5 w-5 mr-2" />
-                                    <span className="hidden sm:inline">Share</span>
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10"
-                                    onClick={() => handleShare(item.id)}
-                                  >
-                                    <Send className="h-5 w-5 mr-2" />
-                                    <span className="hidden sm:inline">Send</span>
-                                  </Button>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className={`${savedPosts.has(item.id) ? "text-prologue-electric" : "text-gray-600 hover:text-prologue-electric"}`}
-                                    onClick={() => handleSave(item.id)}
-                                  >
-                                    <Bookmark className={`h-4 w-4 ${savedPosts.has(item.id) ? "fill-current" : ""}`} />
-                                  </Button>
-                                  {item.isPremium && (
-                                    <Button size="sm" className="bg-prologue-fire hover:bg-prologue-fire/90 text-white">
-                                      <Crown className="h-3 w-3 mr-1" />
-                                      Subscribe
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Comment Preview */}
-                            {/*
-                            <div className="px-4 pb-4">
-                              <div className="flex items-start space-x-3">
-                                <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden">
-                                  <User className="w-full h-full text-gray-500 p-1.5" />
-                                </div>
-                                <div className="flex-1">
-                                  <input
-                                    type="text"
-                                    placeholder="Write a comment..."
-                                    className="w-full bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
-                  }
-                </>
-              )}
-              */}
-            </div>
-          </div>
-
-          {/* Right Sidebar */}
+        {/* Right Sidebar */}
+        {isMobile && (
           <div className="hidden lg:block lg:col-span-4 space-y-6">
             {/* Spaces Near You */}
             <Card className="bg-white border border-gray-200">
@@ -1335,228 +974,239 @@ export default function MemberHomePage() {
               </CardContent>
             </Card>
           </div>
-        </div>
-      </main>
+        )}
 
-      {/* Space Details Dialog */}
-      {spaceDialogOpen && selectedSpace && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="p-4">
-              {/* Header */}
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <Badge className="bg-prologue-electric text-white text-xs">{selectedSpace.sport}</Badge>
-                    {selectedSpace.isPublic ? (
-                      <Badge className="bg-green-100 text-green-700 text-xs">Public</Badge>
-                    ) : (
-                      <Badge className="bg-orange-100 text-orange-700 text-xs">Private</Badge>
-                    )}
-                    {joinedSpaces.has(selectedSpace.id) && (
-                      <Badge className="bg-blue-100 text-blue-700 text-xs">Joined</Badge>
-                    )}
+        {/* Space Details Dialog */}
+        {spaceDialogOpen && selectedSpace && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-md w-full">
+              <div className="p-4">
+                {/* Header */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <Badge className="bg-prologue-electric text-white text-xs">{selectedSpace.sport}</Badge>
+                      {selectedSpace.isPublic ? (
+                        <Badge className="bg-green-100 text-green-700 text-xs">Public</Badge>
+                      ) : (
+                        <Badge className="bg-orange-100 text-orange-700 text-xs">Private</Badge>
+                      )}
+                      {joinedSpaces.has(selectedSpace.id) && (
+                        <Badge className="bg-blue-100 text-blue-700 text-xs">Joined</Badge>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900">{selectedSpace.title}</h3>
+                    <p className="text-sm text-gray-600">
+                      {selectedSpace.time
+                        ? (() => {
+                            const date =
+                              typeof selectedSpace.time === "string"
+                                ? parseISO(selectedSpace.time)
+                                : selectedSpace.time;
+                            return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
+                          })()
+                        : "Just now"}
+                    </p>
                   </div>
-                  <h3 className="text-lg font-bold text-gray-900">{selectedSpace.title}</h3>
-                  <p className="text-sm text-gray-600">
-                    {selectedSpace.time
-                      ? (() => {
-                          const date =
-                            typeof selectedSpace.time === "string"
-                              ? parseISO(selectedSpace.time)
-                              : selectedSpace.time;
-                          return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
-                        })()
-                      : "Just now"}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSpaceDialogOpen(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
-
-              {/* Organizer */}
-              <div className="flex items-center space-x-3 mb-3">
-                <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden">
-                  <User className="w-full h-full text-gray-500 p-1.5" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{selectedSpace.organizer}</p>
-                  <p className="text-xs text-gray-600">Organizer</p>
-                </div>
-              </div>
-
-              {/* Details */}
-              <div className="space-y-2 mb-4">
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <div className="w-4 h-4 bg-gray-300 rounded flex items-center justify-center">
-                    <span className="text-xs">📍</span>
-                  </div>
-                  <span>{selectedSpace.location}</span>
-                </div>
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <div className="w-4 h-4 bg-gray-300 rounded flex items-center justify-center">
-                    <span className="text-xs">👥</span>
-                  </div>
-                  <span>
-                    {selectedSpace.participants}/{selectedSpace.maxParticipants} participants
-                  </span>
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className="mb-4">
-                <h4 className="font-medium text-gray-900 mb-1">About</h4>
-                <p className="text-sm text-gray-600 leading-relaxed">{selectedSpace.description}</p>
-              </div>
-
-              {/* Who's Going */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-gray-900">Who's Going</h4>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={handleWhoIsGoing}
-                    className="text-prologue-electric hover:text-prologue-blue text-xs"
+                    onClick={() => setSpaceDialogOpen(false)}
+                    className="text-gray-400 hover:text-gray-600"
                   >
-                    See all
+                    <X className="h-5 w-5" />
                   </Button>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {selectedSpace.attendees.slice(0, 6).map((attendee: string, index: number) => (
-                    <div key={index} className="flex items-center space-x-1 bg-gray-50 rounded-full px-2 py-1">
-                      <div className="w-5 h-5 bg-gray-200 rounded-full overflow-hidden">
-                        <User className="w-full h-full text-gray-500 p-0.5" />
+
+                {/* Organizer */}
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden">
+                    <User className="w-full h-full text-gray-500 p-1.5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{selectedSpace.organizer}</p>
+                    <p className="text-xs text-gray-600">Organizer</p>
+                  </div>
+                </div>
+
+                {/* Details */}
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <div className="w-4 h-4 bg-gray-300 rounded flex items-center justify-center">
+                      <span className="text-xs">📍</span>
+                    </div>
+                    <span>{selectedSpace.location}</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <div className="w-4 h-4 bg-gray-300 rounded flex items-center justify-center">
+                      <span className="text-xs">👥</span>
+                    </div>
+                    <span>
+                      {selectedSpace.participants}/{selectedSpace.maxParticipants} participants
+                    </span>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className="mb-4">
+                  <h4 className="font-medium text-gray-900 mb-1">About</h4>
+                  <p className="text-sm text-gray-600 leading-relaxed">{selectedSpace.description}</p>
+                </div>
+
+                {/* Who's Going */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-medium text-gray-900">Who's Going</h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleWhoIsGoing}
+                      className="text-prologue-electric hover:text-prologue-blue text-xs"
+                    >
+                      See all
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedSpace.attendees.slice(0, 6).map((attendee: string, index: number) => (
+                      <div key={index} className="flex items-center space-x-1 bg-gray-50 rounded-full px-2 py-1">
+                        <div className="w-5 h-5 bg-gray-200 rounded-full overflow-hidden">
+                          <User className="w-full h-full text-gray-500 p-0.5" />
+                        </div>
+                        <span className="text-xs text-gray-700">{attendee}</span>
                       </div>
-                      <span className="text-xs text-gray-700">{attendee}</span>
+                    ))}
+                    {selectedSpace.attendees.length > 6 && (
+                      <div className="flex items-center justify-center w-6 h-6 bg-gray-100 rounded-full">
+                        <span className="text-xs text-gray-600">+{selectedSpace.attendees.length - 6}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex space-x-2">
+                  {joinedSpaces.has(selectedSpace.id) ? (
+                    <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" disabled>
+                      ✓ Joined
+                    </Button>
+                  ) : selectedSpace.isPublic ? (
+                    <Button
+                      className="flex-1 bg-prologue-electric hover:bg-prologue-blue text-white"
+                      onClick={() => handleJoinSpace(selectedSpace.id)}
+                    >
+                      Join Space
+                    </Button>
+                  ) : (
+                    <Button
+                      className="flex-1 bg-prologue-electric hover:bg-prologue-blue text-white"
+                      onClick={() => handleRequestJoin(selectedSpace.id)}
+                    >
+                      Request to Join
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" className="px-3 bg-transparent">
+                    Share
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Who's Going Dialog */}
+        {whoIsGoingDialogOpen && selectedSpace && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-sm w-full max-h-[70vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900">Who's Going</h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setWhoIsGoingDialogOpen(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {selectedSpace.attendees.map((attendee: string, index: number) => (
+                    <div key={index} className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
+                        <User className="w-full h-full text-gray-500 p-2" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{attendee}</p>
+                        <p className="text-sm text-gray-600">Member</p>
+                      </div>
+                      {index === 0 && <Badge className="bg-prologue-electric text-white text-xs">Organizer</Badge>}
                     </div>
                   ))}
-                  {selectedSpace.attendees.length > 6 && (
-                    <div className="flex items-center justify-center w-6 h-6 bg-gray-100 rounded-full">
-                      <span className="text-xs text-gray-600">+{selectedSpace.attendees.length - 6}</span>
-                    </div>
-                  )}
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex space-x-2">
-                {joinedSpaces.has(selectedSpace.id) ? (
-                  <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" disabled>
-                    ✓ Joined
-                  </Button>
-                ) : selectedSpace.isPublic ? (
-                  <Button
-                    className="flex-1 bg-prologue-electric hover:bg-prologue-blue text-white"
-                    onClick={() => handleJoinSpace(selectedSpace.id)}
-                  >
-                    Join Space
-                  </Button>
-                ) : (
-                  <Button
-                    className="flex-1 bg-prologue-electric hover:bg-prologue-blue text-white"
-                    onClick={() => handleRequestJoin(selectedSpace.id)}
-                  >
-                    Request to Join
-                  </Button>
+            </div>
+          </div>
+        )}
+        {/* Mobile Bottom Navigation */}
+        {isMobile && (
+          <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 z-50 mobile-menu">
+            <div className="flex items-center justify-around h-16 px-4">
+              <Link
+                href="/member-home"
+                className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+              >
+                <Home className="h-5 w-5" />
+                <span className="text-xs font-medium">Home</span>
+              </Link>
+              <Link
+                href="/member-training"
+                className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
+              >
+                <BookOpen className="h-5 w-5" />
+                <span className="text-xs font-medium">Training</span>
+                {hasNewTrainingContent && (
+                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
                 )}
-                <Button variant="outline" size="sm" className="px-3 bg-transparent">
-                  Share
-                </Button>
-              </div>
+              </Link>
+              <Link
+                href="/member-discover"
+                className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+              >
+                <Search className="h-5 w-5" />
+                <span className="text-xs font-medium">Discover</span>
+              </Link>
+              <Link
+                href="/member-feedback"
+                className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+              >
+                <MessageSquare className="h-5 w-5" />
+                <span className="text-xs font-medium">Feedback</span>
+              </Link>
+              <Link
+                href="/member-messaging"
+                className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
+              >
+                <MessageCircle className="h-5 w-5" />
+                <span className="text-xs font-medium">Messages</span>
+                {unreadMessagesCount > 0 && (
+                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+                )}
+              </Link>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Who's Going Dialog */}
-      {whoIsGoingDialogOpen && selectedSpace && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-sm w-full max-h-[70vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-900">Who's Going</h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setWhoIsGoingDialogOpen(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-5 w-5" />
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {selectedSpace.attendees.map((attendee: string, index: number) => (
-                  <div key={index} className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
-                      <User className="w-full h-full text-gray-500 p-2" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{attendee}</p>
-                      <p className="text-sm text-gray-600">Member</p>
-                    </div>
-                    {index === 0 && <Badge className="bg-prologue-electric text-white text-xs">Organizer</Badge>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Mobile Bottom Navigation */}
-      {isMobile && (
-        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 z-50 mobile-menu">
-          <div className="flex items-center justify-around h-16 px-4">
-            <Link
-              href="/member-home"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
-            >
-              <Home className="h-5 w-5" />
-              <span className="text-xs font-medium">Home</span>
-            </Link>
-            <Link
-              href="/member-training"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
-            >
-              <BookOpen className="h-5 w-5" />
-              <span className="text-xs font-medium">Training</span>
-              {hasNewTrainingContent && (
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-              )}
-            </Link>
-            <Link
-              href="/member-discover"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
-            >
-              <Search className="h-5 w-5" />
-              <span className="text-xs font-medium">Discover</span>
-            </Link>
-            <Link
-              href="/member-feedback"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
-            >
-              <MessageSquare className="h-5 w-5" />
-              <span className="text-xs font-medium">Feedback</span>
-            </Link>
-            <Link
-              href="/member-messaging"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
-            >
-              <MessageCircle className="h-5 w-5" />
-              <span className="text-xs font-medium">Messages</span>
-              {unreadMessagesCount > 0 && (
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-              )}
-            </Link>
-          </div>
-        </div>
-      )}
-    </div>
+        <LogoutNotification
+          isVisible={loadingState.isVisible}
+          userType={loadingState.userType}
+          stage={loadingState.stage}
+          message={loadingState.message}
+          error={loadingState.error}
+          canRetry={loadingState.canRetry}
+          onRetry={retryLogout}
+          onCancel={cancelLogout}
+        />
+      </div>
+    </NotificationProvider>
   )
 }
