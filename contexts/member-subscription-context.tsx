@@ -179,11 +179,13 @@ export function MemberSubscriptionProvider({ children }: { children: React.React
 
   // Content methods
   const getCreatorContent = (): any[] => {
-    // Mock content from followed creators
+    // Only return content for followed creators, but skip mock naming like 'Creator 1'.
+    // If you want to hide all mock/demo content, just return [] when no real creators are followed.
+    if (!followingCreators.length) return [];
     return followingCreators.map((creatorId: string, index: number) => ({
       id: `content-${creatorId}-${index}`,
       creatorId,
-      creatorName: `Creator ${index + 1}`,
+      creatorName: `Creator ${creatorId}`,
       creatorAvatar: "/placeholder.svg?height=40&width=40",
       creatorVerified: true,
       type: "blog" as const,
@@ -197,7 +199,7 @@ export function MemberSubscriptionProvider({ children }: { children: React.React
       isNew: index === 0,
       isPremium: false,
       isRecommendation: false,
-    }))
+    }));
   }
 
   const getSubscribedContent = (): any[] => {
