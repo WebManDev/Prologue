@@ -47,12 +47,12 @@ import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { MemberHeader } from "@/components/navigation/member-header"
 import Link from "next/link"
 import { CREATORS } from "@/lib/creators"
-import { getDocs, collection, doc, getDoc, onSnapshot, query, where } from "firebase/firestore"
+import { getDocs, collection, doc, getDoc, onSnapshot, query, where, addDoc, serverTimestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { auth } from "@/lib/firebase"
-import { getMemberProfile } from "@/lib/firebase"
+import { getMemberProfile, getAthleteProfile } from "@/lib/firebase";
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -216,6 +216,8 @@ export default function MemberDiscoverPage() {
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
   const [profileData, setProfileData] = useState<any>(null)
   const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(null);
+  const [profileCache, setProfileCache] = useState<Record<string, any>>({});
+  const [comments, setComments] = useState<{ [postId: string]: any[] }>({});
 
   useEffect(() => {
     if (!auth.currentUser) return;

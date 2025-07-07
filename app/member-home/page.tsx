@@ -50,6 +50,7 @@ import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
 import { formatDistanceToNow, parseISO, isValid } from "date-fns";
+import CommentSection from "@/components/ui/comment-section"
 
 export default function MemberHomePage() {
   // Mobile detection
@@ -544,11 +545,13 @@ export default function MemberHomePage() {
   const handleCommentSubmit = useCallback(async (postId: string) => {
     const user = auth.currentUser
     if (!user) return
+    const content = commentInputs[postId]
+    if (!content || !content.trim()) return // Prevent empty/undefined content
     const postRef = doc(db, "posts", postId)
     const postSnap = await getDoc(postRef)
     const commentsRef = collection(db, "posts", postId, "comments")
     const newCommentRef = await addDoc(commentsRef, {
-      content: commentInputs[postId],
+      content,
       createdBy: user.uid,
       userType: "member",
       createdAt: serverTimestamp(),
@@ -559,7 +562,25 @@ export default function MemberHomePage() {
     setCommentInputs((prev) => ({ ...prev, [postId]: "" }))
     // Optionally, update the main post's comment count
     await updateDoc(postRef, { commentsCount: (postSnap.data()?.commentsCount || 0) + 1 })
-  }, [profileImageUrl, profileData])
+  }, [profileImageUrl, profileData, commentInputs])
+
+  function mapCommentWithProfile(comment: any, profileCache: Record<string, any>): any {
+    const profile = profileCache[comment.createdBy] || {}
+    let username = ''
+    if (profile.firstName || profile.lastName) {
+      username = `${profile.firstName || ''} ${profile.lastName || ''}`.trim()
+    }
+    if (!username) {
+      username = profile.name || comment.firstName || comment.lastName || comment.createdBy
+    }
+    if (!username || username === 'NaN' || username === 'NaNd') username = 'User'
+    return {
+      ...comment,
+      username,
+      userAvatar: profile.profileImageUrl || comment.profileImageUrl || '',
+      replies: (comment.replies || []).map((reply: any) => mapCommentWithProfile(reply, profileCache)),
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -718,7 +739,11 @@ export default function MemberHomePage() {
                               )}
                             </div>
                             <div className="flex-1">
-                              <h4 className="font-semibold text-gray-900">{profile.firstName || profile.name || item.createdBy}</h4>
+                              <h4 className="font-semibold text-gray-900">
+                                {profile.firstName && profile.lastName
+                                  ? `${profile.firstName} ${profile.lastName}`
+                                  : profile.firstName || profile.name || item.createdBy}
+                              </h4>
                               <div className="flex items-center space-x-2 text-sm text-gray-600">
                                 <span>
                                   {item.createdAt
@@ -817,47 +842,21 @@ export default function MemberHomePage() {
                             </div>
                           </div>
                         </div>
-                        {/* Comment input and list */}
+                        {/* Replace old comment input and list with new CommentSection */}
                         <div className="px-4 pb-4">
-                          <div className="flex items-start space-x-3">
-                            <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden">
-                              {profile.profileImageUrl ? (
-                                <Image src={profile.profileImageUrl} alt={profile.firstName || "User"} width={32} height={32} />
-                              ) : (
-                                <User className="w-full h-full text-gray-500 p-1.5" />
-                              )}
-                            </div>
-                            <div className="flex-1 flex items-center space-x-2">
-                              <input
-                                type="text"
-                                placeholder="Write a comment..."
-                                className="w-full bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
-                                value={commentInputs[item.id] || ""}
-                                onChange={e => setCommentInputs((prev) => ({ ...prev, [item.id]: e.target.value }))}
-                                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleCommentSubmit(item.id) } }}
-                              />
-                              <Button size="sm" variant="ghost" onClick={() => handleCommentSubmit(item.id)}>
-                                <Send className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="mt-2 space-y-2">
-                            {postComments.map((comment) => (
-                              <div key={comment.id} className="flex items-start space-x-2">
-                                <div className="w-7 h-7 bg-gray-200 rounded-full overflow-hidden">
-                                  {comment.profileImageUrl ? (
-                                    <Image src={comment.profileImageUrl} alt={comment.firstName || "User"} width={28} height={28} />
-                                  ) : (
-                                    <User className="w-full h-full text-gray-500 p-1" />
-                                  )}
-                                </div>
-                                <div className="flex-1 bg-gray-100 rounded-lg px-3 py-1">
-                                  <span className="font-medium text-xs text-gray-900">{comment.firstName} {comment.lastName}</span>
-                                  <p className="text-xs text-gray-700">{comment.content}</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                          <CommentSection
+                            postId={item.id}
+                            comments={(comments[item.id] || []).map(comment => mapCommentWithProfile(comment, profileCache))}
+                            onAddComment={(postId, content, parentId) => {
+                              if (!parentId) {
+                                setCommentInputs((prev) => ({ ...prev, [postId]: content }))
+                                handleCommentSubmit(postId)
+                              }
+                            }}
+                            onLikeComment={(commentId) => {
+                              // Implement like logic for comments if desired
+                            }}
+                          />
                         </div>
                       </div>
                     </CardContent>
