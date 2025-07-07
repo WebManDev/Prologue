@@ -541,16 +541,26 @@ export default function MemberHomePage() {
     }
   }
 
-  // Comment submit handler
-  const handleCommentSubmit = useCallback(async (postId: string) => {
-    const user = auth.currentUser
-    if (!user) return
-    const content = commentInputs[postId]
-    if (!content || !content.trim()) return // Prevent empty/undefined content
-    const postRef = doc(db, "posts", postId)
-    const postSnap = await getDoc(postRef)
-    const commentsRef = collection(db, "posts", postId, "comments")
-    const newCommentRef = await addDoc(commentsRef, {
+  // Like a comment (toggle like)
+  const handleLikeComment = useCallback(async (postId: string, commentId: string) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const commentRef = doc(db, "posts", postId, "comments", commentId);
+    const commentSnap = await getDoc(commentRef);
+    const likes = commentSnap.data()?.likes || [];
+    if (likes.includes(user.uid)) {
+      await updateDoc(commentRef, { likes: arrayRemove(user.uid) });
+    } else {
+      await updateDoc(commentRef, { likes: arrayUnion(user.uid) });
+    }
+  }, []);
+
+  // Add a comment or reply
+  const handleAddComment = useCallback(async (postId: string, content: string, parentId?: string) => {
+    const user = auth.currentUser;
+    if (!user || !content || !content.trim()) return;
+    const commentsRef = collection(db, "posts", postId, "comments");
+    await addDoc(commentsRef, {
       content,
       createdBy: user.uid,
       userType: "member",
@@ -558,19 +568,30 @@ export default function MemberHomePage() {
       profileImageUrl: profileImageUrl,
       firstName: profileData.firstName,
       lastName: profileData.lastName,
-    })
-    setCommentInputs((prev) => ({ ...prev, [postId]: "" }))
-    // Optionally, update the main post's comment count
-    await updateDoc(postRef, { commentsCount: (postSnap.data()?.commentsCount || 0) + 1 })
-  }, [profileImageUrl, profileData, commentInputs])
+      parentId: parentId || null,
+      likes: [],
+    });
+    // Increment comment count on the post
+    const postRef = doc(db, "posts", postId);
+    const postSnap = await getDoc(postRef);
+    await updateDoc(postRef, { commentsCount: (postSnap.data()?.commentsCount || 0) + 1 });
+    // Optionally clear input for top-level comments
+    if (!parentId) {
+      setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
+    }
+  }, [profileImageUrl, profileData]);
 
   function mapCommentWithProfile(comment: any, profileCache: Record<string, any>): any {
-    const profile = profileCache[comment.createdBy] || {}
+    const profile = profileCache[comment.createdBy] || {};
+    const likesArray = Array.isArray(comment.likes) ? comment.likes : [];
+    const user = auth.currentUser;
     return {
       ...comment,
       userAvatar: profile.profileImageUrl || comment.profileImageUrl || '',
+      likes: likesArray.length,
+      isLiked: user ? likesArray.includes(user.uid) : false,
       replies: (comment.replies || []).map((reply: any) => mapCommentWithProfile(reply, profileCache)),
-    }
+    };
   }
 
   return (
@@ -838,15 +859,8 @@ export default function MemberHomePage() {
                           <CommentSection
                             postId={item.id}
                             comments={(comments[item.id] || []).map(comment => mapCommentWithProfile(comment, profileCache))}
-                            onAddComment={(postId, content, parentId) => {
-                              if (!parentId) {
-                                setCommentInputs((prev) => ({ ...prev, [postId]: content }))
-                                handleCommentSubmit(postId)
-                              }
-                            }}
-                            onLikeComment={(commentId) => {
-                              // Implement like logic for comments if desired
-                            }}
+                            onAddComment={handleAddComment}
+                            onLikeComment={(commentId) => handleLikeComment(item.id, commentId)}
                           />
                         </div>
                       </div>

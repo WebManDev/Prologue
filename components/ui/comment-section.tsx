@@ -125,11 +125,11 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, comments, onAdd
         <div className="text-gray-800 text-sm mb-1 whitespace-pre-line">{comment.content}</div>
         <div className="flex items-center space-x-4 text-xs text-gray-500">
           <button
-            className={`flex items-center space-x-1 ${comment.isLiked ? "text-prologue-electric" : "hover:text-prologue-electric"}`}
+            className={`flex items-center space-x-1 ${comment.isLiked ? "text-red-500" : "hover:text-red-500"}`}
             onClick={() => onLikeComment(comment.id)}
             type="button"
           >
-            <Heart className={`h-4 w-4 ${comment.isLiked ? "fill-current" : ""}`} />
+            <Heart className={`h-4 w-4 ${comment.isLiked ? "fill-current text-red-500" : ""}`} />
             <span>{comment.likes}</span>
           </button>
           <button
