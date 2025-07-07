@@ -49,40 +49,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (shouldDeactivate) {
       try {
-        // Find the member by stripeCustomerId
-        const memberSnap = await adminDb.collection('members').where('stripeCustomerId', '==', customerId).get()
-        if (memberSnap.empty) {
-          console.warn('No matching member found for customerId', customerId)
-        } else {
-          const memberDoc = memberSnap.docs[0]
-          const memberData = memberDoc.data()
-          let subscriptions = memberData.subscriptions || {}
-          let athleteIdToRemove: string | null = null
-          // Find the athlete subscription to deactivate
+        // Search all members for a matching subscription
+        const membersSnap = await adminDb.collection('members').get();
+        let found = false;
+        for (const memberDoc of membersSnap.docs) {
+          const memberData = memberDoc.data();
+          let subscriptions = memberData.subscriptions || {};
+          let athleteIdToRemove: string | null = null;
           for (const [athleteId, sub] of Object.entries(subscriptions) as [string, any][]) {
-            if (sub.stripeSubscriptionId === stripeSubscriptionId) {
+            if (sub.stripeCustomerId === customerId || sub.stripeSubscriptionId === stripeSubscriptionId) {
               athleteIdToRemove = athleteId;
+              // Explicitly update only the relevant subscription fields
+              await memberDoc.ref.update({
+                [`subscriptions.${athleteIdToRemove}.status`]: 'inactive',
+                [`subscriptions.${athleteIdToRemove}.cancelAt`]: cancelAt,
+              });
+              // Optionally update activeAthletes/trainingAthletes arrays
+              let memberUpdate: any = {};
+              if (Array.isArray(memberData.activeAthletes)) {
+                memberUpdate.activeAthletes = memberData.activeAthletes.filter((id: string) => id !== athleteIdToRemove)
+              }
+              if (Array.isArray(memberData.trainingAthletes)) {
+                memberUpdate.trainingAthletes = memberData.trainingAthletes.filter((id: string) => id !== athleteIdToRemove)
+              }
+              if (Array.isArray(memberData.feedbackAthletes)) {
+                memberUpdate.feedbackAthletes = memberData.feedbackAthletes.filter((id: string) => id !== athleteIdToRemove)
+              }
+              if (Array.isArray(memberData.messagingAthletes)) {
+                memberUpdate.messagingAthletes = memberData.messagingAthletes.filter((id: string) => id !== athleteIdToRemove)
+              }
+              if (Object.keys(memberUpdate).length > 0) {
+                await memberDoc.ref.update(memberUpdate);
+              }
+              found = true;
               break;
             }
           }
-          if (athleteIdToRemove) {
-            // Explicitly update only the relevant subscription fields
-            await memberDoc.ref.update({
-              [`subscriptions.${athleteIdToRemove}.status`]: 'inactive',
-              [`subscriptions.${athleteIdToRemove}.cancelAt`]: cancelAt,
-            });
-            // Optionally update activeAthletes/trainingAthletes arrays
-            let memberUpdate: any = {};
-            if (Array.isArray(memberData.activeAthletes)) {
-              memberUpdate.activeAthletes = memberData.activeAthletes.filter((id: string) => id !== athleteIdToRemove)
-            }
-            if (Array.isArray(memberData.trainingAthletes)) {
-              memberUpdate.trainingAthletes = memberData.trainingAthletes.filter((id: string) => id !== athleteIdToRemove)
-            }
-            if (Object.keys(memberUpdate).length > 0) {
-              await memberDoc.ref.update(memberUpdate);
-            }
-          }
+          if (found) break;
+        }
+        if (!found) {
+          console.warn('No matching member found for customerId', customerId, 'or subscriptionId', stripeSubscriptionId);
         }
       } catch (err) {
         console.error('Error updating subscription status and cleaning up:', err)

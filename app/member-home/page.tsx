@@ -49,6 +49,7 @@ import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, doc, u
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
+import { formatDistanceToNow, parseISO } from "date-fns";
 
 export default function MemberHomePage() {
   // Mobile detection
@@ -793,7 +794,17 @@ export default function MemberHomePage() {
                             </div>
                             <div className="flex-1">
                               <h4 className="font-semibold text-gray-900">{profile.firstName || profile.name || item.createdBy}</h4>
-                              <p className="text-sm text-gray-600">{item.createdAt?.toDate?.().toLocaleString?.() || "Just now"}</p>
+                              <p className="text-sm text-gray-600">
+                                {item.createdAt
+                                  ? (() => {
+                                      const date =
+                                        typeof item.createdAt === "string"
+                                          ? parseISO(item.createdAt)
+                                          : item.createdAt;
+                                      return isNaN(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
+                                    })()
+                                  : "Just now"}
+                              </p>
                             </div>
                             <div className="flex items-center space-x-2">
                               {isNew && (
@@ -973,7 +984,17 @@ export default function MemberHomePage() {
                                         )}
                                       </div>
                                       <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                        <span>{item.timestamp}</span>
+                                        <span>
+                                          {item.timestamp
+                                            ? (() => {
+                                                const date =
+                                                  typeof item.timestamp === "string"
+                                                    ? parseISO(item.timestamp)
+                                                    : item.timestamp;
+                                                return isNaN(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
+                                              })()
+                                            : "Just now"}
+                                        </span>
                                         <span>•</span>
                                         <div className="flex items-center space-x-1">
                                           <Eye className="h-3 w-3" />
@@ -1189,7 +1210,7 @@ export default function MemberHomePage() {
                                         {item.creatorName}
                                       </h4>
                                     </Link>
-                                    <p className="text-sm text-gray-600">{item.timestamp}</p>
+                                    <p className="text-sm text-gray-600">{formatDistanceToNow(typeof item.timestamp === "string" ? parseISO(item.timestamp) : item.timestamp, { addSuffix: true })}</p>
                                   </div>
                                   <div className="flex items-center space-x-2">
                                     {item.isNew && (
@@ -1413,7 +1434,7 @@ export default function MemberHomePage() {
                     )}
                   </div>
                   <h3 className="text-lg font-bold text-gray-900">{selectedSpace.title}</h3>
-                  <p className="text-sm text-gray-600">{selectedSpace.time}</p>
+                  <p className="text-sm text-gray-600">{formatDistanceToNow(typeof selectedSpace.time === "string" ? parseISO(selectedSpace.time) : parseISO(selectedSpace.time), { addSuffix: true })}</p>
                 </div>
                 <Button
                   variant="ghost"

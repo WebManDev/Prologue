@@ -70,14 +70,17 @@ function MemberSubscriptions({ members }: { members: any }) {
     fetchAthletes();
   }, [members]);
 
-  const handleManage = async (stripeSubscriptionId: string | undefined) => {
-    if (!members?.stripeCustomerId) return;
+  const handleManage = async (stripeSubscriptionId: string | undefined, stripeCustomerId: string | undefined) => {
+    if (!stripeCustomerId) {
+      alert("No Stripe customer ID found for this subscription.");
+      return;
+    }
     try {
       const res = await fetch("/api/stripe/create-customer-portal-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          customerId: members.stripeCustomerId,
+          customerId: stripeCustomerId,
           subscriptionId: stripeSubscriptionId,
         }),
       });
@@ -120,7 +123,7 @@ function MemberSubscriptions({ members }: { members: any }) {
                 <td className="p-2 text-right">
                   <button
                     className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition"
-                    onClick={() => handleManage(sub.stripeSubscriptionId)}
+                    onClick={() => handleManage(sub.stripeSubscriptionId, sub.stripeCustomerId)}
                   >
                     Manage
                   </button>

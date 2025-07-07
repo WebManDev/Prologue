@@ -108,17 +108,6 @@ function CheckoutForm({ athlete, members, onSuccess, onCancel, selectedPlan }: S
         return
       }
 
-      // Add athlete to member's subscriptions in Firestore
-      if (members.id) {
-        const userRef = doc(db, "members", members.id)
-        await updateDoc(userRef, {
-          [`subscriptions.${athlete.id}`]: {
-            status: "active",
-            plan: selectedPlan,
-            createdAt: new Date().toISOString(),
-          }
-        })
-      }
       setSubscriptionSucceeded(true)
       setTimeout(() => {
         onSuccess();

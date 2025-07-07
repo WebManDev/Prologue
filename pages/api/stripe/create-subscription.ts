@@ -76,16 +76,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     })
 
-    // Update member document with Stripe IDs
-    await adminDb.collection('members').doc(userId).set({
+    // Fetch the existing member document
+    const memberRef = adminDb.collection('members').doc(userId);
+    const memberSnap = await memberRef.get();
+    const memberData = memberSnap.exists ? (memberSnap.data() || {}) : {};
+    const existingSub = (memberData.subscriptions && memberData.subscriptions[athleteId]) || {};
+
+    const updatedSub = {
+      createdAt: existingSub.createdAt || new Date().toISOString(),
+      plan,
+      status: "active",
       stripeCustomerId: customerId,
-      [`subscriptions.${athleteId}`]: {
-        status: "active",
-        plan,
-        createdAt: new Date().toISOString(),
-        stripeSubscriptionId: subscription.id,
-      }
-    }, { merge: true });
+      stripeSubscriptionId: subscription.id
+    };
+
+    if (!memberSnap.exists) {
+      await memberRef.set({
+        subscriptions: {
+          [athleteId]: updatedSub
+        }
+      });
+    } else {
+      await memberRef.update({
+        [`subscriptions.${athleteId}`]: updatedSub
+      });
+    }
 
     res.status(200).json({ success: true, subscription })
   } catch (error: any) {

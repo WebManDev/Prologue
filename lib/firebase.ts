@@ -228,17 +228,25 @@ const getAllAthletes = async () => {
 };
 
 // Add athleteId to member's subscriptions
-const addSubscriptionForMember = async (userId: string, athleteId: string, plan: 'basic' | 'pro' | 'premium') => {
+const addSubscriptionForMember = async (
+  userId: string,
+  athleteId: string,
+  plan: 'basic' | 'pro' | 'premium',
+  stripeCustomerId?: string,
+  stripeSubscriptionId?: string
+) => {
   const userRef = doc(db, "members", userId);
   const userSnap = await getDoc(userRef);
   const member = userSnap.data() || {};
   const now = new Date().toISOString();
-  const newSub = {
+  const newSub: any = {
     status: "active",
     lastPaymentDate: now,
     cancelAt: null,
     plan,
   };
+  if (stripeCustomerId) newSub.stripeCustomerId = stripeCustomerId;
+  if (stripeSubscriptionId) newSub.stripeSubscriptionId = stripeSubscriptionId;
   await updateDoc(userRef, {
     [`subscriptions.${athleteId}`]: newSub,
     [`subscriptionDates.${athleteId}`]: now,
