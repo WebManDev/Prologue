@@ -86,7 +86,7 @@ export function MemberSubscriptionProvider({ children }: { children: React.React
 
   // Real-time listeners for subscription updates
   useEffect(() => {
-    if (!auth.currentUser) return;
+    if (!auth || !auth.currentUser) return;
 
     // Listen for member subscription changes
     const memberRef = doc(db, "members", auth.currentUser.uid);
@@ -121,7 +121,7 @@ export function MemberSubscriptionProvider({ children }: { children: React.React
       unsubscribeMember();
       unsubscribeUser();
     };
-  }, [auth.currentUser]);
+  }, [auth?.currentUser]);
 
   // Save to localStorage whenever state changes (for following)
   useEffect(() => {

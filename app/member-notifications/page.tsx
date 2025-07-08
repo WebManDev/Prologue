@@ -44,6 +44,7 @@ import Link from "next/link"
 import { auth, getMemberProfile } from "@/lib/firebase"
 import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, doc, getDoc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import type { User as FirebaseUser } from "firebase/auth"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -94,7 +95,7 @@ export default function MemberNotificationsPage() {
 
   // Get current user and profile
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user: FirebaseUser | null) => {
       if (user) {
         setCurrentUserId(user.uid)
         try {
@@ -245,57 +246,7 @@ export default function MemberNotificationsPage() {
     }
   }, [currentUserId, memberProfile])
 
-  // Listen for athlete responses to messages
-  useEffect(() => {
-    if (!currentUserId || !memberProfile?.subscribedAthletes) return
-
-    const subscribedAthleteIds = Array.isArray(memberProfile.subscribedAthletes) 
-      ? memberProfile.subscribedAthletes 
-      : Object.keys(memberProfile.subscribedAthletes || {})
-
-    if (subscribedAthleteIds.length === 0) return
-
-    // Listen for new messages from subscribed athletes
-    const messagesQuery = query(
-      collection(db, "messages"),
-      where("recipientId", "==", currentUserId),
-      where("senderId", "in", subscribedAthleteIds.slice(0, 10)), // Firestore 'in' limit is 10
-      orderBy("createdAt", "desc")
-    )
-
-    const messagesUnsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-      snapshot.docChanges().forEach(async (change) => {
-        if (change.type === "added") {
-          const messageData = change.doc.data()
-
-          // Get the athlete info
-          const athleteDoc = await getDoc(doc(db, "athletes", messageData.senderId))
-          const athleteData = athleteDoc.exists() ? athleteDoc.data() : { firstName: "Athlete" }
-
-          // Create notification
-          await createNotification({
-            type: "message",
-            title: "New Message from Coach",
-            message: `${athleteData.firstName} ${athleteData.lastName || ""} sent you a message: "${messageData.content.substring(0, 50)}${messageData.content.length > 50 ? '...' : ''}"`,
-            recipientId: currentUserId,
-            senderId: messageData.senderId,
-            senderName: `${athleteData.firstName} ${athleteData.lastName || ""}`,
-            priority: "high",
-            category: "Direct Message",
-            actionType: "view_message",
-            actionUrl: `/member-messaging?coach=${messageData.senderId}`,
-            metadata: {
-              messageId: change.doc.id,
-              messagePreview: messageData.content.substring(0, 100),
-              conversationId: messageData.conversationId
-            }
-          })
-        }
-      })
-    })
-
-    return () => messagesUnsubscribe()
-  }, [currentUserId, memberProfile])
+  // Note: Message notifications are now created automatically when messages are sent via sendMessage function
 
   // Listen for feedback from athletes
   useEffect(() => {

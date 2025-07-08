@@ -42,8 +42,10 @@ import MobileLayout from "@/components/mobile/mobile-layout"
 import { AthleteNav } from "@/components/navigation/athlete-nav"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import Link from "next/link"
+import Image from "next/image"
 import { auth, getAthleteProfile } from "@/lib/firebase"
 import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, doc, getDoc, updateDoc } from "firebase/firestore"
+import type { User as FirebaseUser } from "firebase/auth"
 import { db } from "@/lib/firebase"
 
 // Static data to prevent recreation on every render
@@ -93,7 +95,7 @@ export default function NotificationsPage() {
 
   // Get current user and profile
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user: FirebaseUser | null) => {
       if (user) {
         setCurrentUserId(user.uid)
         try {
@@ -289,50 +291,7 @@ export default function NotificationsPage() {
     }
   }, [currentUserId])
 
-  // Listen for messages sent to the athlete
-  useEffect(() => {
-    if (!currentUserId) return
-
-    // Listen for new messages sent to this athlete
-    const messagesQuery = query(
-      collection(db, "messages"),
-      where("recipientId", "==", currentUserId),
-      orderBy("createdAt", "desc")
-    )
-
-    const messagesUnsubscribe = onSnapshot(messagesQuery, (snapshot) => {
-      snapshot.docChanges().forEach(async (change) => {
-        if (change.type === "added") {
-          const messageData = change.doc.data()
-
-          // Get the member info
-          const memberDoc = await getDoc(doc(db, "members", messageData.senderId))
-          const memberData = memberDoc.exists() ? memberDoc.data() : { firstName: "Member" }
-
-          // Create notification
-          await createNotification({
-            type: "message",
-            title: "New Message",
-            message: `${memberData.firstName} ${memberData.lastName || ""} sent you a message: "${messageData.content.substring(0, 50)}${messageData.content.length > 50 ? '...' : ''}"`,
-            recipientId: currentUserId,
-            senderId: messageData.senderId,
-            senderName: `${memberData.firstName} ${memberData.lastName || ""}`,
-            priority: "high",
-            category: "Direct Message",
-            actionType: "view_message",
-            actionUrl: `/messaging?member=${messageData.senderId}`,
-            metadata: {
-              messageId: change.doc.id,
-              messagePreview: messageData.content.substring(0, 100),
-              conversationId: messageData.conversationId
-            }
-          })
-        }
-      })
-    })
-
-    return () => messagesUnsubscribe()
-  }, [currentUserId])
+  // Note: Message notifications are now created automatically when messages are sent via sendMessage function
 
   // Listen for feedback requests sent to the athlete
   useEffect(() => {
@@ -985,12 +944,70 @@ export default function NotificationsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <AthleteNav
-        currentPath="/notifications"
-      />
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-8">
+              <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
+                <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
+                  <Image
+                    src="/prologue-main-logo.png"
+                    alt="PROLOGUE"
+                    width={32}
+                    height={32}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
+                  PROLOGUE
+                </span>
+              </Link>
+            </div>
+
+            <div className="flex items-center space-x-6">
+              <AthleteNav currentPath="/notifications" />
+
+              <div className="flex items-center space-x-3">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="flex items-center space-x-2 p-2">
+                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
+                        <User className="w-full h-full text-gray-500 p-1" />
+                      </div>
+                      <ChevronDown className="h-4 w-4 text-gray-500" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem>
+                      <Link href="/athleteDashboard" className="flex items-center w-full">
+                        <User className="h-4 w-4 mr-2" />
+                        Profile
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Link href="/promote" className="flex items-center w-full">
+                        <TrendingUp className="h-4 w-4 mr-2" />
+                        Promote
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <User className="h-4 w-4 mr-2" />
+                      Settings
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={(e) => { e.preventDefault(); logout(); }}>
+                      <User className="h-4 w-4 mr-2" />
+                      Logout
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-8 py-12 mt-0">
+      <main className="max-w-7xl mx-auto px-8 py-8">
         {/* Page Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between">

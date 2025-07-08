@@ -39,8 +39,8 @@ import { AthleteNav } from "@/components/navigation/athlete-nav"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { AdvancedNotificationProvider } from "@/contexts/advanced-notification-context"
-import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore"
-import { db, auth } from "@/lib/firebase"
+import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc, deleteDoc } from "firebase/firestore"
+import { db, auth, getAthleteProfile } from "@/lib/firebase"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -340,33 +340,75 @@ function FeedbackPageContent() {
     setIsCompletingFeedback(true);
     const user = auth.currentUser;
     if (!user) return;
-    // Save to feedbackGiven collection
-    const docRef = await addDoc(collection(db, "feedbackGiven"), {
-      athleteId: user.uid,
-      requestId: selectedFeedback.id,
-      title: selectedFeedback.title,
-      rating: feedbackRating,
-      comment: feedbackComment,
-      createdAt: serverTimestamp(),
-      memberId: selectedFeedback.memberId || null, // <-- add memberId
-    });
-    // Update local state
-    setGivenFeedback(prev => [
-      {
-        id: docRef.id,
+    
+    try {
+      // Save to feedbackGiven collection
+      const docRef = await addDoc(collection(db, "feedbackGiven"), {
+        athleteId: user.uid,
         requestId: selectedFeedback.id,
         title: selectedFeedback.title,
         rating: feedbackRating,
         comment: feedbackComment,
-        createdAt: { seconds: Math.floor(Date.now() / 1000) },
-      },
-      ...prev,
-    ]);
-    setRequestedFeedback(prev => prev.filter(req => req.id !== selectedFeedback.id));
-    setSelectedFeedback(null);
-    setFeedbackRating(0);
-    setFeedbackComment("");
-    setIsCompletingFeedback(false);
+        createdAt: serverTimestamp(),
+        memberId: selectedFeedback.memberId || null,
+      });
+
+      // Delete the original feedback request document
+      if (selectedFeedback.id) {
+        const feedbackRequestRef = doc(db, "feedbackToAthlete", selectedFeedback.id);
+        await deleteDoc(feedbackRequestRef);
+      }
+
+      // Send notification to the member who requested feedback
+      if (selectedFeedback.memberId) {
+        // Get athlete profile for sender info
+        const athleteProfile = await getAthleteProfile(user.uid);
+        
+        // Create notification for the member
+        await addDoc(collection(db, "notifications"), {
+          type: "feedback",
+          title: "Feedback Received",
+          message: `${athleteProfile?.name || "Coach"} has provided feedback on your submission: "${selectedFeedback.title}".`,
+          recipientId: selectedFeedback.memberId,
+          senderId: user.uid,
+          senderName: athleteProfile?.name || "Coach",
+          priority: "medium",
+          category: "Performance Feedback",
+          actionType: "view_feedback",
+          actionUrl: `/member-feedback?id=${docRef.id}`,
+          metadata: {
+            feedbackId: docRef.id,
+            rating: feedbackRating,
+            contentType: "submission",
+            feedbackPreview: feedbackComment.substring(0, 100) + (feedbackComment.length > 100 ? "..." : "")
+          },
+          createdAt: serverTimestamp(),
+          read: false
+        });
+      }
+
+      // Update local state
+      setGivenFeedback(prev => [
+        {
+          id: docRef.id,
+          requestId: selectedFeedback.id,
+          title: selectedFeedback.title,
+          rating: feedbackRating,
+          comment: feedbackComment,
+          createdAt: { seconds: Math.floor(Date.now() / 1000) },
+        },
+        ...prev,
+      ]);
+      setRequestedFeedback(prev => prev.filter(req => req.id !== selectedFeedback.id));
+      setSelectedFeedback(null);
+      setFeedbackRating(0);
+      setFeedbackComment("");
+    } catch (error) {
+      console.error("Error completing feedback:", error);
+      alert("Failed to complete feedback. Please try again.");
+    } finally {
+      setIsCompletingFeedback(false);
+    }
   };
 
   const getStatusIcon = (status: string) => {

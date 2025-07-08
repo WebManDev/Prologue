@@ -579,6 +579,8 @@ export async function sendMessage({ memberId, athleteId, senderId, senderRole, c
 }) {
   const chatId = getChatId(memberId, athleteId);
   const messagesRef = collection(db, "chats", chatId, "messages");
+  
+  // Add the message to the chat
   await addDoc(messagesRef, {
     senderId,
     senderRole,
@@ -586,6 +588,44 @@ export async function sendMessage({ memberId, athleteId, senderId, senderRole, c
     type,
     timestamp: serverTimestamp(),
   });
+
+  // Create notification for the recipient
+  try {
+    const recipientId = senderId === memberId ? athleteId : memberId;
+    const recipientCollection = senderRole === "member" ? "athletes" : "members";
+    const senderCollection = senderRole === "member" ? "members" : "athletes";
+    
+    // Get sender info for notification
+    const senderDoc = await getDoc(doc(db, senderCollection, senderId));
+    const senderData = senderDoc.exists() ? senderDoc.data() : {};
+    const senderName = senderData.firstName ? 
+      `${senderData.firstName} ${senderData.lastName || ""}` : 
+      (senderData.name || (senderRole === "member" ? "Member" : "Athlete"));
+
+    // Create notification
+    await addDoc(collection(db, "notifications"), {
+      type: "message",
+      title: `New Message from ${senderRole === "member" ? "Member" : "Coach"}`,
+      message: `${senderName} sent you a message: "${content.substring(0, 50)}${content.length > 50 ? '...' : ''}"`,
+      recipientId,
+      senderId,
+      senderName,
+      priority: "high",
+      category: "Direct Message",
+      actionType: "view_message",
+      actionUrl: senderRole === "member" ? `/messaging?member=${senderId}` : `/member-messaging?coach=${senderId}`,
+      metadata: {
+        messagePreview: content.substring(0, 100),
+        conversationId: chatId,
+        messageType: type
+      },
+      createdAt: serverTimestamp(),
+      read: false
+    });
+  } catch (error) {
+    console.error("Error creating message notification:", error);
+    // Don't throw error here - message was still sent successfully
+  }
 }
 
 // Listen for messages (real-time)
