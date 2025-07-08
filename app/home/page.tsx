@@ -46,7 +46,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
-import { auth, getMemberProfile, db, getAthleteProfile } from "@/lib/firebase"
+import { auth, getMemberProfile, db, getAthleteProfile, likePost, addCommentToPost } from "@/lib/firebase"
 import { collection, addDoc, serverTimestamp, onSnapshot, query, orderBy, doc, updateDoc, arrayUnion, arrayRemove, getDoc, deleteDoc, setDoc, where, getDocs } from "firebase/firestore"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
@@ -274,14 +274,7 @@ export default function MemberHomePage() {
   const handleLike = useCallback(async (postId: string) => {
     const user = auth.currentUser
     if (!user) return
-    const postRef = doc(db, "posts", postId)
-    const postSnap = await getDoc(postRef)
-    const likes = postSnap.data()?.likes || []
-    if (likes.includes(user.uid)) {
-      await updateDoc(postRef, { likes: arrayRemove(user.uid) })
-    } else {
-      await updateDoc(postRef, { likes: arrayUnion(user.uid) })
-    }
+    await likePost(postId, user.uid)
   }, [])
 
   const handleSave = useCallback((postId: string) => {
@@ -563,24 +556,28 @@ export default function MemberHomePage() {
   const handleAddComment = useCallback(async (postId: string, content: string, parentId?: string) => {
     const user = auth.currentUser;
     if (!user || !content || !content.trim()) return;
-    const commentsRef = collection(db, "posts", postId, "comments");
-    await addDoc(commentsRef, {
-      content,
-      createdBy: user.uid,
-      userType: "member",
-      createdAt: serverTimestamp(),
-      profileImageUrl: profileImageUrl,
-      firstName: profileData.firstName,
-      lastName: profileData.lastName,
-      parentId: parentId || null,
-      likes: [],
-    });
-    // Increment comment count on the post
-    const postRef = doc(db, "posts", postId);
-    const postSnap = await getDoc(postRef);
-    await updateDoc(postRef, { commentsCount: (postSnap.data()?.commentsCount || 0) + 1 });
-    // Optionally clear input for top-level comments
-    if (!parentId) {
+    
+    if (parentId) {
+      // For replies, use the direct approach since addCommentToPost doesn't support replies yet
+      const commentsRef = collection(db, "posts", postId, "comments");
+      await addDoc(commentsRef, {
+        content,
+        createdBy: user.uid,
+        userType: "member",
+        createdAt: serverTimestamp(),
+        profileImageUrl: profileImageUrl,
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+        parentId: parentId,
+        likes: [],
+      });
+      // Increment comment count on the post
+      const postRef = doc(db, "posts", postId);
+      const postSnap = await getDoc(postRef);
+      await updateDoc(postRef, { commentsCount: (postSnap.data()?.commentsCount || 0) + 1 });
+    } else {
+      // For top-level comments, use the enhanced function that creates notifications
+      await addCommentToPost(postId, user.uid, content);
       setCommentInputs((prev) => ({ ...prev, [postId]: "" }));
     }
   }, [profileImageUrl, profileData]);
@@ -896,8 +893,8 @@ export default function MemberHomePage() {
                   if (!item.id) return
                   await deleteDoc(doc(db, "posts", item.id))
                 }
-                const likeCount = item.likes ? item.likes.length : 0
-                const isLiked = item.likes && auth.currentUser ? item.likes.includes(auth.currentUser.uid) : false
+                const likeCount = item.likes || 0
+                const isLiked = item.likedBy && auth.currentUser ? item.likedBy.includes(auth.currentUser.uid) : false
                 const postComments = comments[item.id] || []
                 const commentCount = postComments.length
                 const shareCount = item.shares || 0

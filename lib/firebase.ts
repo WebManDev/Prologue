@@ -731,67 +731,185 @@ const handleRedirectResult = async () => {
   return null;
 };
 
-// Like/Unlike a post
-export const likePost = async (postId: string, userId: string) => {
-  const postRef = doc(db, "athletePosts", postId);
-  const postSnap = await getDoc(postRef);
-  if (!postSnap.exists()) return;
-  const data = postSnap.data();
-  const likedBy = Array.isArray(data.likedBy) ? data.likedBy : [];
-  
-  if (likedBy.includes(userId)) {
-    // Unlike the post
-    await updateDoc(postRef, {
-      likedBy: arrayRemove(userId),
-      likes: Math.max((data.likes || 0) - 1, 0)
+// Create a notification
+export const createNotification = async (notificationData: {
+  type: string;
+  title: string;
+  message: string;
+  recipientId: string;
+  senderId: string;
+  senderName: string;
+  priority: "high" | "medium" | "low";
+  category: string;
+  actionType?: string;
+  actionUrl?: string;
+  metadata?: any;
+}) => {
+  try {
+    await addDoc(collection(db, "notifications"), {
+      ...notificationData,
+      createdAt: serverTimestamp(),
+      read: false
     });
-  } else {
-    // Like the post
-    await updateDoc(postRef, {
-      likedBy: arrayUnion(userId),
-      likes: (data.likes || 0) + 1
-    });
-    // Send notification to coach if not liking own post
-    if (data.userId && userId !== data.userId) {
-      fetch('/api/coach-notification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          coachId: data.userId,
-          type: 'like',
-          message: `Someone liked your post: "${data.title || 'Untitled'}"`,
-        }),
-      });
-    }
+  } catch (error) {
+    console.error("Error creating notification:", error);
   }
 };
 
-// Add a comment to a post
+// Like/Unlike a post (supports both athletePosts and posts collections)
+export const likePost = async (postId: string, userId: string) => {
+  try {
+    // Try athletePosts first
+    let postRef = doc(db, "athletePosts", postId);
+    let postSnap = await getDoc(postRef);
+    let isAthletePost = postSnap.exists();
+    
+    // If not found in athletePosts, try posts collection
+    if (!isAthletePost) {
+      postRef = doc(db, "posts", postId);
+      postSnap = await getDoc(postRef);
+      if (!postSnap.exists()) {
+        console.error("Post not found in either collection");
+        return;
+      }
+    }
+    
+    const data = postSnap.data();
+    if (!data) return;
+    
+    const likedBy = Array.isArray(data.likedBy) ? data.likedBy : [];
+    
+    if (likedBy.includes(userId)) {
+      // Unlike the post
+      await updateDoc(postRef, {
+        likedBy: arrayRemove(userId),
+        likes: Math.max((data.likes || 0) - 1, 0)
+      });
+    } else {
+      // Like the post
+      await updateDoc(postRef, {
+        likedBy: arrayUnion(userId),
+        likes: (data.likes || 0) + 1
+      });
+      
+      // Create notification for the post author if not liking own post
+      const postAuthorId = data.userId || data.createdBy;
+      if (postAuthorId && userId !== postAuthorId) {
+        // Get user profile to get the name
+        let userProfile;
+        try {
+          userProfile = await getMemberProfile(userId);
+          if (!userProfile) {
+            userProfile = await getAthleteProfile(userId);
+          }
+        } catch (error) {
+          console.error("Error getting user profile:", error);
+        }
+
+        const userName = userProfile 
+          ? `${userProfile.firstName || ""} ${userProfile.lastName || ""}`.trim() || userProfile.name || "Someone"
+          : "Someone";
+
+        await createNotification({
+          type: "social",
+          title: "New Like on Your Post",
+          message: `${userName} liked your post "${data.title || data.content?.substring(0, 50) || "your post"}".`,
+          recipientId: postAuthorId,
+          senderId: userId,
+          senderName: userName,
+          priority: "low",
+          category: "Post Like",
+          actionType: "view_post",
+          actionUrl: isAthletePost ? `/post/${postId}` : `/member-home#post-${postId}`,
+          metadata: {
+            postId: postId,
+            postTitle: data.title || "Untitled",
+            likeCount: (data.likes || 0) + 1
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error liking post:", error);
+  }
+};
+
+// Add a comment to a post (supports both athletePosts and posts collections)
 export const addCommentToPost = async (postId: string, userId: string, comment: string) => {
-  const postRef = doc(db, "athletePosts", postId);
-  const commentsRef = collection(postRef, "comments");
-  await addDoc(commentsRef, {
-    userId,
-    comment,
-    createdAt: serverTimestamp(),
-  });
-  // Increment comment count
-  await updateDoc(postRef, {
-    comments: increment(1)
-  });
-  // Send notification to coach if not commenting on own post
-  const postSnap = await getDoc(postRef);
-  const postData = postSnap.data();
-  if (postData?.userId && userId !== postData.userId) {
-    fetch('/api/coach-notification', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        coachId: postData.userId,
-        type: 'comment',
-        message: `Someone commented on your post: "${postData.title || 'Untitled'}"`,
-      }),
+  try {
+    // Try athletePosts first
+    let postRef = doc(db, "athletePosts", postId);
+    let postSnap = await getDoc(postRef);
+    let isAthletePost = postSnap.exists();
+    
+    // If not found in athletePosts, try posts collection
+    if (!isAthletePost) {
+      postRef = doc(db, "posts", postId);
+      postSnap = await getDoc(postRef);
+      if (!postSnap.exists()) {
+        console.error("Post not found in either collection");
+        return;
+      }
+    }
+    
+    const postData = postSnap.data();
+    if (!postData) return;
+    
+    const commentsRef = collection(postRef, "comments");
+    
+    // Add the comment
+    await addDoc(commentsRef, {
+      userId,
+      createdBy: userId, // Support both field names
+      comment,
+      content: comment, // Support both field names
+      createdAt: serverTimestamp(),
     });
+    
+    // Increment comment count
+    await updateDoc(postRef, {
+      comments: increment(1)
+    });
+    
+    // Create notification for the post author if not commenting on own post
+    const postAuthorId = postData.userId || postData.createdBy;
+    if (postAuthorId && userId !== postAuthorId) {
+      // Get user profile to get the name
+      let userProfile;
+      try {
+        userProfile = await getMemberProfile(userId);
+        if (!userProfile) {
+          userProfile = await getAthleteProfile(userId);
+        }
+      } catch (error) {
+        console.error("Error getting user profile:", error);
+      }
+
+      const userName = userProfile 
+        ? `${userProfile.firstName || ""} ${userProfile.lastName || ""}`.trim() || userProfile.name || "Someone"
+        : "Someone";
+
+      await createNotification({
+        type: "social",
+        title: "New Comment on Your Post",
+        message: `${userName} commented on your post "${postData.title || postData.content?.substring(0, 50) || "your post"}": "${comment.substring(0, 50)}${comment.length > 50 ? '...' : ''}"`,
+        recipientId: postAuthorId,
+        senderId: userId,
+        senderName: userName,
+        priority: "medium",
+        category: "Post Comment",
+        actionType: "view_post",
+        actionUrl: isAthletePost ? `/post/${postId}` : `/member-home#post-${postId}`,
+        metadata: {
+          postId: postId,
+          postTitle: postData.title || "Untitled",
+          commentPreview: comment.substring(0, 100),
+          commentCount: (postData.comments || 0) + 1
+        }
+      });
+    }
+  } catch (error) {
+    console.error("Error adding comment:", error);
   }
 };
 
