@@ -99,6 +99,250 @@ const getAthleteProfile = async (userId: string) => {
   }
 };
 
+// Enhanced function to get comprehensive athlete profile with all possible fields
+const getComprehensiveAthleteProfile = async (userId: string) => {
+  try {
+    const docRef = doc(db, "athletes", userId);
+    const docSnap = await getDoc(docRef);
+    
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      
+      // Return comprehensive athlete data with all possible fields
+      return {
+        // Basic Identity
+        id: userId,
+        firstName: data.firstName || "",
+        lastName: data.lastName || "",
+        name: data.name || `${data.firstName || ""} ${data.lastName || ""}`.trim(),
+        email: data.email || "",
+        phone: data.phone || "",
+        
+        // Visual Assets
+        profileImageUrl: data.profileImageUrl || data.profilePicture || data.profilePhotoUrl || "",
+        coverImage: data.coverImage || data.coverPhotoUrl || "",
+        avatar: data.avatar || data.profileImageUrl || data.profilePicture || "",
+        
+        // Professional Information
+        sport: data.sport || "",
+        specialty: data.specialty || "",
+        specialties: data.specialties || [],
+        position: data.position || "",
+        type: data.type || data.role || "athlete",
+        role: data.role || "athlete",
+        bio: data.bio || "",
+        experience: data.experience || "",
+        
+        // Location & Education
+        location: data.location || "",
+        university: data.university || data.school || "",
+        school: data.school || "",
+        graduationYear: data.graduationYear || "",
+        
+        // Achievements & Certifications
+        achievements: data.achievements || [],
+        certifications: data.certifications || [],
+        
+        // Ratings & Statistics
+        rating: data.rating || 0,
+        ratings: data.ratings || {},
+        subscribers: data.subscribers || 0,
+        posts: data.posts || 0,
+        totalStudents: data.totalStudents || 0,
+        totalLessons: data.totalLessons || 0,
+        followers: data.followers || 0,
+        following: data.following || 0,
+        views: data.views || 0,
+        
+        // Subscription & Business
+        pricing: data.pricing || { pro: 0, premium: 0 },
+        subscriptionPrice: data.subscriptionPrice || data.pricing?.pro || 0,
+        stripeAccountId: data.stripeAccountId || null,
+        
+        // Verification & Quality Indicators
+        isVerified: data.isVerified || false,
+        responseRate: data.responseRate || "95%",
+        avgSessionLength: data.avgSessionLength || "30 min",
+        completionRate: data.completionRate || "90%",
+        studentSatisfaction: data.studentSatisfaction || "95%",
+        
+        // Languages & Social Media
+        languages: data.languages || ["English"],
+        socialMedia: data.socialMedia || {},
+        
+        // Advanced Statistics
+        stats: {
+          totalContent: data.stats?.totalContent || data.totalContent || (data.posts || 0),
+          totalViews: data.stats?.totalViews || data.totalViews || "0",
+          totalHoursCoached: data.stats?.totalHoursCoached || data.totalHoursCoached || 0,
+          successStories: data.stats?.successStories || data.successStories || 0,
+          avgRating: data.stats?.avgRating || data.rating || 0,
+          totalLessons: data.stats?.totalLessons || data.totalLessons || 0,
+          studentSatisfaction: data.stats?.studentSatisfaction || data.studentSatisfaction || "95%",
+          completionRate: data.stats?.completionRate || data.completionRate || "90%"
+        },
+        
+        // Recent Activity & Engagement
+        recentActivity: data.recentActivity || [],
+        
+        // Timestamps
+        joinedDate: data.joinedDate || data.createdAt || "",
+        lastProfileEdit: data.lastProfileEdit || "",
+        createdAt: data.createdAt || "",
+        updatedAt: data.updatedAt || "",
+        
+        // Edit tracking
+        editCount: data.editCount || 0,
+        editWindowStart: data.editWindowStart || "",
+        
+        // Additional metadata that might exist
+        tags: data.tags || [],
+        categories: data.categories || [],
+        availability: data.availability || {},
+        timezone: data.timezone || "",
+        website: data.website || "",
+        linkedIn: data.linkedIn || "",
+        instagram: data.instagram || "",
+        twitter: data.twitter || "",
+        youtube: data.youtube || "",
+        
+        // Course/Content specific
+        totalVideos: data.totalVideos || 0,
+        totalCourses: data.totalCourses || 0,
+        totalArticles: data.totalArticles || 0,
+        
+        // Performance metrics
+        engagementRate: data.engagementRate || "0%",
+        averageWatchTime: data.averageWatchTime || "0 min",
+        contentRating: data.contentRating || 0,
+        
+        // Subscription tiers info
+        subscriptionTiers: data.subscriptionTiers || {},
+        
+        // Communication preferences
+        communicationPreferences: data.communicationPreferences || {},
+        notificationSettings: data.notificationSettings || {},
+        
+        // Coach/Mentor specific fields
+        coachingStyle: data.coachingStyle || "",
+        trainingPhilosophy: data.trainingPhilosophy || "",
+        targetAudience: data.targetAudience || "",
+        sessionTypes: data.sessionTypes || [],
+        
+        // Additional business fields
+        businessHours: data.businessHours || {},
+        timeSlots: data.timeSlots || [],
+        bookingCalendar: data.bookingCalendar || "",
+        
+        // Raw data for any additional fields not mapped above
+        ...data
+      };
+    } else {
+      console.log("No athlete document found!");
+      return null;
+    }
+  } catch (error) {
+    console.error("Error getting comprehensive athlete profile:", error);
+    throw error;
+  }
+};
+
+// Enhanced function to get multiple comprehensive athlete profiles
+const getComprehensiveAthletesByIds = async (athleteIds: string[]) => {
+  if (!athleteIds.length) return [];
+  
+  try {
+    const promises = athleteIds.map(id => getComprehensiveAthleteProfile(id));
+    const results = await Promise.all(promises);
+    return results.filter(profile => profile !== null);
+  } catch (error) {
+    console.error("Error fetching comprehensive athlete profiles:", error);
+    return [];
+  }
+};
+
+// Enhanced function to get all athletes with comprehensive data
+const getAllComprehensiveAthletes = async () => {
+  try {
+    const snapshot = await getDocs(collection(db, "athletes"));
+    const athletes = await Promise.all(
+      snapshot.docs.map(async (doc) => {
+        return await getComprehensiveAthleteProfile(doc.id);
+      })
+    );
+    return athletes.filter(athlete => athlete !== null);
+  } catch (error) {
+    console.error("Error fetching all comprehensive athletes:", error);
+    throw error;
+  }
+};
+
+// Function to get athlete statistics and engagement metrics
+const getAthleteAnalytics = async (athleteId: string) => {
+  try {
+    // Fetch additional analytics from related collections
+    const postsSnapshot = await getDocs(
+      query(collection(db, "athletePosts"), where("userId", "==", athleteId))
+    );
+    
+    const videosSnapshot = await getDocs(
+      query(collection(db, "videos"), where("authorId", "==", athleteId))
+    );
+    
+    const articlesSnapshot = await getDocs(
+      query(collection(db, "articles"), where("authorId", "==", athleteId))
+    );
+    
+    const coursesSnapshot = await getDocs(
+      query(collection(db, "courses"), where("authorId", "==", athleteId))
+    );
+    
+    // Calculate engagement metrics
+    let totalViews = 0;
+    let totalLikes = 0;
+    let totalComments = 0;
+    
+    postsSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      totalViews += data.views || 0;
+      totalLikes += data.likes || 0;
+      totalComments += data.comments || 0;
+    });
+    
+    videosSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      totalViews += data.views || 0;
+      totalLikes += data.likes || 0;
+      totalComments += data.comments || 0;
+    });
+    
+    return {
+      totalPosts: postsSnapshot.size,
+      totalVideos: videosSnapshot.size,
+      totalArticles: articlesSnapshot.size,
+      totalCourses: coursesSnapshot.size,
+      totalContent: postsSnapshot.size + videosSnapshot.size + articlesSnapshot.size + coursesSnapshot.size,
+      totalViews,
+      totalLikes,
+      totalComments,
+      engagementRate: totalViews > 0 ? ((totalLikes + totalComments) / totalViews * 100).toFixed(1) + "%" : "0%"
+    };
+  } catch (error) {
+    console.error("Error fetching athlete analytics:", error);
+    return {
+      totalPosts: 0,
+      totalVideos: 0,
+      totalArticles: 0,
+      totalCourses: 0,
+      totalContent: 0,
+      totalViews: 0,
+      totalLikes: 0,
+      totalComments: 0,
+      engagementRate: "0%"
+    };
+  }
+};
+
 // Function to save member profile
 const saveMemberProfile = async (userId: string, profileData: {
   name: string;
@@ -698,5 +942,9 @@ export {
   markAllNotificationsAsRead,
   notifySubscribersOfNewPost,
   notifyMemberOfFeedback,
-  app
+  app,
+  getComprehensiveAthleteProfile,
+  getComprehensiveAthletesByIds,
+  getAllComprehensiveAthletes,
+  getAthleteAnalytics
 }; 

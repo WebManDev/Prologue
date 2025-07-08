@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useMemo, useCallback, useRef, useEffect } from "react"
+import { useState, useMemo, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -32,30 +32,356 @@ import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { MemberHeader } from "@/components/navigation/member-header"
-import Link from "next/link"
-import { CREATORS } from "@/lib/creators"
-import { getDocs, collection, doc, getDoc, onSnapshot, query, where, addDoc, serverTimestamp } from "firebase/firestore"
-import { 
-  db, 
-  auth, 
-  getMemberProfile, 
-  getAthleteProfile,
-  getAllComprehensiveAthletes,
-  getComprehensiveAthletesByIds,
-  getAthleteAnalytics,
-} from "@/lib/firebase"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import Link from "next/link"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
   "Navigate Recruitment",
-  "Nutrition", 
+  "Nutrition",
   "NIL",
   "Training Programs",
   "Mental Performance",
   "Injury Prevention",
   "Sports Psychology",
   "Athletic Scholarships",
+]
+
+// Mock athletes data - Enhanced with more comprehensive athlete profiles
+const MOCK_ATHLETES = [
+  {
+    id: "athlete-1",
+    name: "Sarah Martinez",
+    sport: "Tennis",
+    type: "athlete" as const,
+    avatar: "/placeholder.svg?height=80&width=80",
+    coverImage: "/placeholder.svg?height=200&width=400",
+    followers: "15.2K",
+    following: "892",
+    rating: 4.9,
+    specialty: "Serve Technique",
+    bio: "Professional tennis player specializing in serve technique and mental game. NCAA Champion with 8+ years of competitive experience.",
+    location: "California, USA",
+    university: "Stanford University",
+    achievements: ["NCAA Champion 2022", "Regional Tournament Winner", "All-American 2021"],
+    isVerified: true,
+    subscriptionPrice: 29.99,
+    responseRate: "98%",
+    totalStudents: 127,
+    experience: "8+ years",
+    joinedDate: "2022-01-15",
+    totalPosts: 234,
+    totalVideos: 89,
+    avgSessionLength: "45 min",
+    languages: ["English", "Spanish"],
+    certifications: ["USPTA Certified", "Mental Performance Coach"],
+    socialMedia: {
+      instagram: "@sarahtennis",
+      twitter: "@sarahm_tennis",
+      youtube: "SarahTennisCoach",
+    },
+    recentActivity: [
+      {
+        type: "video",
+        title: "Advanced Serve Technique Breakdown",
+        timestamp: "2 hours ago",
+        likes: 234,
+        comments: 45,
+      },
+      {
+        type: "post",
+        title: "Mental preparation before big matches",
+        timestamp: "1 day ago",
+        likes: 156,
+        comments: 23,
+      },
+    ],
+    stats: {
+      totalLessons: 156,
+      avgRating: 4.9,
+      completionRate: "94%",
+      studentSatisfaction: "98%",
+      totalContent: 156,
+      totalViews: "2.3M",
+    },
+  },
+  {
+    id: "coach-1",
+    name: "Mike Johnson",
+    sport: "Basketball",
+    type: "coach" as const,
+    avatar: "/placeholder.svg?height=80&width=80",
+    coverImage: "/placeholder.svg?height=200&width=400",
+    followers: "8.7K",
+    following: "445",
+    rating: 4.8,
+    specialty: "Mental Performance",
+    bio: "Former professional player turned mental performance coach. Specializing in helping athletes overcome mental barriers and achieve peak performance.",
+    location: "Texas, USA",
+    achievements: ["Professional Player", "Mental Performance Certified", "NCAA Coach of the Year"],
+    isVerified: true,
+    subscriptionPrice: 39.99,
+    responseRate: "95%",
+    totalStudents: 89,
+    experience: "12+ years",
+    joinedDate: "2021-08-20",
+    totalPosts: 178,
+    totalVideos: 67,
+    avgSessionLength: "60 min",
+    languages: ["English"],
+    certifications: ["Mental Performance Certified", "NASM-CPT"],
+    socialMedia: {
+      instagram: "@coachmikeJ",
+      twitter: "@mikejcoach",
+      youtube: "CoachMikeBasketball",
+    },
+    recentActivity: [
+      {
+        type: "video",
+        title: "Building Mental Toughness in Young Athletes",
+        timestamp: "4 hours ago",
+        likes: 189,
+        comments: 34,
+      },
+      {
+        type: "post",
+        title: "The importance of visualization in sports",
+        timestamp: "2 days ago",
+        likes: 267,
+        comments: 56,
+      },
+    ],
+    stats: {
+      totalLessons: 234,
+      avgRating: 4.8,
+      completionRate: "91%",
+      studentSatisfaction: "96%",
+      totalContent: 203,
+      totalViews: "1.8M",
+    },
+  },
+  {
+    id: "athlete-2",
+    name: "Alex Rodriguez",
+    sport: "Basketball",
+    type: "athlete" as const,
+    avatar: "/placeholder.svg?height=80&width=80",
+    coverImage: "/placeholder.svg?height=200&width=400",
+    followers: "12.1K",
+    following: "623",
+    rating: 4.7,
+    specialty: "Shooting Form",
+    bio: "College basketball player focused on shooting mechanics and game strategy. All-Conference team member with expertise in 3-point shooting.",
+    location: "Florida, USA",
+    university: "University of Florida",
+    achievements: ["All-Conference Team", "3-Point Contest Winner", "Team Captain 2023"],
+    isVerified: true,
+    subscriptionPrice: 24.99,
+    responseRate: "92%",
+    totalStudents: 156,
+    experience: "5+ years",
+    joinedDate: "2022-03-10",
+    totalPosts: 145,
+    totalVideos: 52,
+    avgSessionLength: "40 min",
+    languages: ["English", "Spanish"],
+    certifications: ["USA Basketball Certified"],
+    socialMedia: {
+      instagram: "@alexhoops",
+      twitter: "@alexrod_bball",
+      youtube: "AlexBasketballTips",
+    },
+    recentActivity: [
+      {
+        type: "video",
+        title: "Perfect Shooting Form in 5 Steps",
+        timestamp: "6 hours ago",
+        likes: 345,
+        comments: 67,
+      },
+      {
+        type: "post",
+        title: "Game day preparation routine",
+        timestamp: "3 days ago",
+        likes: 198,
+        comments: 29,
+      },
+    ],
+    stats: {
+      totalLessons: 98,
+      avgRating: 4.7,
+      completionRate: "89%",
+      studentSatisfaction: "93%",
+      totalContent: 98,
+      totalViews: "1.2M",
+    },
+  },
+  {
+    id: "coach-2",
+    name: "Lisa Chen",
+    sport: "Swimming",
+    type: "coach" as const,
+    avatar: "/placeholder.svg?height=80&width=80",
+    coverImage: "/placeholder.svg?height=200&width=400",
+    followers: "9.8K",
+    following: "334",
+    rating: 4.9,
+    specialty: "Stroke Technique",
+    bio: "Olympic trials qualifier with expertise in stroke technique and endurance training. Certified USA Swimming coach with 8+ years experience.",
+    location: "California, USA",
+    achievements: ["Olympic Trials Qualifier", "USA Swimming Certified", "Masters National Champion"],
+    isVerified: true,
+    subscriptionPrice: 34.99,
+    responseRate: "99%",
+    totalStudents: 203,
+    experience: "8+ years",
+    joinedDate: "2021-11-05",
+    totalPosts: 267,
+    totalVideos: 78,
+    avgSessionLength: "50 min",
+    languages: ["English", "Mandarin"],
+    certifications: ["USA Swimming Certified", "Water Safety Instructor"],
+    socialMedia: {
+      instagram: "@lisaswimcoach",
+      twitter: "@lisachen_swim",
+      youtube: "LisaSwimmingTech",
+    },
+    recentActivity: [
+      {
+        type: "video",
+        title: "Freestyle Stroke Analysis and Correction",
+        timestamp: "1 hour ago",
+        likes: 278,
+        comments: 45,
+      },
+      {
+        type: "post",
+        title: "Training periodization for competitive swimmers",
+        timestamp: "1 day ago",
+        likes: 156,
+        comments: 34,
+      },
+    ],
+    stats: {
+      totalLessons: 312,
+      avgRating: 4.9,
+      completionRate: "96%",
+      studentSatisfaction: "99%",
+      totalContent: 145,
+      totalViews: "1.5M",
+    },
+  },
+  {
+    id: "mentor-1",
+    name: "David Rodriguez",
+    sport: "Soccer",
+    type: "mentor" as const,
+    avatar: "/placeholder.svg?height=80&width=80",
+    coverImage: "/placeholder.svg?height=200&width=400",
+    followers: "6.5K",
+    following: "289",
+    rating: 4.6,
+    specialty: "Career Guidance",
+    bio: "Former professional soccer player now mentoring young athletes. 15+ years of experience in professional soccer with focus on career development.",
+    location: "New York, USA",
+    achievements: ["Professional Player", "Youth Development Certified", "MLS Veteran"],
+    isVerified: false,
+    subscriptionPrice: 19.99,
+    responseRate: "88%",
+    totalStudents: 74,
+    experience: "15+ years",
+    joinedDate: "2022-06-18",
+    totalPosts: 123,
+    totalVideos: 34,
+    avgSessionLength: "35 min",
+    languages: ["English", "Spanish"],
+    certifications: ["Youth Development Certified", "USSF Licensed"],
+    socialMedia: {
+      instagram: "@davidfutbol",
+      twitter: "@davidrod_soccer",
+      youtube: "DavidSoccerMentor",
+    },
+    recentActivity: [
+      {
+        type: "post",
+        title: "Transitioning from college to professional soccer",
+        timestamp: "5 hours ago",
+        likes: 134,
+        comments: 28,
+      },
+      {
+        type: "video",
+        title: "Mental aspects of professional soccer",
+        timestamp: "4 days ago",
+        likes: 89,
+        comments: 15,
+      },
+    ],
+    stats: {
+      totalLessons: 67,
+      avgRating: 4.6,
+      completionRate: "85%",
+      studentSatisfaction: "91%",
+      totalContent: 67,
+      totalViews: "890K",
+    },
+  },
+  {
+    id: "athlete-3",
+    name: "Emma Davis",
+    sport: "Track & Field",
+    type: "athlete" as const,
+    avatar: "/placeholder.svg?height=80&width=80",
+    coverImage: "/placeholder.svg?height=200&width=400",
+    followers: "7.2K",
+    following: "456",
+    rating: 4.8,
+    specialty: "Sprint Training",
+    bio: "Collegiate sprinter specializing in 100m and 200m events. Conference champion with expertise in speed development and race strategy.",
+    location: "Texas, USA",
+    university: "University of Texas",
+    achievements: ["Conference Champion", "National Qualifier", "School Record Holder"],
+    isVerified: true,
+    subscriptionPrice: 27.99,
+    responseRate: "94%",
+    totalStudents: 98,
+    experience: "5+ years",
+    joinedDate: "2022-09-12",
+    totalPosts: 189,
+    totalVideos: 45,
+    avgSessionLength: "35 min",
+    languages: ["English"],
+    certifications: ["USATF Level 1"],
+    socialMedia: {
+      instagram: "@emmaspeed",
+      twitter: "@emma_sprints",
+      youtube: "EmmaSprintTraining",
+    },
+    recentActivity: [
+      {
+        type: "video",
+        title: "Sprint Start Technique Breakdown",
+        timestamp: "3 hours ago",
+        likes: 167,
+        comments: 23,
+      },
+      {
+        type: "post",
+        title: "Recovery strategies for sprinters",
+        timestamp: "2 days ago",
+        likes: 145,
+        comments: 31,
+      },
+    ],
+    stats: {
+      totalLessons: 78,
+      avgRating: 4.8,
+      completionRate: "92%",
+      studentSatisfaction: "95%",
+      totalContent: 89,
+      totalViews: "1.1M",
+    },
+  },
 ]
 
 const EXPERIENCE_LEVELS = ["1-3 years", "3-5 years", "5-8 years", "8+ years"]
@@ -75,14 +401,6 @@ export default function MemberDiscoverPage() {
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
   const { logout } = useUnifiedLogout()
 
-  // Firebase state
-  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
-  const [profileData, setProfileData] = useState<any>(null)
-  const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(null)
-  const [profileCache, setProfileCache] = useState<Record<string, any>>({})
-  const [subscriptions, setSubscriptions] = useState<{[athleteId: string]: any}>({})
-  const [athletes, setAthletes] = useState<any[]>(CREATORS)
-
   // Enhanced state management
   const [selectedSport, setSelectedSport] = useState<string>("all")
   const [selectedType, setSelectedType] = useState<string>("all")
@@ -91,219 +409,21 @@ export default function MemberDiscoverPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [showFilters, setShowFilters] = useState(false)
   const [sortBy, setSortBy] = useState<"rating" | "students" | "newest">("rating")
-  const [selectedCreator, setSelectedCreator] = useState<(typeof CREATORS)[0] | null>(null)
+  const [selectedCreator, setSelectedCreator] = useState<(typeof MOCK_ATHLETES)[0] | null>(null)
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
 
   // Refs for maintaining focus
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Firebase effects
-  useEffect(() => {
-    if (!auth.currentUser) return
-    const fetchProfile = async () => {
-      if (!auth.currentUser) return
-      const memberProfile = await getMemberProfile(auth.currentUser.uid)
-      if (memberProfile) {
-        setProfileImageUrl(memberProfile.profileImageUrl || memberProfile.profilePic || memberProfile.profilePicture || null)
-        setProfileData({ firstName: memberProfile.firstName || "", lastName: memberProfile.lastName || "" })
-      }
-    }
-    fetchProfile()
-  }, [])
-
-  // Listen to real-time updates
-  useEffect(() => {
-    if (!auth.currentUser) return
-
-    // Listen to athletes collection and fetch comprehensive data
-    const unsubscribeAthletes = onSnapshot(collection(db, "athletes"), async (snapshot) => {
-      try {
-        // Get all athlete IDs from the snapshot
-        const athleteIds = snapshot.docs.map(doc => doc.id)
-        
-        // Fetch comprehensive data for all athletes
-        const comprehensiveAthletes = await getComprehensiveAthletesByIds(athleteIds)
-        
-        // Enhance with analytics for each athlete
-        const athletesWithAnalytics = await Promise.all(
-          comprehensiveAthletes.map(async (athlete) => {
-            try {
-              const analytics = await getAthleteAnalytics(athlete.id)
-              return {
-                ...athlete,
-                // Override with latest analytics
-                totalPosts: analytics.totalPosts,
-                totalVideos: analytics.totalVideos,
-                totalArticles: analytics.totalArticles,
-                totalCourses: analytics.totalCourses,
-                totalContent: analytics.totalContent,
-                totalViews: analytics.totalViews,
-                engagementRate: analytics.engagementRate,
-                // Ensure all UI fields are present
-                avatar: athlete.profileImageUrl || athlete.avatar || "/placeholder.svg?height=80&width=80",
-                coverImage: athlete.coverImage || "/placeholder.svg?height=200&width=400",
-                followers: athlete.followers?.toString() || "0",
-                following: athlete.following?.toString() || "0",
-                subscriptionPrice: athlete.pricing?.pro || athlete.subscriptionPrice || 0,
-              }
-            } catch (error) {
-              console.error(`Error fetching analytics for athlete ${athlete.id}:`, error)
-              return {
-                ...athlete,
-                avatar: athlete.profileImageUrl || athlete.avatar || "/placeholder.svg?height=80&width=80",
-                coverImage: athlete.coverImage || "/placeholder.svg?height=200&width=400",
-                followers: athlete.followers?.toString() || "0",
-                following: athlete.following?.toString() || "0",
-                subscriptionPrice: athlete.pricing?.pro || athlete.subscriptionPrice || 0,
-              }
-            }
-          })
-        )
-        
-        // Merge with static creators (fallback data)
-        const merged = [
-          ...athletesWithAnalytics,
-          ...CREATORS.filter(staticAthlete => !athletesWithAnalytics.some(f => f.id === staticAthlete.id))
-        ]
-        
-        setAthletes(merged)
-      } catch (error) {
-        console.error("Error fetching comprehensive athlete data:", error)
-        // Fallback to basic data on error
-        const basicData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          avatar: doc.data().profileImageUrl || "/placeholder.svg?height=80&width=80",
-          coverImage: doc.data().coverImage || "/placeholder.svg?height=200&width=400",
-        }))
-        setAthletes([...basicData, ...CREATORS])
-      }
-    })
-
-    // Listen to member subscriptions
-    const unsubscribeMember = onSnapshot(doc(db, "members", auth.currentUser.uid), (doc) => {
-      if (doc.exists()) {
-        const userData = doc.data()
-        setSubscriptions(userData.subscriptions || {})
-      }
-    })
-
-    return () => {
-      unsubscribeAthletes()
-      unsubscribeMember()
-    }
-  }, [auth.currentUser])
-
-  // Enhanced fetch for initial load with comprehensive data
-  useEffect(() => {
-    async function fetchComprehensiveAthletes() {
-      try {
-        // Fetch all comprehensive athlete data
-        const comprehensiveAthletes = await getAllComprehensiveAthletes()
-        
-        // Enhance with real-time analytics
-        const athletesWithAnalytics = await Promise.all(
-          comprehensiveAthletes.map(async (athlete) => {
-            try {
-              const analytics = await getAthleteAnalytics(athlete.id)
-              return {
-                ...athlete,
-                // Add real-time content counts
-                totalPosts: analytics.totalPosts,
-                totalVideos: analytics.totalVideos,
-                totalArticles: analytics.totalArticles,
-                totalCourses: analytics.totalCourses,
-                totalContent: analytics.totalContent,
-                totalViews: analytics.totalViews,
-                totalLikes: analytics.totalLikes,
-                totalComments: analytics.totalComments,
-                engagementRate: analytics.engagementRate,
-                // Ensure UI compatibility
-                avatar: athlete.profileImageUrl || athlete.avatar || "/placeholder.svg?height=80&width=80",
-                coverImage: athlete.coverImage || "/placeholder.svg?height=200&width=400",
-                followers: athlete.followers?.toString() || "0",
-                following: athlete.following?.toString() || "0",
-                subscriptionPrice: athlete.pricing?.pro || athlete.subscriptionPrice || 0,
-              }
-            } catch (error) {
-              console.error(`Error fetching analytics for athlete ${athlete.id}:`, error)
-              return {
-                ...athlete,
-                avatar: athlete.profileImageUrl || athlete.avatar || "/placeholder.svg?height=80&width=80",
-                coverImage: athlete.coverImage || "/placeholder.svg?height=200&width=400",
-                followers: athlete.followers?.toString() || "0",
-                following: athlete.following?.toString() || "0",
-                subscriptionPrice: athlete.pricing?.pro || athlete.subscriptionPrice || 0,
-              }
-            }
-          })
-        )
-        
-        // Merge with static data for any missing athletes
-        const merged = [
-          ...athletesWithAnalytics,
-          ...CREATORS.filter(staticAthlete => !athletesWithAnalytics.some(f => f.id === staticAthlete.id))
-        ]
-        
-        setAthletes(merged)
-        console.log(`[DEBUG] Loaded ${athletesWithAnalytics.length} comprehensive athlete profiles`)
-      } catch (error) {
-        console.error("Error fetching comprehensive athletes:", error)
-        // Fallback to basic fetch
-        const snapshot = await getDocs(collection(db, "athletes"))
-        const basicData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          avatar: doc.data().profileImageUrl || "/placeholder.svg?height=80&width=80",
-          coverImage: doc.data().coverImage || "/placeholder.svg?height=200&width=400",
-        }))
-        // Merge with static creators
-        const merged = [
-          ...basicData,
-          ...CREATORS.filter(staticAthlete => !basicData.some(f => f.id === staticAthlete.id))
-        ]
-        setAthletes(merged)
-      }
-    }
-    fetchComprehensiveAthletes()
-  }, [])
-
-  const fetchSubscriptions = async () => {
-    if (auth.currentUser) {
-      const memberRef = doc(db, "members", auth.currentUser.uid)
-      const memberSnap = await getDoc(memberRef)
-      if (memberSnap.exists()) {
-        const memberData = memberSnap.data()
-        setSubscriptions(memberData.subscriptions || {})
-      }
-    }
-  }
-
-  useEffect(() => {
-    fetchSubscriptions()
-    
-    // Refresh subscription status when user returns to the page
-    const handleFocus = () => {
-      fetchSubscriptions()
-    }
-    
-    window.addEventListener('focus', handleFocus)
-    return () => window.removeEventListener('focus', handleFocus)
-  }, [])
-
-  const isSubscribedToCreator = (athleteId: string) => {
-    return subscriptions[athleteId] && subscriptions[athleteId].status === "active"
-  }
-
   // Get unique sports and other filter options
   const availableSports = useMemo(() => {
-    const sports = [...new Set(athletes.map((athlete) => athlete.sport))]
+    const sports = [...new Set(MOCK_ATHLETES.map((athlete) => athlete.sport))]
     return sports.sort()
-  }, [athletes])
+  }, [])
 
   // Enhanced filtering logic
   const filteredAthletes = useMemo(() => {
-    const filtered = athletes.filter((athlete) => {
+    const filtered = MOCK_ATHLETES.filter((athlete) => {
       // Sport filter
       if (selectedSport !== "all" && athlete.sport !== selectedSport) return false
 
@@ -349,7 +469,7 @@ export default function MemberDiscoverPage() {
     })
 
     return filtered
-  }, [selectedSport, selectedType, selectedRating, selectedExperience, searchQuery, sortBy, athletes])
+  }, [selectedSport, selectedType, selectedRating, selectedExperience, searchQuery, sortBy])
 
   // Stable event handlers
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -381,12 +501,12 @@ export default function MemberDiscoverPage() {
 
   const handleSubscribe = useCallback(
     (athleteId: string) => {
-      const athlete = athletes.find((a) => a.id === athleteId)
+      const athlete = MOCK_ATHLETES.find((a) => a.id === athleteId)
       if (athlete) {
         subscribeToCreator(athlete)
       }
     },
-    [subscribeToCreator, athletes],
+    [subscribeToCreator],
   )
 
   const handleUnsubscribe = useCallback(
@@ -396,13 +516,13 @@ export default function MemberDiscoverPage() {
     [unsubscribeFromCreator],
   )
 
-  const handleCreatorClick = useCallback((creator: (typeof athletes)[0]) => {
-    window.location.href = `/creator/${creator.id}`
+  const handleCreatorClick = useCallback((creator: (typeof MOCK_ATHLETES)[0]) => {
+    window.location.href = `/creator/coach-2`
   }, [])
 
   const handleFollowToggle = useCallback(
     (creatorId: string) => {
-      const creator = athletes.find((a) => a.id === creatorId)
+      const creator = MOCK_ATHLETES.find((a) => a.id === creatorId)
       if (!creator) return
 
       if (isFollowing(creatorId)) {
@@ -411,18 +531,18 @@ export default function MemberDiscoverPage() {
         followCreator(creator)
       }
     },
-    [isFollowing, followCreator, unfollowCreator, athletes],
+    [isFollowing, followCreator, unfollowCreator],
   )
 
   const handleSubscribeClick = useCallback(
     (creatorId: string) => {
-      const creator = athletes.find((a) => a.id === creatorId)
+      const creator = MOCK_ATHLETES.find((a) => a.id === creatorId)
       if (!creator) return
 
       setSelectedCreator(creator)
       router.push(`/member-subscription-plans?creatorId=${creatorId}&creatorName=${encodeURIComponent(creator.name)}`)
     },
-    [router, athletes],
+    [router],
   )
 
   const clearAllFilters = useCallback(() => {
@@ -468,7 +588,7 @@ export default function MemberDiscoverPage() {
 
   // Enhanced Athlete Card Component - Condensed version
   const AthleteCard = useCallback(
-    ({ athlete }: { athlete: (typeof athletes)[0] }) => (
+    ({ athlete }: { athlete: (typeof MOCK_ATHLETES)[0] }) => (
       <Card className="bg-white border border-gray-200 hover:shadow-xl transition-all duration-300 hover:border-prologue-electric/30 group overflow-hidden">
         <CardContent className="p-0 h-full">
           {/* Cover Image */}
@@ -502,17 +622,9 @@ export default function MemberDiscoverPage() {
                   className="w-16 h-16 bg-gray-200 rounded-full overflow-hidden border-3 border-white -mt-8 relative z-10 cursor-pointer hover:ring-4 hover:ring-prologue-electric/20 transition-all"
                   onClick={() => handleCreatorClick(athlete)}
                 >
-                  {athlete.profileImageUrl || athlete.profilePic || athlete.profilePicture || athlete.avatar ? (
-                    <img
-                      src={athlete.profileImageUrl || athlete.profilePic || athlete.profilePicture || athlete.avatar}
-                      alt={athlete.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                      <User className="h-8 w-8 text-gray-600" />
-                    </div>
-                  )}
+                  <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
+                    <User className="h-8 w-8 text-gray-600" />
+                  </div>
                 </div>
               </div>
               <div className="flex-1 min-w-0 pt-1">
@@ -528,59 +640,26 @@ export default function MemberDiscoverPage() {
                     {athlete.university && <span className="text-gray-500"> • {athlete.university}</span>}
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex items-center space-x-1">
-                      <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                      <span className="text-sm font-medium">{athlete.rating}</span>
-                      <span className="text-xs text-gray-400">({Object.keys(athlete.ratings || {}).length})</span>
-                    </div>
-                    <p className="text-sm text-gray-500">{athlete.followers} followers</p>
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-1">
+                    <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                    <span className="text-sm font-medium">{athlete.rating}</span>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {athlete.totalContent || 0} content
-                  </div>
+                  <p className="text-sm text-gray-500">{athlete.followers} followers</p>
                 </div>
               </div>
             </div>
 
-            {/* Specialty and Bio - Enhanced */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-prologue-electric">{athlete.specialty}</p>
+            {/* Specialty and Bio - Condensed */}
+            <div>
+              <p className="text-sm font-medium text-prologue-electric mb-1">{athlete.specialty}</p>
               <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">{athlete.bio}</p>
-              
-              {/* Additional Stats */}
-              <div className="flex items-center justify-between text-xs text-gray-500">
-                <span>{athlete.responseRate || "95%"} response rate</span>
-                <span>{athlete.experience || "5+ years"}</span>
-              </div>
-              
-              {/* Tags & Certifications */}
-              {(athlete.languages?.length > 0 || athlete.certifications?.length > 0) && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {athlete.languages?.slice(0, 2).map((lang: string, idx: number) => (
-                    <Badge key={`lang-${idx}`} variant="secondary" className="text-xs px-2 py-0.5">
-                      {lang}
-                    </Badge>
-                  ))}
-                  {athlete.certifications?.slice(0, 1).map((cert: string, idx: number) => (
-                    <Badge key={`cert-${idx}`} variant="outline" className="text-xs px-2 py-0.5 border-prologue-electric/30 text-prologue-electric">
-                      {cert.length > 20 ? cert.substring(0, 20) + "..." : cert}
-                    </Badge>
-                  ))}
-                  {athlete.engagementRate && athlete.engagementRate !== "0%" && (
-                    <Badge variant="secondary" className="text-xs px-2 py-0.5 bg-green-100 text-green-700">
-                      {athlete.engagementRate} engagement
-                    </Badge>
-                  )}
-                </div>
-              )}
             </div>
 
             {/* Action Section - Condensed */}
             <div className="pt-3 border-t border-gray-100">
               <div className="flex items-center space-x-2">
-                {isSubscribedToCreator(athlete.id) ? (
+                {isSubscribed(athlete.id) ? (
                   <Button
                     variant="outline"
                     onClick={() => handleUnsubscribe(athlete.id)}
@@ -612,17 +691,17 @@ export default function MemberDiscoverPage() {
         </CardContent>
       </Card>
     ),
-    [handleCreatorClick, isSubscribedToCreator, handleUnsubscribe, handleSubscribeClick],
+    [handleCreatorClick, isSubscribed, handleUnsubscribe, handleSubscribeClick],
   )
 
   if (isMobile || isTablet) {
     return (
       <MobileLayout
-        userType="member"
-        currentPath="/member-browse"
+        currentPath="/member-discover"
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
+        userType="member"
       >
         <div className="min-h-screen bg-gray-50">
           {/* Search Bar */}
@@ -704,7 +783,7 @@ export default function MemberDiscoverPage() {
                             <ChevronDown className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-48">
+                        <DropdownMenuContent className="w-full">
                           <DropdownMenuItem onClick={() => setSelectedSport("all")}>All Sports</DropdownMenuItem>
                           {availableSports.map((sport) => (
                             <DropdownMenuItem key={sport} onClick={() => setSelectedSport(sport)}>
@@ -785,12 +864,12 @@ export default function MemberDiscoverPage() {
             {/* All Athletes Section */}
             <div className="space-y-6">
               <div className="space-y-6">
-                {filteredAthletes.map((athlete) => (
+                {(searchQuery || hasActiveFilters ? filteredAthletes : filteredAthletes).map((athlete) => (
                   <AthleteCard key={athlete.id} athlete={athlete} />
                 ))}
               </div>
 
-              {filteredAthletes.length === 0 && (
+              {(searchQuery || hasActiveFilters ? filteredAthletes : filteredAthletes).length === 0 && (
                 <div className="text-center py-16">
                   <User className="h-20 w-20 mx-auto mb-6 text-gray-300" />
                   <h3 className="text-xl font-medium text-gray-900 mb-3">No athletes found</h3>
@@ -822,7 +901,7 @@ export default function MemberDiscoverPage() {
               <span className="text-xs font-medium">Training</span>
             </Link>
             <Link
-              href="/member-browse"
+              href="/member-discover"
               className="flex flex-col items-center space-y-2 text-prologue-electric transition-colors"
             >
               <Search className="h-6 w-6" />
@@ -855,7 +934,7 @@ export default function MemberDiscoverPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <MemberHeader
-        currentPath="/member-browse"
+        currentPath="/member-discover"
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
@@ -1003,13 +1082,13 @@ export default function MemberDiscoverPage() {
         {/* Athletes Grid - Full Width */}
         <div className="space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredAthletes.map((athlete) => (
+            {(searchQuery || hasActiveFilters ? filteredAthletes : filteredAthletes).map((athlete) => (
               <AthleteCard key={athlete.id} athlete={athlete} />
             ))}
           </div>
 
           {/* Empty State */}
-          {filteredAthletes.length === 0 && (
+          {(searchQuery || hasActiveFilters ? filteredAthletes : filteredAthletes).length === 0 && (
             <div className="text-center py-20">
               <User className="h-24 w-24 mx-auto mb-8 text-gray-300" />
               <h3 className="text-2xl font-medium text-gray-900 mb-4">No athletes found</h3>
@@ -1033,4 +1112,4 @@ export default function MemberDiscoverPage() {
       </main>
     </div>
   )
-}
+} 

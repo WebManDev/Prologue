@@ -11,19 +11,19 @@ import { useEffect, useState, Suspense } from "react"
 import { SubscriptionCheckout } from "@/components/subscription-checkout"
 import { CREATORS } from "@/lib/creators"
 import { doc, getDoc } from "firebase/firestore"
-import { db } from "@/lib/firebase"
+import { db, auth, getMemberProfile } from "@/lib/firebase"
 
 const subscriptionTiers = [
   {
     name: "Basic",
-    price: 4.99,
+    key: "basic",
     features: ["Access to free content", "Limited community access", "Email support", "Monthly newsletter"],
     buttonText: "Choose Basic",
     description: "Perfect for getting started with creator content.",
   },
   {
     name: "Pro",
-    price: 29.99,
+    key: "pro",
     features: [
       "Access to all premium content",
       "Direct messaging with creator",
@@ -38,7 +38,7 @@ const subscriptionTiers = [
   },
   {
     name: "Premium",
-    price: 49.99,
+    key: "premium",
     features: [
       "Access to all premium content",
       "Direct messaging with creator",
@@ -57,17 +57,16 @@ const subscriptionTiers = [
 function MemberSubscriptionPlansContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const athleteId = searchParams ? searchParams.get("athleteId") : null
+  const athleteId = searchParams ? (searchParams.get("athleteId") || searchParams.get("creatorId")) : null
   const { toast } = useToast()
   const { isMobile, isTablet } = useMobileDetection()
   const { unreadMessagesCount, unreadNotificationsCount } = useMemberNotifications()
   const [selectedPlan, setSelectedPlan] = useState<'basic' | 'pro' | 'premium' | null>(null)
   const [athlete, setAthlete] = useState<any | null>(null)
+  const [member, setMember] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
-  // TODO: Replace with real member info from auth context
-  const memberEmail = "testuser@email.com"
-  const memberName = "Test User"
 
+  // Fetch athlete data
   useEffect(() => {
     async function fetchAthlete() {
       if (!athleteId) return setLoading(false)
@@ -95,20 +94,62 @@ function MemberSubscriptionPlansContent() {
     fetchAthlete()
   }, [athleteId])
 
-  const handleChoosePlan = (planName: string) => {
-    setSelectedPlan(planName as 'basic' | 'pro' | 'premium')
+  // Fetch member data from authentication
+  useEffect(() => {
+    async function fetchMember() {
+      if (!auth.currentUser) return
+      try {
+        const memberProfile = await getMemberProfile(auth.currentUser.uid)
+        if (memberProfile) {
+          setMember({
+            id: auth.currentUser.uid,
+            name: `${memberProfile.firstName || ""} ${memberProfile.lastName || ""}`.trim() || memberProfile.name || "",
+            email: memberProfile.email || auth.currentUser.email || "",
+            firstName: memberProfile.firstName || "",
+            lastName: memberProfile.lastName || "",
+          })
+        } else {
+          // Fallback if no profile found
+          setMember({
+            id: auth.currentUser.uid,
+            name: auth.currentUser.displayName || "",
+            email: auth.currentUser.email || "",
+            firstName: "",
+            lastName: "",
+          })
+        }
+      } catch (error) {
+        console.error("Error fetching member profile:", error)
+        // Fallback on error
+        setMember({
+          id: auth.currentUser.uid,
+          name: auth.currentUser.displayName || "",
+          email: auth.currentUser.email || "",
+          firstName: "",
+          lastName: "",
+        })
+      }
+    }
+    fetchMember()
+  }, [])
+
+  const handleChoosePlan = (planKey: string) => {
+    setSelectedPlan(planKey as 'basic' | 'pro' | 'premium')
   }
+
   const handleBackToPlans = () => {
     setSelectedPlan(null)
   }
+
   const handleCheckoutSuccess = () => {
     toast({
       title: "Subscription Successful!",
-      description: `Thank you for subscribing to ${athlete?.name}'s ${selectedPlan} plan.`,
+      description: `Thank you for subscribing to ${athlete?.name || athlete?.firstName + ' ' + athlete?.lastName}'s ${selectedPlan} plan.`,
       duration: 4000,
     })
     setSelectedPlan(null)
-    // Optionally redirect or refresh
+    // Navigate back to browse or dashboard
+    router.push("/member-browse")
   }
 
   const MainContent = () => (
@@ -122,65 +163,31 @@ function MemberSubscriptionPlansContent() {
           </Button>
         </div>
       </div>
+
       <main className="max-w-6xl mx-auto px-4 lg:px-6 py-8 pb-20 lg:pb-8">
-        <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Choose Your Subscription Plan</h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Select the plan that best fits your needs to unlock exclusive content and personalized coaching from your
-            favorite creators.
-          </p>
-        </div>
-        {/* Plan cards should be directly below the heading/description */}
         {loading ? (
           <div className="text-center py-20 text-gray-500 text-lg">Loading...</div>
         ) : !athlete ? (
           <div className="text-center py-20 text-red-500 text-lg">Athlete not found.</div>
         ) : selectedPlan ? (
+          // Show checkout when plan is selected
           <div className="max-w-lg mx-auto">
             <Button variant="outline" className="mb-6" onClick={handleBackToPlans}>
               &larr; Back to plans
             </Button>
-            {/* Add selected plan text above the plan card */}
-            <div className="text-center font-semibold text-lg mb-4">Selected Plan: {selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)}</div>
-            {(() => {
-              const tier = subscriptionTiers.find(t => t.name.toLowerCase() === selectedPlan)
-              if (!tier) return null
-              return (
-                <Card className={`mb-8 p-6 rounded-2xl shadow-lg border-2 ${tier.highlight ? "border-prologue-electric" : "border-gray-200"}`}>
-                  <CardHeader className="pb-4">
-                    <CardTitle className={`text-2xl font-bold ${tier.highlight ? "text-prologue-electric" : "text-gray-900"}`}>{tier.name}</CardTitle>
-                    <p className="text-gray-500 text-sm">{tier.description}</p>
-                    <div className="text-4xl font-extrabold text-gray-900 mt-4">
-                      ${tier.price}
-                      <span className="text-lg font-medium text-gray-500">/month</span>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-3 text-gray-700 mb-2">
-                      {tier.features.map((feature, index) => (
-                        <li key={index} className="flex items-center space-x-3">
-                          <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                          <span>{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )
-            })()}
             <SubscriptionCheckout
               athlete={{
                 ...athlete,
                 pricing: athlete.pricing || {
-                  basic: 4.99,
+                  basic: 9.99,
                   pro: 29.99,
                   premium: 49.99,
                 },
               }}
-              members={{
-                id: "temp-member-id", // TODO: Replace with actual member ID from auth
-                name: memberName,
-                email: memberEmail,
+              members={member || {
+                id: auth.currentUser?.uid || "",
+                name: "",
+                email: auth.currentUser?.email || "",
               }}
               onSuccess={handleCheckoutSuccess}
               onCancel={handleBackToPlans}
@@ -188,49 +195,65 @@ function MemberSubscriptionPlansContent() {
             />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {subscriptionTiers.map((tier) => (
-              <Card
-                key={tier.name}
-                className={`flex flex-col justify-between p-6 rounded-2xl shadow-lg transition-all duration-300 ${
-                  tier.highlight ? "border-2 border-prologue-electric scale-105" : "border border-gray-200"
-                }`}
-              >
-                <CardHeader className="pb-4">
-                  <CardTitle
-                    className={`text-2xl font-bold ${tier.highlight ? "text-prologue-electric" : "text-gray-900"}`}
-                  >
-                    {tier.name}
-                  </CardTitle>
-                  <p className="text-gray-500 text-sm">{tier.description}</p>
-                  <div className="text-4xl font-extrabold text-gray-900 mt-4">
-                    ${tier.price}
-                    <span className="text-lg font-medium text-gray-500">/month</span>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-1 flex flex-col justify-between">
-                  <ul className="space-y-3 text-gray-700 mb-8">
-                    {tier.features.map((feature, index) => (
-                      <li key={index} className="flex items-center space-x-3">
-                        <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
-                        <span>{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button
-                    onClick={() => handleChoosePlan(tier.name.toLowerCase())}
-                    className={`w-full py-3 text-lg font-semibold transition-all duration-200 ${
-                      tier.highlight
-                        ? "bg-prologue-electric hover:bg-prologue-blue text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"
+          // Show subscription plan selection
+          <>
+            <div className="text-center mb-10">
+              <h1 className="text-4xl font-bold text-gray-900 mb-4">Choose Your Subscription Plan</h1>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                Select the plan that best fits your needs to unlock exclusive content and personalized coaching from{" "}
+                {athlete?.name || `${athlete?.firstName || ""} ${athlete?.lastName || ""}`.trim() || "your favorite creator"}.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {subscriptionTiers.map((tier) => {
+                const price = athlete?.pricing?.[tier.key] || 
+                  (tier.key === "basic" ? 9.99 : tier.key === "pro" ? 29.99 : 49.99)
+                
+                return (
+                  <Card
+                    key={tier.name}
+                    className={`flex flex-col justify-between p-6 rounded-2xl shadow-lg transition-all duration-300 ${
+                      tier.highlight ? "border-2 border-prologue-electric scale-105" : "border border-gray-200"
                     }`}
                   >
-                    {tier.buttonText}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    <CardHeader className="pb-4">
+                      <CardTitle
+                        className={`text-2xl font-bold ${tier.highlight ? "text-prologue-electric" : "text-gray-900"}`}
+                      >
+                        {tier.name}
+                      </CardTitle>
+                      <p className="text-gray-500 text-sm">{tier.description}</p>
+                      <div className="text-4xl font-extrabold text-gray-900 mt-4">
+                        ${price.toFixed(2)}
+                        <span className="text-lg font-medium text-gray-500">/month</span>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="flex-1 flex flex-col justify-between">
+                      <ul className="space-y-3 text-gray-700 mb-8">
+                        {tier.features.map((feature, index) => (
+                          <li key={index} className="flex items-center space-x-3">
+                            <CheckCircle className="h-5 w-5 text-green-500 flex-shrink-0" />
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <Button
+                        onClick={() => handleChoosePlan(tier.key)}
+                        className={`w-full py-3 text-lg font-semibold transition-all duration-200 ${
+                          tier.highlight
+                            ? "bg-prologue-electric hover:bg-prologue-blue text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"
+                        }`}
+                      >
+                        {tier.buttonText}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          </>
         )}
       </main>
     </div>

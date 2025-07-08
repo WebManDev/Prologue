@@ -20,15 +20,9 @@ import {
   LogOut,
   LayoutDashboard,
   Search,
-  Shield,
-  Palette,
   Lock,
-  Eye,
-  Download,
-  Trash2,
   BookOpen,
   Save,
-  AlertTriangle,
   CreditCard,
   Compass,
 } from "lucide-react"
@@ -38,7 +32,7 @@ import { useState, useRef, useEffect } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { auth, db } from "@/lib/firebase"
-import { doc, deleteDoc, getDoc } from "firebase/firestore"
+import { doc, deleteDoc, getDoc, updateDoc } from "firebase/firestore"
 import { onAuthStateChanged } from "firebase/auth";
 import React from "react";
 import { collection, getDoc as getDocFromCollection } from "firebase/firestore";
@@ -147,34 +141,15 @@ export default function MemberSettingsPage() {
   // Settings state
   const [settings, setSettings] = useState({
     // Profile settings
-    firstName: "Alex",
-    lastName: "Johnson",
-    email: "alex.johnson@example.com",
-    phone: "+1 (555) 987-6543",
-
-    // Notification settings
-    emailNotifications: true,
-    pushNotifications: true,
-    smsNotifications: false,
-    trainingReminders: true,
-    messageNotifications: true,
-    achievementNotifications: true,
-    recruitmentAlerts: true,
-
-    // Privacy settings
-    profileVisibility: "public",
-    showEmail: false,
-    showPhone: false,
-    allowMessages: true,
-    allowCoachContact: true,
-
-    // App settings
-    theme: "light",
-    language: "en",
-    timezone: "America/New_York",
-    autoPlay: true,
-    dataUsage: "wifi-only",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
   })
+  
+  // Loading states
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   // Quick search suggestions
   const quickSearches = [
@@ -218,15 +193,29 @@ export default function MemberSettingsPage() {
     }
   }
 
-  const handleSaveSettings = () => {
-    // Simulate saving settings
-    console.log("Saving settings:", settings)
-    alert("Settings saved successfully!")
-  }
+  const handleSaveSettings = async () => {
+    if (!auth.currentUser) {
+      alert("Not logged in!")
+      return
+    }
 
-  const handleExportData = () => {
-    // Simulate data export
-    alert("Your data export has been initiated. You'll receive an email when it's ready.")
+    setSaving(true)
+    try {
+      const memberRef = doc(db, "members", auth.currentUser.uid)
+      await updateDoc(memberRef, {
+        firstName: settings.firstName,
+        lastName: settings.lastName,
+        email: settings.email,
+        phone: settings.phone,
+        updatedAt: new Date().toISOString()
+      })
+      alert("Settings saved successfully!")
+    } catch (error) {
+      console.error("Error saving settings:", error)
+      alert("Failed to save settings. Please try again.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleDeleteAccount = async () => {
@@ -286,13 +275,31 @@ export default function MemberSettingsPage() {
   }
 
   const [members, setMembers] = useState<any>(null);
+  
+  // Load member data
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const docRef = doc(db, "members", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setMembers({ id: user.uid, ...docSnap.data() });
+        setLoading(true)
+        try {
+          const docRef = doc(db, "members", user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const memberData = docSnap.data()
+            setMembers({ id: user.uid, ...memberData });
+            
+            // Update settings with member data
+            setSettings({
+              firstName: memberData.firstName || "",
+              lastName: memberData.lastName || "",
+              email: memberData.email || user.email || "",
+              phone: memberData.phone || "",
+            })
+          }
+        } catch (error) {
+          console.error("Error loading member data:", error)
+        } finally {
+          setLoading(false)
         }
       }
     });
@@ -461,12 +468,8 @@ export default function MemberSettingsPage() {
 
         {/* Settings Tabs */}
         <Tabs defaultValue="account" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-1">
             <TabsTrigger value="account">Account</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="privacy">Privacy</TabsTrigger>
-            <TabsTrigger value="preferences">Preferences</TabsTrigger>
-            <TabsTrigger value="data">Data</TabsTrigger>
           </TabsList>
 
           {/* Account Settings */}
@@ -479,43 +482,57 @@ export default function MemberSettingsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="firstName">First Name</Label>
-                    <Input
-                      id="firstName"
-                      value={settings.firstName}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, firstName: e.target.value })}
-                    />
+                {loading ? (
+                  <div className="space-y-4">
+                    <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
+                    <div className="h-10 bg-gray-200 rounded animate-pulse"></div>
                   </div>
-                  <div>
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input
-                      id="lastName"
-                      value={settings.lastName}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, lastName: e.target.value })}
-                    />
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="firstName">First Name</Label>
+                        <Input
+                          id="firstName"
+                          value={settings.firstName}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, firstName: e.target.value })}
+                          disabled={saving}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="lastName">Last Name</Label>
+                        <Input
+                          id="lastName"
+                          value={settings.lastName}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, lastName: e.target.value })}
+                          disabled={saving}
+                        />
+                      </div>
+                    </div>
 
-                <div>
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={settings.email}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, email: e.target.value })}
-                  />
-                </div>
+                    <div>
+                      <Label htmlFor="email">Email Address</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={settings.email}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, email: e.target.value })}
+                        disabled={saving}
+                      />
+                    </div>
 
-                <div>
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input
-                    id="phone"
-                    value={settings.phone}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, phone: e.target.value })}
-                  />
-                </div>
+                    <div>
+                      <Label htmlFor="phone">Phone Number</Label>
+                      <Input
+                        id="phone"
+                        value={settings.phone}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, phone: e.target.value })}
+                        disabled={saving}
+                      />
+                    </div>
+                  </>
+                )}
 
                 <Separator />
 
@@ -524,10 +541,6 @@ export default function MemberSettingsPage() {
                   <Button variant="outline" className="w-full justify-start bg-transparent">
                     <Lock className="h-4 w-4 mr-2" />
                     Change Password
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start bg-transparent">
-                    <Shield className="h-4 w-4 mr-2" />
-                    Two-Factor Authentication
                   </Button>
                 </div>
 
@@ -544,362 +557,17 @@ export default function MemberSettingsPage() {
               </CardContent>
             </Card>
           </TabsContent>
-
-          {/* Notification Settings */}
-          <TabsContent value="notifications" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Bell className="h-5 w-5" />
-                  <span>Notification Preferences</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">Email Notifications</h4>
-                      <p className="text-sm text-gray-600">Receive notifications via email</p>
-                    </div>
-                    <Switch
-                      checked={settings.emailNotifications}
-                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, emailNotifications: checked })}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">Push Notifications</h4>
-                      <p className="text-sm text-gray-600">Receive push notifications on your device</p>
-                    </div>
-                    <Switch
-                      checked={settings.pushNotifications}
-                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, pushNotifications: checked })}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium">SMS Notifications</h4>
-                      <p className="text-sm text-gray-600">Receive notifications via text message</p>
-                    </div>
-                    <Switch
-                      checked={settings.smsNotifications}
-                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, smsNotifications: checked })}
-                    />
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900">Notification Types</h4>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Training Reminders</h5>
-                      <p className="text-sm text-gray-600">Reminders for scheduled training sessions</p>
-                    </div>
-                    <Switch
-                      checked={settings.trainingReminders}
-                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, trainingReminders: checked })}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Message Notifications</h5>
-                      <p className="text-sm text-gray-600">New messages from coaches and teammates</p>
-                    </div>
-                    <Switch
-                      checked={settings.messageNotifications}
-                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, messageNotifications: checked })}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Achievement Notifications</h5>
-                      <p className="text-sm text-gray-600">Notifications for completed goals and achievements</p>
-                    </div>
-                    <Switch
-                      checked={settings.achievementNotifications}
-                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, achievementNotifications: checked })}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Recruitment Alerts</h5>
-                      <p className="text-sm text-gray-600">Notifications about college recruitment opportunities</p>
-                    </div>
-                    <Switch
-                      checked={settings.recruitmentAlerts}
-                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, recruitmentAlerts: checked })}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Privacy Settings */}
-          <TabsContent value="privacy" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Eye className="h-5 w-5" />
-                  <span>Privacy Settings</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <Label htmlFor="profileVisibility">Profile Visibility</Label>
-                  <Select
-                    value={settings.profileVisibility}
-                    onValueChange={(value) => setSettings({ ...settings, profileVisibility: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="public">Public - Anyone can view</SelectItem>
-                      <SelectItem value="coaches">Coaches Only - Only verified coaches</SelectItem>
-                      <SelectItem value="private">Private - Only you</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900">Contact Information</h4>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Show Email Address</h5>
-                      <p className="text-sm text-gray-600">Allow others to see your email address</p>
-                    </div>
-                    <Switch
-                      checked={settings.showEmail}
-                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, showEmail: checked })}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Show Phone Number</h5>
-                      <p className="text-sm text-gray-600">Allow others to see your phone number</p>
-                    </div>
-                    <Switch
-                      checked={settings.showPhone}
-                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, showPhone: checked })}
-                    />
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900">Communication</h4>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Allow Messages</h5>
-                      <p className="text-sm text-gray-600">Allow other users to send you messages</p>
-                    </div>
-                    <Switch
-                      checked={settings.allowMessages}
-                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, allowMessages: checked })}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Allow Coach Contact</h5>
-                      <p className="text-sm text-gray-600">Allow coaches to contact you directly</p>
-                    </div>
-                    <Switch
-                      checked={settings.allowCoachContact}
-                      onCheckedChange={(checked: boolean) => setSettings({ ...settings, allowCoachContact: checked })}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* App Preferences */}
-          <TabsContent value="preferences" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Palette className="h-5 w-5" />
-                  <span>App Preferences</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <Label htmlFor="theme">Theme</Label>
-                  <Select value={settings.theme} onValueChange={(value) => setSettings({ ...settings, theme: value })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="language">Language</Label>
-                  <Select
-                    value={settings.language}
-                    onValueChange={(value) => setSettings({ ...settings, language: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Spanish</SelectItem>
-                      <SelectItem value="fr">French</SelectItem>
-                      <SelectItem value="de">German</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Select
-                    value={settings.timezone}
-                    onValueChange={(value) => setSettings({ ...settings, timezone: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="America/New_York">Eastern Time</SelectItem>
-                      <SelectItem value="America/Chicago">Central Time</SelectItem>
-                      <SelectItem value="America/Denver">Mountain Time</SelectItem>
-                      <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900">Media Settings</h4>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Auto-play Videos</h5>
-                      <p className="text-sm text-gray-600">Automatically play training videos</p>
-                    </div>
-                    <Switch
-                      checked={settings.autoPlay}
-                      onCheckedChange={(checked) => setSettings({ ...settings, autoPlay: checked })}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="dataUsage">Data Usage</Label>
-                    <Select
-                      value={settings.dataUsage}
-                      onValueChange={(value) => setSettings({ ...settings, dataUsage: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="wifi-only">Wi-Fi Only</SelectItem>
-                        <SelectItem value="wifi-cellular">Wi-Fi + Cellular</SelectItem>
-                        <SelectItem value="cellular-only">Cellular Only</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Data Management */}
-          <TabsContent value="data" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Download className="h-5 w-5" />
-                  <span>Data Management</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Export Your Data</h4>
-                    <p className="text-sm text-gray-600 mb-4">
-                      Download a copy of all your data including profile information, training history, and messages.
-                    </p>
-                    <Button variant="outline" onClick={handleExportData}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Export Data
-                    </Button>
-                  </div>
-
-                  <Separator />
-
-                  <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Storage Usage</h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Training Videos</span>
-                        <span>2.4 GB</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Progress Photos</span>
-                        <span>156 MB</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Messages</span>
-                        <span>23 MB</span>
-                      </div>
-                      <div className="flex justify-between text-sm font-medium">
-                        <span>Total</span>
-                        <span>2.6 GB</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                    <div className="flex items-start space-x-3">
-                      <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
-                      <div className="flex-1">
-                        <h4 className="font-medium text-red-900 mb-2">Delete Account</h4>
-                        <p className="text-sm text-red-700 mb-4">
-                          Permanently delete your account and all associated data. This action cannot be undone.
-                        </p>
-                        <Button variant="destructive" onClick={handleDeleteAccount}>
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete Account
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
 
         {/* Save Button */}
         <div className="flex justify-end pt-6">
-          <Button onClick={handleSaveSettings} className="bg-prologue-electric hover:bg-prologue-blue">
+          <Button 
+            onClick={handleSaveSettings} 
+            className="bg-prologue-electric hover:bg-prologue-blue"
+            disabled={saving || loading}
+          >
             <Save className="h-4 w-4 mr-2" />
-            Save Settings
+            {saving ? "Saving..." : "Save Settings"}
           </Button>
         </div>
       </main>

@@ -1,674 +1,1298 @@
 "use client"
 
-import React from "react"
+import type React from "react"
 
+import { useState, useMemo, useCallback, useRef, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
 import {
-  Settings,
-  User,
-  Bell,
-  Home,
-  LayoutDashboard,
-  MessageCircle,
-  ChevronDown,
-  LogOut,
   Search,
+  Bell,
+  User,
+  ChevronDown,
+  CheckCircle,
+  SlidersHorizontal,
+  X,
+  Home,
+  MessageCircle,
   BookOpen,
   MessageSquare,
-  CheckCircle,
-  AlertTriangle,
-  Trophy,
-  Heart,
-  MessageCircleIcon,
-  Calendar,
   Filter,
-  MoreVertical,
+  TrendingUp,
+  Trophy,
+  Calendar,
+  AlertTriangle,
+  Heart,
   Archive,
   Trash2,
-  X,
-  Compass,
-  TrendingUp,
+  MoreVertical,
+  Clock,
+  Star,
+  Video,
+  FileText,
 } from "lucide-react"
-import Link from "next/link"
-import Image from "next/image"
-import { useState, useRef, useEffect } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
-import MemberMobileNavigation from "@/components/mobile/member-mobile-navigation"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
+import MobileLayout from "@/components/mobile/mobile-layout"
 import { MemberHeader } from "@/components/navigation/member-header"
-import { auth, getMemberProfile } from "@/lib/firebase"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
-import { LogoutNotification } from "@/components/ui/logout-notification"
+import Link from "next/link"
+import { auth, getMemberProfile } from "@/lib/firebase"
+import { collection, query, where, onSnapshot, orderBy, addDoc, serverTimestamp, doc, getDoc, updateDoc } from "firebase/firestore"
+import { db } from "@/lib/firebase"
+
+// Static data to prevent recreation on every render
+const QUICK_SEARCHES = [
+  "Training Updates",
+  "Feedback Received",
+  "Achievement Unlocked",
+  "Message Notifications",
+  "Session Reminders",
+  "Course Updates",
+  "System Alerts",
+  "Payment Notifications",
+]
+
+// Notification types
+const NOTIFICATION_TYPES = [
+  { value: "all", label: "All Notifications" },
+  { value: "training", label: "Training" },
+  { value: "feedback", label: "Feedback" },
+  { value: "message", label: "Messages" },
+  { value: "achievement", label: "Achievements" },
+  { value: "reminder", label: "Reminders" },
+  { value: "system", label: "System" },
+  { value: "social", label: "Social" },
+  { value: "content", label: "Content" },
+]
 
 export default function MemberNotificationsPage() {
-  const { unreadMessagesCount, unreadNotificationsCount, markNotificationsAsRead, hasNewTrainingContent } =
-    useMemberNotifications()
   const { isMobile, isTablet } = useMobileDetection()
+  const router = useRouter()
+  const { logout } = useUnifiedLogout()
+  const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent, markNotificationsAsRead } = useMemberNotifications()
 
-  // Search dropdown state
-  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
-  const searchRef = useRef<HTMLDivElement>(null)
+  // Enhanced state management
+  const [selectedType, setSelectedType] = useState<string>("all")
+  const [selectedPriority, setSelectedPriority] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
+  const [showFilters, setShowFilters] = useState(false)
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "priority" | "unread">("newest")
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const [selectedNotifications, setSelectedNotifications] = useState<string[]>([])
+  const [notificationsList, setNotificationsList] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [memberProfile, setMemberProfile] = useState<any>(null)
 
-  // Filter state
-  const [selectedFilter, setSelectedFilter] = useState("all")
+  // Refs for maintaining focus
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Quick search suggestions
-  const quickSearches = [
-    "Navigate Recruitment",
-    "Nutrition",
-    "NIL",
-    "Training Programs",
-    "Mental Performance",
-    "Injury Prevention",
-    "Sports Psychology",
-    "Athletic Scholarships",
-  ]
+  // Get current user and profile
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        setCurrentUserId(user.uid)
+        try {
+          const profile = await getMemberProfile(user.uid)
+          setMemberProfile(profile)
+        } catch (error) {
+          console.error("Error fetching member profile:", error)
+        }
+      } else {
+        setCurrentUserId(null)
+        setMemberProfile(null)
+      }
+    })
 
-  // Mock search results based on query
-  const searchResults = React.useMemo(() => {
-    if (!searchQuery.trim()) return []
+    return () => unsubscribe()
+  }, [])
 
-    const mockResults = [
-      {
-        type: "coach",
-        name: "Sarah Martinez",
-        sport: "Tennis",
-        followers: "15.2K",
-        rating: 4.9,
-        specialty: "Serve Technique",
-      },
-      {
-        type: "coach",
-        name: "Mike Johnson",
-        sport: "Basketball",
-        followers: "8.7K",
-        rating: 4.8,
-        specialty: "Mental Performance",
-      },
-      {
-        type: "content",
-        title: "Advanced Serve Training",
-        creator: "Elite Tennis Academy",
-        views: "25K",
-        duration: "15 min",
-      },
-      {
-        type: "content",
-        title: "Mental Toughness Guide",
-        creator: "Sports Psychology Pro",
-        views: "18K",
-        duration: "22 min",
-      },
-    ].filter(
-      (result) =>
-        result.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        result.sport?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        result.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        result.specialty?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        result.creator?.toLowerCase().includes(searchQuery.toLowerCase()),
+  // Real-time notifications listener
+  useEffect(() => {
+    if (!currentUserId) {
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    
+    // Listen to notifications for the current user
+    const notificationsQuery = query(
+      collection(db, "notifications"),
+      where("recipientId", "==", currentUserId),
+      orderBy("createdAt", "desc")
     )
 
-    return mockResults
-  }, [searchQuery])
+    const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
+      const notifications = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().createdAt ? formatTimestamp(doc.data().createdAt) : "Just now"
+      }))
+      setNotificationsList(notifications)
+      setLoading(false)
+    }, (error) => {
+      console.error("Error listening to notifications:", error)
+      setLoading(false)
+    })
 
-  // Search handlers
-  const handleSearchChange = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setSearchQuery(value)
-  }, [])
+    return () => unsubscribe()
+  }, [currentUserId])
 
-  const handleSearchFocus = React.useCallback(() => {
-    setShowSearchDropdown(true)
-  }, [])
-
-  const handleSearchSelect = React.useCallback((search: string) => {
-    setSearchQuery(search)
-    setShowSearchDropdown(false)
-    console.log("Searching for:", search)
-  }, [])
-
-  const clearSearch = React.useCallback(() => {
-    setSearchQuery("")
-    setShowSearchDropdown(false)
-  }, [])
-
-  // Mock notifications data
-  const notifications = [
-    {
-      id: 1,
-      type: "training",
-      title: "New Training Program Available",
-      message: "Coach Sarah Martinez has uploaded a new serve technique program for you.",
-      timestamp: "2 minutes ago",
-      read: false,
-      icon: BookOpen,
-      iconColor: "text-blue-500",
-      iconBg: "bg-blue-100",
-      sender: "Coach Sarah Martinez",
-      senderAvatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: 2,
-      type: "feedback",
-      title: "Feedback Received",
-      message: "You received new feedback on your backhand technique video.",
-      timestamp: "1 hour ago",
-      read: false,
-      icon: MessageSquare,
-      iconColor: "text-green-500",
-      iconBg: "bg-green-100",
-      sender: "Elite Tennis Academy",
-      senderAvatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: 3,
-      type: "achievement",
-      title: "Achievement Unlocked!",
-      message: "Congratulations! You've completed 10 training sessions this month.",
-      timestamp: "3 hours ago",
-      read: true,
-      icon: Trophy,
-      iconColor: "text-yellow-500",
-      iconBg: "bg-yellow-100",
-      sender: "PROLOGUE",
-      senderAvatar: "/Prologue LOGO-1.png",
-    },
-    {
-      id: 4,
-      type: "message",
-      title: "New Message",
-      message: "Coach Mike Johnson sent you a message about your mental training progress.",
-      timestamp: "5 hours ago",
-      read: true,
-      icon: MessageCircleIcon,
-      iconColor: "text-purple-500",
-      iconBg: "bg-purple-100",
-      sender: "Coach Mike Johnson",
-      senderAvatar: "/placeholder.svg?height=40&width=40",
-    },
-    {
-      id: 5,
-      type: "reminder",
-      title: "Training Session Reminder",
-      message: "Don't forget your scheduled training session tomorrow at 3:00 PM.",
-      timestamp: "1 day ago",
-      read: true,
-      icon: Calendar,
-      iconColor: "text-orange-500",
-      iconBg: "bg-orange-100",
-      sender: "PROLOGUE",
-      senderAvatar: "/Prologue LOGO-1.png",
-    },
-    {
-      id: 6,
-      type: "social",
-      title: "New Follower",
-      message: "Alex Johnson started following your progress. Say hello!",
-      timestamp: "2 days ago",
-      read: true,
-      icon: Heart,
-      iconColor: "text-pink-500",
-      iconBg: "bg-pink-100",
-      sender: "Alex Johnson",
-      senderAvatar: "/placeholder.svg?height=40&width=40",
-    },
-  ]
-
-  // Handle clicks outside search dropdown
+  // Listen for likes and comments on member's posts
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setShowSearchDropdown(false)
-      }
-    }
+    if (!currentUserId || !memberProfile) return
 
-    document.addEventListener("mousedown", handleClickOutside)
+    // Listen for likes on member's posts
+    const likesQuery = query(
+      collection(db, "likes"),
+      where("postAuthorId", "==", currentUserId),
+      orderBy("createdAt", "desc")
+    )
+
+    const likesUnsubscribe = onSnapshot(likesQuery, (snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type === "added") {
+          const likeData = change.doc.data()
+          
+          // Don't notify if user liked their own post
+          if (likeData.userId === currentUserId) return
+
+          // Get the user who liked the post
+          const userDoc = await getDoc(doc(db, "members", likeData.userId))
+          const userData = userDoc.exists() ? userDoc.data() : { firstName: "Someone" }
+
+          // Get the post details
+          const postDoc = await getDoc(doc(db, "posts", likeData.postId))
+          const postData = postDoc.exists() ? postDoc.data() : { title: "your post" }
+
+          // Create notification
+          await createNotification({
+            type: "social",
+            title: "New Like on Your Post",
+            message: `${userData.firstName} ${userData.lastName || ""} liked your post "${postData.title}".`,
+            recipientId: currentUserId,
+            senderId: likeData.userId,
+            senderName: `${userData.firstName} ${userData.lastName || ""}`,
+            priority: "low",
+            category: "Post Like",
+            actionType: "view_post",
+            actionUrl: `/post/${likeData.postId}`,
+            metadata: {
+              postId: likeData.postId,
+              postTitle: postData.title,
+              likeId: change.doc.id
+            }
+          })
+        }
+      })
+    })
+
+    // Listen for comments on member's posts
+    const commentsQuery = query(
+      collection(db, "comments"),
+      where("postAuthorId", "==", currentUserId),
+      orderBy("createdAt", "desc")
+    )
+
+    const commentsUnsubscribe = onSnapshot(commentsQuery, (snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type === "added") {
+          const commentData = change.doc.data()
+          
+          // Don't notify if user commented on their own post
+          if (commentData.userId === currentUserId) return
+
+          // Get the user who commented
+          const userDoc = await getDoc(doc(db, "members", commentData.userId))
+          const userData = userDoc.exists() ? userDoc.data() : { firstName: "Someone" }
+
+          // Get the post details
+          const postDoc = await getDoc(doc(db, "posts", commentData.postId))
+          const postData = postDoc.exists() ? postDoc.data() : { title: "your post" }
+
+          // Create notification
+          await createNotification({
+            type: "social",
+            title: "New Comment on Your Post",
+            message: `${userData.firstName} ${userData.lastName || ""} commented on your post "${postData.title}": "${commentData.content.substring(0, 50)}${commentData.content.length > 50 ? '...' : ''}"`,
+            recipientId: currentUserId,
+            senderId: commentData.userId,
+            senderName: `${userData.firstName} ${userData.lastName || ""}`,
+            priority: "medium",
+            category: "Post Comment",
+            actionType: "view_post",
+            actionUrl: `/post/${commentData.postId}#comment-${change.doc.id}`,
+            metadata: {
+              postId: commentData.postId,
+              postTitle: postData.title,
+              commentId: change.doc.id,
+              commentPreview: commentData.content.substring(0, 100)
+            }
+          })
+        }
+      })
+    })
+
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
+      likesUnsubscribe()
+      commentsUnsubscribe()
     }
-  }, [])
+  }, [currentUserId, memberProfile])
 
-  // Mark notifications as read when entering the page
+  // Listen for athlete responses to messages
+  useEffect(() => {
+    if (!currentUserId || !memberProfile?.subscribedAthletes) return
+
+    const subscribedAthleteIds = Array.isArray(memberProfile.subscribedAthletes) 
+      ? memberProfile.subscribedAthletes 
+      : Object.keys(memberProfile.subscribedAthletes || {})
+
+    if (subscribedAthleteIds.length === 0) return
+
+    // Listen for new messages from subscribed athletes
+    const messagesQuery = query(
+      collection(db, "messages"),
+      where("recipientId", "==", currentUserId),
+      where("senderId", "in", subscribedAthleteIds.slice(0, 10)), // Firestore 'in' limit is 10
+      orderBy("createdAt", "desc")
+    )
+
+    const messagesUnsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type === "added") {
+          const messageData = change.doc.data()
+
+          // Get the athlete info
+          const athleteDoc = await getDoc(doc(db, "athletes", messageData.senderId))
+          const athleteData = athleteDoc.exists() ? athleteDoc.data() : { firstName: "Athlete" }
+
+          // Create notification
+          await createNotification({
+            type: "message",
+            title: "New Message from Coach",
+            message: `${athleteData.firstName} ${athleteData.lastName || ""} sent you a message: "${messageData.content.substring(0, 50)}${messageData.content.length > 50 ? '...' : ''}"`,
+            recipientId: currentUserId,
+            senderId: messageData.senderId,
+            senderName: `${athleteData.firstName} ${athleteData.lastName || ""}`,
+            priority: "high",
+            category: "Direct Message",
+            actionType: "view_message",
+            actionUrl: `/member-messaging?coach=${messageData.senderId}`,
+            metadata: {
+              messageId: change.doc.id,
+              messagePreview: messageData.content.substring(0, 100),
+              conversationId: messageData.conversationId
+            }
+          })
+        }
+      })
+    })
+
+    return () => messagesUnsubscribe()
+  }, [currentUserId, memberProfile])
+
+  // Listen for feedback from athletes
+  useEffect(() => {
+    if (!currentUserId || !memberProfile?.subscribedAthletes) return
+
+    const subscribedAthleteIds = Array.isArray(memberProfile.subscribedAthletes) 
+      ? memberProfile.subscribedAthletes 
+      : Object.keys(memberProfile.subscribedAthletes || {})
+
+    if (subscribedAthleteIds.length === 0) return
+
+    // Listen for new feedback from subscribed athletes
+    const feedbackQuery = query(
+      collection(db, "feedback"),
+      where("memberId", "==", currentUserId),
+      where("athleteId", "in", subscribedAthleteIds.slice(0, 10)),
+      orderBy("createdAt", "desc")
+    )
+
+    const feedbackUnsubscribe = onSnapshot(feedbackQuery, (snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type === "added") {
+          const feedbackData = change.doc.data()
+
+          // Get the athlete info
+          const athleteDoc = await getDoc(doc(db, "athletes", feedbackData.athleteId))
+          const athleteData = athleteDoc.exists() ? athleteDoc.data() : { firstName: "Athlete" }
+
+          // Create notification
+          await createNotification({
+            type: "feedback",
+            title: "New Feedback Received",
+            message: `${athleteData.firstName} ${athleteData.lastName || ""} provided feedback on your ${feedbackData.contentType || "submission"}.`,
+            recipientId: currentUserId,
+            senderId: feedbackData.athleteId,
+            senderName: `${athleteData.firstName} ${athleteData.lastName || ""}`,
+            priority: "medium",
+            category: "Performance Feedback",
+            actionType: "view_feedback",
+            actionUrl: `/member-feedback?id=${change.doc.id}`,
+            metadata: {
+              feedbackId: change.doc.id,
+              rating: feedbackData.rating,
+              contentType: feedbackData.contentType,
+              improvementAreas: feedbackData.improvementAreas
+            }
+          })
+        }
+      })
+    })
+
+    return () => feedbackUnsubscribe()
+  }, [currentUserId, memberProfile])
+
+  // Listen for new content from subscribed athletes
+  useEffect(() => {
+    if (!currentUserId || !memberProfile?.subscribedAthletes) return
+
+    const subscribedAthleteIds = Array.isArray(memberProfile.subscribedAthletes) 
+      ? memberProfile.subscribedAthletes 
+      : Object.keys(memberProfile.subscribedAthletes || {})
+
+    if (subscribedAthleteIds.length === 0) return
+
+    // Listen for new videos from subscribed athletes
+    const videosQuery = query(
+      collection(db, "videos"),
+      where("authorId", "in", subscribedAthleteIds.slice(0, 10)),
+      orderBy("createdAt", "desc")
+    )
+
+    const videosUnsubscribe = onSnapshot(videosQuery, (snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type === "added") {
+          const videoData = change.doc.data()
+
+          // Get the athlete info
+          const athleteDoc = await getDoc(doc(db, "athletes", videoData.authorId))
+          const athleteData = athleteDoc.exists() ? athleteDoc.data() : { firstName: "Athlete" }
+
+          // Create notification
+          await createNotification({
+            type: "training",
+            title: "New Training Video Available",
+            message: `${athleteData.firstName} ${athleteData.lastName || ""} uploaded a new video: "${videoData.title}".`,
+            recipientId: currentUserId,
+            senderId: videoData.authorId,
+            senderName: `${athleteData.firstName} ${athleteData.lastName || ""}`,
+            priority: "medium",
+            category: "New Content",
+            actionType: "view_content",
+            actionUrl: `/video/${change.doc.id}`,
+            metadata: {
+              contentId: change.doc.id,
+              contentType: "video",
+              contentTitle: videoData.title,
+              duration: videoData.duration
+            }
+          })
+        }
+      })
+    })
+
+    // Listen for new articles from subscribed athletes
+    const articlesQuery = query(
+      collection(db, "articles"),
+      where("authorId", "in", subscribedAthleteIds.slice(0, 10)),
+      orderBy("createdAt", "desc")
+    )
+
+    const articlesUnsubscribe = onSnapshot(articlesQuery, (snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type === "added") {
+          const articleData = change.doc.data()
+
+          // Get the athlete info
+          const athleteDoc = await getDoc(doc(db, "athletes", articleData.authorId))
+          const athleteData = athleteDoc.exists() ? athleteDoc.data() : { firstName: "Athlete" }
+
+          // Create notification
+          await createNotification({
+            type: "training",
+            title: "New Article Published",
+            message: `${athleteData.firstName} ${athleteData.lastName || ""} published a new article: "${articleData.title}".`,
+            recipientId: currentUserId,
+            senderId: articleData.authorId,
+            senderName: `${athleteData.firstName} ${athleteData.lastName || ""}`,
+            priority: "medium",
+            category: "New Content",
+            actionType: "view_content",
+            actionUrl: `/article/${change.doc.id}`,
+            metadata: {
+              contentId: change.doc.id,
+              contentType: "article",
+              contentTitle: articleData.title,
+              readTime: articleData.readTime
+            }
+          })
+        }
+      })
+    })
+
+    // Listen for new courses from subscribed athletes
+    const coursesQuery = query(
+      collection(db, "courses"),
+      where("authorId", "in", subscribedAthleteIds.slice(0, 10)),
+      orderBy("createdAt", "desc")
+    )
+
+    const coursesUnsubscribe = onSnapshot(coursesQuery, (snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type === "added") {
+          const courseData = change.doc.data()
+
+          // Get the athlete info
+          const athleteDoc = await getDoc(doc(db, "athletes", courseData.authorId))
+          const athleteData = athleteDoc.exists() ? athleteDoc.data() : { firstName: "Athlete" }
+
+          // Create notification
+          await createNotification({
+            type: "training",
+            title: "New Course Available",
+            message: `${athleteData.firstName} ${athleteData.lastName || ""} created a new course: "${courseData.title}".`,
+            recipientId: currentUserId,
+            senderId: courseData.authorId,
+            senderName: `${athleteData.firstName} ${athleteData.lastName || ""}`,
+            priority: "high",
+            category: "New Course",
+            actionType: "view_content",
+            actionUrl: `/course/${change.doc.id}`,
+            metadata: {
+              contentId: change.doc.id,
+              contentType: "course",
+              contentTitle: courseData.title,
+              lessons: courseData.lessons?.length || 0
+            }
+          })
+        }
+      })
+    })
+
+    return () => {
+      videosUnsubscribe()
+      articlesUnsubscribe()
+      coursesUnsubscribe()
+    }
+  }, [currentUserId, memberProfile])
+
+  // Helper function to create notifications
+  const createNotification = async (notificationData: any) => {
+    try {
+      await addDoc(collection(db, "notifications"), {
+        ...notificationData,
+        createdAt: serverTimestamp(),
+        read: false
+      })
+    } catch (error) {
+      console.error("Error creating notification:", error)
+    }
+  }
+
+  // Helper function to format timestamps
+  const formatTimestamp = (timestamp: any) => {
+    if (!timestamp) return "Just now"
+    
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
+    const now = new Date()
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
+    
+    if (diffInMinutes < 1) return "Just now"
+    if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`
+    
+    const diffInHours = Math.floor(diffInMinutes / 60)
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`
+    
+    const diffInDays = Math.floor(diffInHours / 24)
+    if (diffInDays < 7) return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`
+    
+    return date.toLocaleDateString()
+  }
+
+  // Mark notifications as read on mount
   useEffect(() => {
     if (unreadNotificationsCount > 0) {
-      // Simulate reading all notifications after a short delay
-      const timer = setTimeout(() => {
-        markNotificationsAsRead()
-      }, 1000)
-
-      return () => clearTimeout(timer)
+      markNotificationsAsRead()
     }
   }, [unreadNotificationsCount, markNotificationsAsRead])
 
-  const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
+  // Enhanced filtering logic
+  const filteredNotifications = useMemo(() => {
+    const filtered = notificationsList.filter((notification) => {
+      // Type filter
+      if (selectedType !== "all" && notification.type !== selectedType) return false
 
-  const handleLogout = React.useCallback(async () => {
-    await logout({
-      customMessage: "Securing your member account and logging out...",
-      onComplete: () => {
-        // Optionally show a toast or message
-      },
-      onError: (error) => {
-        // Optionally show a toast or message
-        console.error("Logout failed from notifications page:", error)
-      },
-    })
-  }, [logout])
+      // Priority filter
+      if (selectedPriority !== "all" && notification.priority !== selectedPriority) return false
 
-  const filteredNotifications = notifications.filter((notification) => {
-    if (selectedFilter === "all") return true
-    if (selectedFilter === "unread") return !notification.read
-    return notification.type === selectedFilter
-  })
-
-  const getNotificationStats = () => {
-    const total = notifications.length
-    const unread = notifications.filter((n) => !n.read).length
-    const training = notifications.filter((n) => n.type === "training").length
-    const feedback = notifications.filter((n) => n.type === "feedback").length
-    const achievements = notifications.filter((n) => n.type === "achievement").length
-
-    return { total, unread, training, feedback, achievements }
-  }
-
-  const stats = getNotificationStats()
-
-  const [profileData, setProfileData] = useState({ firstName: "", lastName: "", profileImageUrl: null })
-  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
-  const [memberStats, setMemberStats] = useState({ activeCoaches: 2, thisWeek: 3, totalSessions: 18, improvement: 15 })
-
-  useEffect(() => {
-    const loadProfile = async () => {
-      if (!auth.currentUser) return
-      const memberProfile = await getMemberProfile(auth.currentUser.uid)
-      if (memberProfile) {
-        setProfileData({
-          firstName: memberProfile.firstName || "",
-          lastName: memberProfile.lastName || "",
-          profileImageUrl: memberProfile.profileImageUrl || null,
-        })
-        setProfileImageUrl(memberProfile.profileImageUrl || null)
-        // Optionally load stats from memberProfile if available
-        setMemberStats({
-          activeCoaches: memberProfile.activeCoaches || 2,
-          thisWeek: memberProfile.thisWeek || 3,
-          totalSessions: memberProfile.totalSessions || 18,
-          improvement: memberProfile.improvement || 15,
-        })
+      // Search query filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase()
+        return (
+          notification.title.toLowerCase().includes(query) ||
+          notification.message.toLowerCase().includes(query) ||
+          notification.senderName?.toLowerCase().includes(query) ||
+          notification.category.toLowerCase().includes(query)
+        )
       }
-    }
-    loadProfile()
+
+      return true
+    })
+
+    // Sorting
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "newest":
+          return new Date(b.createdAt?.toDate?.() || b.createdAt || 0).getTime() - new Date(a.createdAt?.toDate?.() || a.createdAt || 0).getTime()
+        case "oldest":
+          return new Date(a.createdAt?.toDate?.() || a.createdAt || 0).getTime() - new Date(b.createdAt?.toDate?.() || b.createdAt || 0).getTime()
+        case "priority":
+          const priorityOrder = { high: 3, medium: 2, low: 1 }
+          return priorityOrder[b.priority as keyof typeof priorityOrder] - priorityOrder[a.priority as keyof typeof priorityOrder]
+        case "unread":
+          return Number(!a.read) - Number(!b.read)
+        default:
+          return 0
+      }
+    })
+
+    return filtered
+  }, [selectedType, selectedPriority, searchQuery, sortBy, notificationsList])
+
+  // Get unread count
+  const unreadCount = useMemo(() => {
+    return notificationsList.filter(n => !n.read).length
+  }, [notificationsList])
+
+  // Stable event handlers
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value)
+    setShowSearchDropdown(e.target.value.length > 0)
   }, [])
 
-  // Memoized search dropdown content
-  const searchDropdownContent = React.useMemo(() => {
-    const displayItems = searchQuery ? searchResults : quickSearches.slice(0, 8)
-    const isShowingResults = searchQuery && searchResults.length > 0
-    const isShowingQuickSearches = !searchQuery
+  const handleSearchFocus = useCallback(() => {
+    if (searchQuery.length > 0) {
+      setShowSearchDropdown(true)
+    }
+  }, [searchQuery])
+
+  const handleSearchBlur = useCallback(() => {
+    setTimeout(() => setShowSearchDropdown(false), 200)
+  }, [])
+
+  const handleQuickSearchSelect = useCallback((searchTerm: string) => {
+    setSearchQuery(searchTerm)
+    setShowSearchDropdown(false)
+    searchInputRef.current?.focus()
+  }, [])
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery("")
+    setShowSearchDropdown(false)
+    searchInputRef.current?.focus()
+  }, [])
+
+  const handleNotificationClick = useCallback(async (notification: any) => {
+    try {
+      // Mark as read in Firebase
+      if (!notification.read) {
+        await updateDoc(doc(db, "notifications", notification.id), {
+          read: true,
+          readAt: serverTimestamp()
+        })
+      }
+      
+      // Navigate to action URL
+      if (notification.actionUrl) {
+        router.push(notification.actionUrl)
+      }
+    } catch (error) {
+      console.error("Error marking notification as read:", error)
+    }
+  }, [router])
+
+  const handleMarkAsRead = useCallback(async (notificationId: string) => {
+    try {
+      await updateDoc(doc(db, "notifications", notificationId), {
+        read: true,
+        readAt: serverTimestamp()
+      })
+    } catch (error) {
+      console.error("Error marking notification as read:", error)
+    }
+  }, [])
+
+  const handleMarkAsUnread = useCallback(async (notificationId: string) => {
+    try {
+      await updateDoc(doc(db, "notifications", notificationId), {
+        read: false
+      })
+    } catch (error) {
+      console.error("Error marking notification as unread:", error)
+    }
+  }, [])
+
+  const handleDeleteNotification = useCallback(async (notificationId: string) => {
+    try {
+      await updateDoc(doc(db, "notifications", notificationId), {
+        deleted: true,
+        deletedAt: serverTimestamp()
+      })
+    } catch (error) {
+      console.error("Error deleting notification:", error)
+    }
+  }, [])
+
+  const handleBulkMarkAsRead = useCallback(async () => {
+    try {
+      if (selectedNotifications.length > 0) {
+        // Mark selected notifications as read
+        const updatePromises = selectedNotifications.map(id => 
+          updateDoc(doc(db, "notifications", id), {
+            read: true,
+            readAt: serverTimestamp()
+          })
+        )
+        await Promise.all(updatePromises)
+        setSelectedNotifications([])
+      } else {
+        // Mark all filtered notifications as read
+        const updatePromises = filteredNotifications
+          .filter(n => !n.read)
+          .map(n => 
+            updateDoc(doc(db, "notifications", n.id), {
+              read: true,
+              readAt: serverTimestamp()
+            })
+          )
+        await Promise.all(updatePromises)
+      }
+    } catch (error) {
+      console.error("Error bulk marking as read:", error)
+    }
+  }, [selectedNotifications, filteredNotifications])
+
+  const handleBulkDelete = useCallback(async () => {
+    try {
+      if (selectedNotifications.length > 0) {
+        const updatePromises = selectedNotifications.map(id => 
+          updateDoc(doc(db, "notifications", id), {
+            deleted: true,
+            deletedAt: serverTimestamp()
+          })
+        )
+        await Promise.all(updatePromises)
+        setSelectedNotifications([])
+      }
+    } catch (error) {
+      console.error("Error bulk deleting:", error)
+    }
+  }, [selectedNotifications])
+
+  const clearAllFilters = useCallback(() => {
+    setSelectedType("all")
+    setSelectedPriority("all")
+    setSearchQuery("")
+  }, [])
+
+  const hasActiveFilters = selectedType !== "all" || selectedPriority !== "all" || searchQuery
+
+  // Get notification icon and styling
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case "training":
+        return { icon: BookOpen, color: "text-blue-500", bg: "bg-blue-100" }
+      case "feedback":
+        return { icon: MessageSquare, color: "text-green-500", bg: "bg-green-100" }
+      case "achievement":
+        return { icon: Trophy, color: "text-yellow-500", bg: "bg-yellow-100" }
+      case "message":
+        return { icon: MessageCircle, color: "text-purple-500", bg: "bg-purple-100" }
+      case "reminder":
+        return { icon: Calendar, color: "text-orange-500", bg: "bg-orange-100" }
+      case "system":
+        return { icon: Bell, color: "text-gray-500", bg: "bg-gray-100" }
+      case "social":
+        return { icon: Heart, color: "text-pink-500", bg: "bg-pink-100" }
+      case "content":
+        return { icon: Video, color: "text-indigo-500", bg: "bg-indigo-100" }
+      default:
+        return { icon: Bell, color: "text-gray-500", bg: "bg-gray-100" }
+    }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case "high":
+        return "border-l-red-500 bg-red-50"
+      case "medium":
+        return "border-l-yellow-500 bg-yellow-50"
+      case "low":
+        return "border-l-gray-500 bg-gray-50"
+      default:
+        return "border-l-gray-300"
+    }
+  }
+
+  // Memoized search dropdown
+  const SearchDropdown = useMemo(() => {
+    if (!showSearchDropdown || !searchQuery) return null
+
+    const filteredSearches = QUICK_SEARCHES.filter((search) => search.toLowerCase().includes(searchQuery.toLowerCase()))
 
     return (
-      <div
-        className={`${isMobile || isTablet ? "mt-2" : "absolute top-full left-0 mt-1 w-80"} bg-white border border-gray-200 rounded-lg shadow-lg z-50`}
-      >
+      <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
         <div className="p-3 border-b border-gray-100">
-          <h4 className="text-sm font-semibold text-gray-700 mb-2">
-            {isShowingResults ? `Results for "${searchQuery}"` : "Quick Searches"}
-          </h4>
+          <p className="text-sm font-medium text-gray-700 mb-2">Quick Searches</p>
           <div className="space-y-1">
-            {isShowingQuickSearches &&
-              displayItems.map((search, index) => (
-                <button
-                  key={index}
-                  className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-prologue-electric rounded transition-colors"
-                  onClick={() => handleSearchSelect(typeof search === 'string' ? search : search.name || search.title || '')}
-                >
-                  {typeof search === 'string' ? search : search.name || search.title || ''}
-                </button>
-              ))}
-
-            {isShowingResults &&
-              displayItems.map((result, index) => {
-                if (typeof result === 'string') return null
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
-                    onClick={() => handleSearchSelect(result.name || result.title || '')}
-                  >
-                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                      <User className="h-4 w-4 text-gray-500" />
-                    </div>
-                    <div className="flex-1">
-                      <h5 className="text-sm font-medium text-gray-900">{result.name || result.title}</h5>
-                      <p className="text-xs text-gray-600">
-                        {result.type === "coach"
-                          ? `${result.sport} • ${result.followers} followers`
-                          : `${result.creator} • ${result.views} views`}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
-
-            {searchQuery && searchResults.length === 0 && (
-              <div className="px-3 py-2 text-sm text-gray-500">No results found for "{searchQuery}"</div>
-            )}
+            {filteredSearches.map((search) => (
+              <button
+                key={search}
+                onClick={() => handleQuickSearchSelect(search)}
+                className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-md transition-colors"
+              >
+                {search}
+              </button>
+            ))}
           </div>
         </div>
       </div>
     )
-  }, [searchQuery, searchResults, quickSearches, handleSearchSelect, isMobile, isTablet])
+  }, [showSearchDropdown, searchQuery, handleQuickSearchSelect])
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Dashboard-style Header */}
-      <MemberHeader
+  // Enhanced Notification Card Component
+  const NotificationCard = useCallback(
+    ({ notification }: { notification: any }) => {
+      const { icon: IconComponent, color, bg } = getNotificationIcon(notification.type)
+      const isSelected = selectedNotifications.includes(notification.id)
+
+      return (
+        <Card 
+          className={`bg-white border border-gray-200 hover:shadow-md transition-all duration-200 cursor-pointer border-l-4 ${getPriorityColor(notification.priority)} ${!notification.read ? 'ring-2 ring-prologue-electric/20' : ''} ${isSelected ? 'ring-2 ring-prologue-electric' : ''}`}
+          onClick={() => handleNotificationClick(notification)}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-4">
+              {/* Notification Icon */}
+              <div className={`flex-shrink-0 w-10 h-10 ${bg} rounded-full flex items-center justify-center`}>
+                <IconComponent className={`h-5 w-5 ${color}`} />
+              </div>
+
+              {/* Notification Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <h3 className={`font-semibold text-gray-900 ${!notification.read ? 'text-gray-900' : 'text-gray-700'}`}>
+                        {notification.title}
+                      </h3>
+                      {!notification.read && (
+                        <div className="w-2 h-2 bg-prologue-electric rounded-full"></div>
+                      )}
+                    </div>
+                    <Badge variant="outline" className="text-xs mb-2">
+                      {notification.category}
+                    </Badge>
+                  </div>
+                  
+                  {/* Actions Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 w-8 p-0 text-gray-400 hover:text-gray-600"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {notification.read ? (
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation()
+                          handleMarkAsUnread(notification.id)
+                        }}>
+                          Mark as Unread
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation()
+                          handleMarkAsRead(notification.id)
+                        }}>
+                          Mark as Read
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteNotification(notification.id)
+                      }}>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                <p className={`text-sm mb-3 ${!notification.read ? 'text-gray-800' : 'text-gray-600'}`}>
+                  {notification.message}
+                </p>
+
+                {/* Metadata */}
+                {notification.metadata && (
+                  <div className="mb-3 p-2 bg-gray-50 rounded-md">
+                    <div className="text-xs text-gray-600 space-y-1">
+                      {notification.type === "training" && notification.metadata.contentTitle && (
+                        <div>Content: {notification.metadata.contentTitle} {notification.metadata.duration && `• ${notification.metadata.duration}`}</div>
+                      )}
+                      {notification.type === "feedback" && notification.metadata.rating && (
+                        <div className="flex items-center space-x-2">
+                          <span>Rating: {notification.metadata.rating}</span>
+                          <div className="flex">
+                            {[...Array(5)].map((_, i) => (
+                              <Star key={i} className={`h-3 w-3 ${i < Math.floor(notification.metadata.rating!) ? 'text-yellow-400 fill-current' : 'text-gray-300'}`} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {notification.type === "social" && notification.metadata.postTitle && (
+                        <div>Post: "{notification.metadata.postTitle}"</div>
+                      )}
+                      {notification.type === "message" && notification.metadata.messagePreview && (
+                        <div>Preview: "{notification.metadata.messagePreview.substring(0, 50)}..."</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Footer */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-6 h-6 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
+                        <User className="h-3 w-3 text-gray-600" />
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-500">{notification.senderName || "PROLOGUE"}</span>
+                  </div>
+                  <span className="text-xs text-gray-500">{notification.timestamp}</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )
+    },
+    [selectedNotifications, handleNotificationClick, handleMarkAsRead, handleMarkAsUnread, handleDeleteNotification],
+  )
+
+  if (isMobile || isTablet) {
+    return (
+      <MobileLayout
         currentPath="/member-notifications"
-        onLogout={handleLogout}
-        showSearch={true}
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
-        profileImageUrl={profileImageUrl}
-        profileData={profileData}
+        userType="member"
+      >
+        <div className="min-h-screen bg-gray-50">
+          <div className="p-6 space-y-6 mt-0">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
+                <p className="text-gray-600">{unreadCount} unread notifications</p>
+              </div>
+              {unreadCount > 0 && (
+                <Button
+                  onClick={handleBulkMarkAsRead}
+                  size="sm"
+                  className="bg-prologue-electric hover:bg-prologue-blue text-white"
+                >
+                  Mark All Read
+                </Button>
+              )}
+            </div>
+
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Search notifications..."
+                value={searchQuery}
+                onChange={handleSearchChange}
+                onFocus={handleSearchFocus}
+                onBlur={handleSearchBlur}
+                className="pl-12 pr-12 h-12 bg-white border-0 shadow-lg rounded-xl focus:ring-2 focus:ring-prologue-electric/20 text-base"
+              />
+              {searchQuery && (
+                <button
+                  onClick={handleClearSearch}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              )}
+              {SearchDropdown}
+            </div>
+
+            {/* Filter Toggle */}
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center space-x-2 h-10 px-4 bg-white shadow-sm"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                <span>Filters</span>
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-10 px-4 bg-white shadow-sm">
+                    <Filter className="h-4 w-4 mr-2" />
+                    Sort
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setSortBy("newest")}>Newest First</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("oldest")}>Oldest First</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("priority")}>By Priority</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy("unread")}>Unread First</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Mobile Filters */}
+            {showFilters && (
+              <Card className="bg-white border border-gray-200 shadow-sm">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="font-semibold text-gray-900 text-lg">Filters</h3>
+                    {hasActiveFilters && (
+                      <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-prologue-electric">
+                        <X className="h-4 w-4 mr-1" />
+                        Clear All
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="space-y-6">
+                    {/* Type Filter */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-3">Type</label>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" className="w-full justify-between bg-transparent h-10">
+                            {NOTIFICATION_TYPES.find(t => t.value === selectedType)?.label || "All Types"}
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-full">
+                          {NOTIFICATION_TYPES.map((type) => (
+                            <DropdownMenuItem key={type.value} onClick={() => setSelectedType(type.value)}>
+                              {type.label}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+
+                    {/* Priority Filter */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-3">Priority</label>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" className="w-full justify-between bg-transparent h-10">
+                            {selectedPriority === "all" ? "All Priorities" : selectedPriority.charAt(0).toUpperCase() + selectedPriority.slice(1)}
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-full">
+                          <DropdownMenuItem onClick={() => setSelectedPriority("all")}>All Priorities</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setSelectedPriority("high")}>High</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setSelectedPriority("medium")}>Medium</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setSelectedPriority("low")}>Low</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Notifications List */}
+            <div className="space-y-4">
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-prologue-electric"></div>
+                  <span className="ml-3 text-gray-600">Loading notifications...</span>
+                </div>
+              ) : filteredNotifications.length > 0 ? (
+                filteredNotifications.map((notification) => (
+                  <NotificationCard key={notification.id} notification={notification} />
+                ))
+              ) : (
+                <div className="text-center py-16">
+                  <Bell className="h-20 w-20 mx-auto mb-6 text-gray-300" />
+                  <h3 className="text-xl font-medium text-gray-900 mb-3">No notifications found</h3>
+                  <p className="text-gray-600 mb-6">
+                    {hasActiveFilters 
+                      ? "Try adjusting your filters to see more notifications."
+                      : "You're all caught up! New notifications will appear here."}
+                  </p>
+                  {hasActiveFilters && (
+                    <Button onClick={clearAllFilters} variant="outline" className="h-12 px-6 bg-white shadow-sm">
+                      Clear Filters
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Bottom Navigation */}
+        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+          <div className="flex items-center justify-around h-20 px-6">
+            <Link
+              href="/member-home"
+              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <Home className="h-6 w-6" />
+              <span className="text-xs font-medium">Home</span>
+            </Link>
+            <Link
+              href="/member-training"
+              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <BookOpen className="h-6 w-6" />
+              <span className="text-xs font-medium">Training</span>
+            </Link>
+            <Link
+              href="/member-discover"
+              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <Search className="h-6 w-6" />
+              <span className="text-xs font-medium">Discover</span>
+            </Link>
+            <Link
+              href="/member-feedback"
+              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <MessageSquare className="h-6 w-6" />
+              <span className="text-xs font-medium">Feedback</span>
+            </Link>
+            <Link
+              href="/member-messaging"
+              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors relative"
+            >
+              <MessageCircle className="h-6 w-6" />
+              <span className="text-xs font-medium">Messages</span>
+              {unreadMessagesCount > 0 && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
+              )}
+            </Link>
+          </div>
+        </nav>
+      </MobileLayout>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <MemberHeader
+        currentPath="/member-notifications"
+        unreadNotifications={unreadNotificationsCount}
+        unreadMessages={unreadMessagesCount}
+        hasNewContent={hasNewTrainingContent}
+        onLogout={logout}
       />
 
       {/* Main Content */}
-      <main className={`max-w-7xl mx-auto px-6 py-8 ${isMobile || isTablet ? "pb-20" : ""}`}>
+      <main className="max-w-7xl mx-auto px-8 py-12 mt-0">
         {/* Page Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-gradient-to-r from-prologue-electric to-prologue-fire rounded-lg flex items-center justify-center">
-              <Bell className="h-6 w-6 text-white" />
-            </div>
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
-              <p className="text-gray-600">Stay updated with your training progress and messages</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Notifications</h1>
+              <p className="text-gray-600">Stay updated with your training progress and platform activity</p>
             </div>
-          </div>
-
-          <div className="flex items-center space-x-3">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="flex items-center space-x-2 bg-transparent">
-                  <Filter className="h-4 w-4" />
-                  <span>Filter</span>
-                  <ChevronDown className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <div className="flex items-center space-x-3">
+                <Badge variant="secondary" className="text-sm">
+                  {unreadCount} unread
+                </Badge>
+                <Button
+                  onClick={handleBulkMarkAsRead}
+                  className="bg-prologue-electric hover:bg-prologue-blue text-white"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Mark All Read
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => setSelectedFilter("all")}>All Notifications</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedFilter("unread")}>Unread Only</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedFilter("training")}>Training</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedFilter("feedback")}>Feedback</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedFilter("achievement")}>Achievements</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedFilter("message")}>Messages</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setSelectedFilter("social")}>Social</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <Button variant="outline" className="bg-transparent">
-              <Archive className="h-4 w-4 mr-2" />
-              Archive All
-            </Button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Stats Overview */}
-        <div className="grid md:grid-cols-5 gap-6 mb-8">
-          <Card>
+        {/* Search and Controls */}
+        <div className="mb-8">
+          <Card className="bg-white shadow-lg border-0">
             <CardContent className="p-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Bell className="h-6 w-6 text-blue-600" />
+              <div className="space-y-4">
+                {/* Search Bar */}
+                <div className="relative max-w-2xl mx-auto">
+                  <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-6 w-6 text-gray-400" />
+                  <Input
+                    ref={searchInputRef}
+                    type="text"
+                    placeholder="Search notifications by title, message, or sender..."
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    onFocus={handleSearchFocus}
+                    onBlur={handleSearchBlur}
+                    className="pl-12 pr-12 h-12 bg-gray-50 border-0 focus:ring-2 focus:ring-prologue-electric/20 focus:border-prologue-electric text-lg rounded-xl"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={handleClearSearch}
+                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="h-6 w-6" />
+                    </button>
+                  )}
+                  {SearchDropdown}
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+
+                {/* Filter Controls */}
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  {/* Type Filter */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="bg-white border-gray-200 h-8 px-3 text-sm">
+                        <span className="mr-2">Type:</span>
+                        {NOTIFICATION_TYPES.find(t => t.value === selectedType)?.label.replace(" Notifications", "") || "All"}
+                        <ChevronDown className="h-4 w-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-48">
+                      {NOTIFICATION_TYPES.map((type) => (
+                        <DropdownMenuItem key={type.value} onClick={() => setSelectedType(type.value)}>
+                          {type.label}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* Priority Filter */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="bg-white border-gray-200 h-8 px-3 text-sm">
+                        <span className="mr-2">Priority:</span>
+                        {selectedPriority === "all" ? "All" : selectedPriority.charAt(0).toUpperCase() + selectedPriority.slice(1)}
+                        <ChevronDown className="h-4 w-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={() => setSelectedPriority("all")}>All Priorities</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSelectedPriority("high")}>High Priority</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSelectedPriority("medium")}>Medium Priority</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSelectedPriority("low")}>Low Priority</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* Sort Filter */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="bg-white border-gray-200 h-8 px-3 text-sm">
+                        <TrendingUp className="h-4 w-4 mr-2" />
+                        Sort by {sortBy === "newest" ? "Newest" : sortBy === "oldest" ? "Oldest" : sortBy === "priority" ? "Priority" : "Unread"}
+                        <ChevronDown className="h-4 w-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={() => setSortBy("newest")}>Newest First</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSortBy("oldest")}>Oldest First</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSortBy("priority")}>By Priority</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSortBy("unread")}>Unread First</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* Clear Filters */}
+                  {hasActiveFilters && (
+                    <Button
+                      variant="ghost"
+                      onClick={clearAllFilters}
+                      className="text-gray-600 hover:text-gray-900 h-8 px-3 text-sm"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Clear All
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                  <AlertTriangle className="h-6 w-6 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Unread</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.unread}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <BookOpen className="h-6 w-6 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Training</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.training}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <MessageSquare className="h-6 w-6 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Feedback</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.feedback}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                  <Trophy className="h-6 w-6 text-yellow-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Achievements</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.achievements}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Add dashboard widgets above notifications list */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6 mb-4 lg:mb-8">
-          <Card className="p-3 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs lg:text-sm font-medium text-gray-600">Active Coaches</p>
-                <p className="text-lg lg:text-2xl font-bold text-gray-900">{memberStats.activeCoaches}</p>
-              </div>
-              <User className="h-6 w-6 lg:h-8 lg:w-8 text-prologue-electric" />
-            </div>
-          </Card>
-          <Card className="p-3 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs lg:text-sm font-medium text-gray-600">This Week</p>
-                <p className="text-lg lg:text-2xl font-bold text-gray-900">{memberStats.thisWeek}</p>
-              </div>
-              <Calendar className="h-6 w-6 lg:h-8 lg:w-8 text-green-500" />
-            </div>
-          </Card>
-          <Card className="p-3 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs lg:text-sm font-medium text-gray-600">Total Sessions</p>
-                <p className="text-lg lg:text-2xl font-bold text-gray-900">{memberStats.totalSessions}</p>
-              </div>
-              <BookOpen className="h-6 w-6 lg:h-8 lg:w-8 text-blue-500" />
-            </div>
-          </Card>
-          <Card className="p-3 lg:p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs lg:text-sm font-medium text-gray-600">Improvement</p>
-                <p className="text-lg lg:text-2xl font-bold text-green-600">+{memberStats.improvement}%</p>
-              </div>
-              <TrendingUp className="h-6 w-6 lg:h-8 lg:w-8 text-orange-500" />
-            </div>
           </Card>
         </div>
 
         {/* Notifications List */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Recent Notifications</span>
-              <Badge variant="secondary" className="bg-prologue-electric/10 text-prologue-electric">
-                {filteredNotifications.length} notifications
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {filteredNotifications.map((notification) => {
-                const IconComponent = notification.icon
-                return (
-                  <div
-                    key={notification.id}
-                    className={`flex items-start space-x-4 p-4 rounded-lg border transition-all hover:shadow-md ${
-                      !notification.read
-                        ? "bg-prologue-electric/5 border-prologue-electric/20"
-                        : "bg-gray-50 border-gray-200"
-                    }`}
-                  >
-                    <div className="flex-shrink-0">
-                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${notification.iconBg}`}>
-                        <IconComponent className={`h-6 w-6 ${notification.iconColor}`} />
-                      </div>
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <h4 className="font-semibold text-gray-900">{notification.title}</h4>
-                          {!notification.read && <div className="w-2 h-2 bg-prologue-electric rounded-full"></div>}
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs text-gray-500">{notification.timestamp}</span>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <CheckCircle className="h-4 w-4 mr-2" />
-                                Mark as Read
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Archive className="h-4 w-4 mr-2" />
-                                Archive
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-red-600">
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-
-                      <p className="text-gray-600 mb-3">{notification.message}</p>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
-                          <Image
-                            src={notification.senderAvatar || "/placeholder.svg"}
-                            alt={notification.sender}
-                            width={24}
-                            height={24}
-                            className="w-6 h-6 rounded-full object-cover"
-                          />
-                          <span className="text-sm text-gray-600">{notification.sender}</span>
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          <Badge
-                            variant="secondary"
-                            className={`text-xs ${
-                              notification.type === "training"
-                                ? "bg-blue-100 text-blue-700"
-                                : notification.type === "feedback"
-                                  ? "bg-green-100 text-green-700"
-                                  : notification.type === "achievement"
-                                    ? "bg-yellow-100 text-yellow-700"
-                                    : notification.type === "message"
-                                      ? "bg-purple-100 text-purple-700"
-                                      : notification.type === "social"
-                                        ? "bg-pink-100 text-pink-700"
-                                        : "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {notification.type}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-
-              {filteredNotifications.length === 0 && (
-                <div className="text-center py-12">
-                  <Bell className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No notifications found</h3>
-                  <p className="text-gray-600">
-                    {selectedFilter === "all"
-                      ? "You're all caught up! No new notifications."
-                      : `No ${selectedFilter} notifications found.`}
-                  </p>
-                </div>
-              )}
+        <div className="space-y-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-prologue-electric"></div>
+              <span className="ml-3 text-gray-600">Loading notifications...</span>
             </div>
-
-            {filteredNotifications.length > 0 && (
-              <div className="text-center mt-8">
-                <Button variant="outline">Load More Notifications</Button>
+          ) : filteredNotifications.length > 0 ? (
+            filteredNotifications.map((notification) => (
+              <NotificationCard key={notification.id} notification={notification} />
+            ))
+          ) : (
+            <div className="text-center py-20">
+              <Bell className="h-24 w-24 mx-auto mb-8 text-gray-300" />
+              <h3 className="text-2xl font-medium text-gray-900 mb-4">
+                {hasActiveFilters ? "No notifications found" : "You're all caught up!"}
+              </h3>
+              <p className="text-gray-600 mb-8 max-w-md mx-auto text-lg leading-relaxed">
+                {hasActiveFilters 
+                  ? "Try adjusting your search or filters to find specific notifications."
+                  : "New notifications will appear here as you engage with training content and receive updates."}
+              </p>
+              <div className="space-x-4">
+                {hasActiveFilters ? (
+                  <>
+                    <Button onClick={clearAllFilters} variant="outline" className="h-12 px-8 bg-white shadow-sm">
+                      Clear All Filters
+                    </Button>
+                    <Button
+                      onClick={() => setSearchQuery("")}
+                      className="bg-prologue-electric hover:bg-prologue-blue text-white h-12 px-8"
+                    >
+                      Show All Notifications
+                    </Button>
+                  </>
+                ) : (
+                  <Link href="/member-training">
+                    <Button className="bg-prologue-electric hover:bg-prologue-blue text-white h-12 px-8">
+                      Explore Training Content
+                    </Button>
+                  </Link>
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          )}
+        </div>
       </main>
-
-      {/* Mobile Bottom Navigation */}
-      {(isMobile || isTablet) && (
-        <MemberMobileNavigation />
-      )}
-
-      <LogoutNotification
-        isVisible={loadingState.isVisible}
-        userType={loadingState.userType}
-        stage={loadingState.stage}
-        message={loadingState.message}
-        error={loadingState.error}
-        canRetry={loadingState.canRetry}
-        onRetry={retryLogout}
-        onCancel={cancelLogout}
-      />
     </div>
   )
 }
