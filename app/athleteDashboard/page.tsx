@@ -35,6 +35,7 @@ import Sidebar from "@/components/sidebar"
 import { NotificationProvider } from "@/contexts/notification-context"
 import { saveAthleteProfile, auth, getAthleteProfile } from "@/lib/firebase"
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
+import type { User as FirebaseUser } from "firebase/auth"
 
 // Static quick searches to prevent re-creation
 const QUICK_SEARCHES = [
@@ -214,10 +215,13 @@ export default function DashboardPage() {
     }
   }, [])
 
-  // Add a handler to save profile changes from ProfileHeader (image upload)
-  const handleHeaderSave = useCallback((newProfileData: ProfileData) => {
-    handleSaveProfile(newProfileData)
-  }, [handleSaveProfile])
+  // Add a handler to save profile changes from ProfileHeader (triggers ProfileEditor save)
+  const handleHeaderSave = useCallback(() => {
+    // This will trigger the ProfileEditor's save function via ref
+    if (profileEditorRef.current?.save) {
+      profileEditorRef.current.save()
+    }
+  }, [])
 
   // Member-dashboard-style image upload handlers
   const handleProfileImageChange = async (file: File) => {
@@ -259,7 +263,7 @@ export default function DashboardPage() {
 
   // Fetch athlete profile on mount and when auth state changes
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged((user: FirebaseUser | null) => {
       if (user) {
         getAthleteProfile(user.uid).then((profile) => {
           if (profile) {

@@ -48,7 +48,7 @@ interface ProfileHeaderProps {
   isEditing: boolean
   isLoading: boolean
   onEditToggle: () => void
-  onSave: (data: ProfileData) => void // This will be used by the parent editor component
+  onSave: () => void // This will trigger the ProfileEditor's save function
   onProfileImageChange: (file: File) => void
   onCoverImageChange: (file: File) => void
 }
@@ -264,7 +264,7 @@ export default function ProfileHeader({ profileData, isEditing, isLoading, onEdi
                 </Button>
                 <Button
                   size="sm"
-                  onClick={() => onSave(profileData)}
+                  onClick={onSave}
                   disabled={isLoading}
                   className="flex-1 lg:flex-none"
                 >

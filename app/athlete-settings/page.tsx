@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "@/components/ui/use-toast"
-import { User, Bell, CreditCard, Shield, Lock, Eye, EyeOff, Save, ArrowLeft, Trash2, Plus, Loader2 } from "lucide-react"
+import { User, CreditCard, Shield, Lock, Eye, EyeOff, Save, ArrowLeft, Trash2, Plus, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutLoadingScreen } from "@/components/ui/logout-loading-screen"
@@ -27,29 +27,37 @@ const AthleteSettingsPage = () => {
   const [isLoading, setIsLoading] = useState({
     account: false,
     password: false,
-    notifications: false,
     subscription: false,
     privacy: false,
     billing: false,
     banking: false,
   })
 
-  // Account Settings State
+  // Account Settings State - Updated to match athlete dashboard structure
   const [accountData, setAccountData] = useState({
     firstName: "Sarah",
     lastName: "Martinez",
     email: "sarah.martinez@example.com",
     phone: "+1 (555) 123-4567",
-    bio: "Professional tennis coach with 10+ years of experience helping athletes reach their potential.",
+    bio: "Dedicated tennis player focusing on mental performance and competitive excellence.",
     location: "Los Angeles, CA",
-    website: "https://sarahcoaching.com",
-    specialties: ["Tennis", "Mental Performance", "Youth Development"],
+    school: "UCLA",
+    graduationYear: "2025",
+    sport: "Tennis",
+    position: "Singles Player",
+    experience: "5 years competitive experience",
+    specialties: ["Mental Performance", "Singles Strategy", "Court Movement"],
     certifications: [
-      "USPTA Certified Professional",
-      "Mental Performance Certified",
-      "Youth Development Specialist",
-      "Sports Psychology Certificate",
+      "USTA Tournament Player",
+      "Mental Performance Training",
     ],
+    achievements: [
+      "Regional Tennis Championship Winner 2023",
+      "NCAA Division 1 Scholarship Recipient",
+      "State High School Tennis Champion",
+    ],
+    profilePhotoUrl: "",
+    coverPhotoUrl: "",
   })
 
   // Password State
@@ -63,22 +71,6 @@ const AthleteSettingsPage = () => {
     new: false,
     confirm: false,
   })
-
-  // Notification Settings State
-  const [notifications, setNotifications] = useState({
-    emailNotifications: true,
-    pushNotifications: true,
-    smsNotifications: false,
-    marketingEmails: true,
-    newSubscribers: true,
-    messages: true,
-    profileViews: false,
-    weeklyReports: true,
-    contentPerformance: true,
-    paymentAlerts: true,
-  })
-
-
 
   // Payment Methods State
   const [paymentMethods, setPaymentMethods] = useState([
@@ -108,8 +100,6 @@ const AthleteSettingsPage = () => {
     bankState: "",
     bankZip: "",
   })
-
-
 
   const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
 
@@ -208,87 +198,62 @@ const AthleteSettingsPage = () => {
     }
   }
 
-  const handleNotificationChange = async (key: string, value: boolean) => {
-    setNotifications((prev) => ({ ...prev, [key]: value }))
-
-    try {
-      console.log(`Updated ${key} to ${value}`)
-
-      toast({
-        title: "Notification Updated",
-        description: "Your notification preference has been saved.",
-        duration: 2000,
-      })
-    } catch (error) {
-      setNotifications((prev) => ({ ...prev, [key]: !value }))
-      toast({
-        title: "Error",
-        description: "Failed to update notification setting.",
-        variant: "destructive",
-        duration: 3000,
-      })
-    }
-  }
-
   const addSpecialty = () => {
-    setAccountData({
-      ...accountData,
-      specialties: [...accountData.specialties, "New Specialty"],
-    })
+    setAccountData({ ...accountData, specialties: [...accountData.specialties, ""] })
   }
 
   const removeSpecialty = (index: number) => {
-    setAccountData({
-      ...accountData,
-      specialties: accountData.specialties.filter((_, i) => i !== index),
-    })
+    const newSpecialties = accountData.specialties.filter((_, i) => i !== index)
+    setAccountData({ ...accountData, specialties: newSpecialties })
   }
 
   const updateSpecialty = (index: number, value: string) => {
     const newSpecialties = [...accountData.specialties]
     newSpecialties[index] = value
-    setAccountData({
-      ...accountData,
-      specialties: newSpecialties,
-    })
+    setAccountData({ ...accountData, specialties: newSpecialties })
   }
 
   const addCertification = () => {
-    setAccountData({
-      ...accountData,
-      certifications: [...accountData.certifications, "New Certification"],
-    })
+    setAccountData({ ...accountData, certifications: [...accountData.certifications, ""] })
   }
 
   const removeCertification = (index: number) => {
-    setAccountData({
-      ...accountData,
-      certifications: accountData.certifications.filter((_, i) => i !== index),
-    })
+    const newCertifications = accountData.certifications.filter((_, i) => i !== index)
+    setAccountData({ ...accountData, certifications: newCertifications })
   }
 
   const updateCertification = (index: number, value: string) => {
     const newCertifications = [...accountData.certifications]
     newCertifications[index] = value
-    setAccountData({
-      ...accountData,
-      certifications: newCertifications,
-    })
+    setAccountData({ ...accountData, certifications: newCertifications })
   }
 
+  const addAchievement = () => {
+    setAccountData({ ...accountData, achievements: [...accountData.achievements, ""] })
+  }
 
+  const removeAchievement = (index: number) => {
+    const newAchievements = accountData.achievements.filter((_, i) => i !== index)
+    setAccountData({ ...accountData, achievements: newAchievements })
+  }
+
+  const updateAchievement = (index: number, value: string) => {
+    const newAchievements = [...accountData.achievements]
+    newAchievements[index] = value
+    setAccountData({ ...accountData, achievements: newAchievements })
+  }
 
   const savePrivacySettings = async () => {
     setIsLoading({ ...isLoading, privacy: true })
 
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 1500))
 
     try {
       console.log("Saving privacy settings:", privacySettings)
 
       toast({
-        title: "Privacy Settings Updated",
-        description: "Your privacy settings have been saved successfully.",
+        title: "Privacy Settings Saved",
+        description: "Your privacy preferences have been updated.",
         duration: 3000,
       })
     } catch (error) {
@@ -306,14 +271,14 @@ const AthleteSettingsPage = () => {
   const saveBankingInfo = async () => {
     setIsLoading({ ...isLoading, banking: true })
 
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+    await new Promise((resolve) => setTimeout(resolve, 2000))
 
     try {
       console.log("Saving banking information:", bankingInfo)
 
       toast({
-        title: "Banking Information Updated",
-        description: "Your banking information has been saved successfully.",
+        title: "Banking Information Saved",
+        description: "Your banking details have been securely stored.",
         duration: 3000,
       })
     } catch (error) {
@@ -350,8 +315,6 @@ const AthleteSettingsPage = () => {
     }
   }, [])
 
-
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -375,7 +338,7 @@ const AthleteSettingsPage = () => {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-6 py-4">
           <div className="flex items-center space-x-4">
-            <Link href="/dashboard">
+            <Link href="/athleteDashboard">
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Dashboard
@@ -392,14 +355,10 @@ const AthleteSettingsPage = () => {
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-6 py-8">
         <Tabs defaultValue="account" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="account" className="flex items-center space-x-2">
               <User className="h-4 w-4" />
               <span>Profile</span>
-            </TabsTrigger>
-            <TabsTrigger value="notifications" className="flex items-center space-x-2 relative">
-              <Bell className="h-4 w-4" />
-              <span>Notifications</span>
             </TabsTrigger>
             <TabsTrigger value="subscription" className="flex items-center space-x-2">
               <CreditCard className="h-4 w-4" />
@@ -478,13 +437,55 @@ const AthleteSettingsPage = () => {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="school">School/University</Label>
+                    <Input
+                      id="school"
+                      value={accountData.school}
+                      onChange={(e) => setAccountData({ ...accountData, school: e.target.value })}
+                      placeholder="Your school or university"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="graduationYear">Graduation Year</Label>
+                    <Input
+                      id="graduationYear"
+                      value={accountData.graduationYear}
+                      onChange={(e) => setAccountData({ ...accountData, graduationYear: e.target.value })}
+                      placeholder="e.g., 2025"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="sport">Sport</Label>
+                    <Input
+                      id="sport"
+                      value={accountData.sport}
+                      onChange={(e) => setAccountData({ ...accountData, sport: e.target.value })}
+                      placeholder="Your primary sport"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="position">Position</Label>
+                    <Input
+                      id="position"
+                      value={accountData.position}
+                      onChange={(e) => setAccountData({ ...accountData, position: e.target.value })}
+                      placeholder="Your position or role"
+                    />
+                  </div>
+                </div>
+
                 <div>
-                  <Label htmlFor="website">Website</Label>
+                  <Label htmlFor="experience">Experience</Label>
                   <Input
-                    id="website"
-                    value={accountData.website}
-                    onChange={(e) => setAccountData({ ...accountData, website: e.target.value })}
-                    placeholder="https://yourwebsite.com"
+                    id="experience"
+                    value={accountData.experience}
+                    onChange={(e) => setAccountData({ ...accountData, experience: e.target.value })}
+                    placeholder="Years of experience or level"
                   />
                 </div>
 
@@ -560,6 +561,36 @@ const AthleteSettingsPage = () => {
                   </div>
                 </div>
 
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <Label>Achievements</Label>
+                    <Button variant="outline" size="sm" onClick={addAchievement}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Achievement
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {accountData.achievements.map((achievement, index) => (
+                      <div key={index} className="flex items-center space-x-2">
+                        <Input
+                          value={achievement}
+                          onChange={(e) => updateAchievement(index, e.target.value)}
+                          placeholder="Enter achievement"
+                          className="flex-1"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeAchievement(index)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <Button
                   onClick={handleSaveAccount}
                   className="bg-prologue-electric hover:bg-prologue-blue"
@@ -577,130 +608,6 @@ const AthleteSettingsPage = () => {
                     </>
                   )}
                 </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Notification Settings */}
-          <TabsContent value="notifications" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Notification Preferences</CardTitle>
-                    <p className="text-sm text-gray-600">Choose how you want to be notified about activity</p>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900">Delivery Methods</h4>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Email Notifications</h5>
-                      <p className="text-sm text-gray-600">Receive notifications via email</p>
-                    </div>
-                    <Switch
-                      checked={notifications.emailNotifications}
-                      onCheckedChange={(checked) => handleNotificationChange("emailNotifications", checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Push Notifications</h5>
-                      <p className="text-sm text-gray-600">Receive push notifications on your device</p>
-                    </div>
-                    <Switch
-                      checked={notifications.pushNotifications}
-                      onCheckedChange={(checked) => handleNotificationChange("pushNotifications", checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">SMS Notifications</h5>
-                      <p className="text-sm text-gray-600">Receive notifications via text message</p>
-                    </div>
-                    <Switch
-                      checked={notifications.smsNotifications}
-                      onCheckedChange={(checked) => handleNotificationChange("smsNotifications", checked)}
-                    />
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900">Content & Business</h4>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">New Subscribers</h5>
-                      <p className="text-sm text-gray-600">When someone subscribes to your content</p>
-                    </div>
-                    <Switch
-                      checked={notifications.newSubscribers}
-                      onCheckedChange={(checked) => handleNotificationChange("newSubscribers", checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Messages</h5>
-                      <p className="text-sm text-gray-600">When you receive new messages</p>
-                    </div>
-                    <Switch
-                      checked={notifications.messages}
-                      onCheckedChange={(checked) => handleNotificationChange("messages", checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Content Performance</h5>
-                      <p className="text-sm text-gray-600">Updates on how your content is performing</p>
-                    </div>
-                    <Switch
-                      checked={notifications.contentPerformance}
-                      onCheckedChange={(checked) => handleNotificationChange("contentPerformance", checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Payment Alerts</h5>
-                      <p className="text-sm text-gray-600">Payment confirmations and billing updates</p>
-                    </div>
-                    <Switch
-                      checked={notifications.paymentAlerts}
-                      onCheckedChange={(checked) => handleNotificationChange("paymentAlerts", checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Weekly Reports</h5>
-                      <p className="text-sm text-gray-600">Weekly summary of your activity</p>
-                    </div>
-                    <Switch
-                      checked={notifications.weeklyReports}
-                      onCheckedChange={(checked) => handleNotificationChange("weeklyReports", checked)}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Marketing Emails</h5>
-                      <p className="text-sm text-gray-600">Updates about new features and tips</p>
-                    </div>
-                    <Switch
-                      checked={notifications.marketingEmails}
-                      onCheckedChange={(checked) => handleNotificationChange("marketingEmails", checked)}
-                    />
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
