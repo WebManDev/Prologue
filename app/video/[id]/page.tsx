@@ -7,6 +7,7 @@ import { ArrowLeft, Star, Eye, Clock, ThumbsUp } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useState, useEffect } from "react"
+import React from "react"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { db, getAthleteProfile } from "@/lib/firebase"
 import { doc, getDoc } from "firebase/firestore"
@@ -17,16 +18,27 @@ interface VideoPageProps {
   }
 }
 
+// Utility to allow only <b>, <strong>, <i>, <em> tags in HTML
+function sanitizeDescription(html: string) {
+  if (!html) return "";
+  // Remove all tags except <b>, <strong>, <i>, <em>
+  return html
+    .replace(/<(?!\/?(b|strong|i|em)\b)[^>]*>/gi, "")
+    .replace(/<\/?(script|style)[^>]*>/gi, "");
+}
+
 export default function VideoPage({ params }: VideoPageProps) {
   const { isMobile } = useMobileDetection()
   const [video, setVideo] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [instructor, setInstructor] = useState<any>(null)
+  // @ts-expect-error Next.js experimental params API
+  const { id } = React.use(params);
 
   useEffect(() => {
     async function fetchVideo() {
       setLoading(true)
-      const videoRef = doc(db, "videos", params.id)
+      const videoRef = doc(db, "videos", id)
       const videoSnap = await getDoc(videoRef)
       if (videoSnap.exists()) {
         const videoData: any = { id: videoSnap.id, ...videoSnap.data() }
@@ -45,7 +57,7 @@ export default function VideoPage({ params }: VideoPageProps) {
       setLoading(false)
     }
     fetchVideo()
-  }, [params.id])
+  }, [id])
 
   if (loading) {
     return (
@@ -114,7 +126,10 @@ export default function VideoPage({ params }: VideoPageProps) {
                 ))}
               </div>
               <h2 className={`${isMobile ? "text-xl" : "text-2xl"} font-bold text-gray-900 mb-4`}>{video.title}</h2>
-              <p className="text-gray-700 leading-relaxed">{video.description}</p>
+              <p
+                className="text-gray-700 leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: sanitizeDescription(video.description) }}
+              />
             </div>
 
             {/* Video Stats (Read-only) */}
@@ -150,7 +165,7 @@ export default function VideoPage({ params }: VideoPageProps) {
                     alt={instructor?.firstName || "Instructor"}
                     width={60}
                     height={60}
-                    className="rounded-full"
+                    className="rounded-full w-[60px] h-[60px] object-cover"
                   />
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900">{instructor ? `${instructor.firstName} ${instructor.lastName}` : "Unknown"}</h3>

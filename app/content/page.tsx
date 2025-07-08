@@ -34,6 +34,7 @@ import {
   Save,
   Trash2,
   ArrowLeft,
+  MoreVertical,
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -44,7 +45,7 @@ import { AdvancedNotificationProvider } from "@/contexts/advanced-notification-c
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { db } from "@/lib/firebase"
 import { getAuth } from "firebase/auth"
-import { collection, addDoc, serverTimestamp, getDocs, query, orderBy } from "firebase/firestore"
+import { collection, addDoc, serverTimestamp, getDocs, query, orderBy, where } from "firebase/firestore"
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { useRouter } from "next/navigation"
 import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
@@ -521,7 +522,14 @@ const CreateContentModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
               {contentType && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
-                  <LexicalRichTextEditor value={description} onChange={setDescription} />
+                  <textarea
+                    className="w-full p-2 border border-gray-300 rounded-lg resize-none"
+                    rows={3}
+                    placeholder="Describe your content..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    required
+                  />
                 </div>
               )}
 
@@ -553,38 +561,12 @@ const CreateContentModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                 </div>
               )}
 
+              {/* Article Content */}
               {contentType === "article" && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Cover Image (Optional)</label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                        id="image-upload"
-                      />
-                      <label htmlFor="image-upload" className="cursor-pointer">
-                        <div className="flex flex-col items-center">
-                          <ImageIcon className="h-8 w-8 text-gray-400 mb-2" />
-                          <p className="text-sm text-gray-600">{imageFile ? imageFile.name : "Upload cover image"}</p>
-                        </div>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Article Content *</label>
-                    <textarea
-                      className="w-full p-3 border border-gray-300 rounded-lg resize-none"
-                      rows={8}
-                      placeholder="Write your article content here..."
-                      value={articleContent}
-                      onChange={(e) => setArticleContent(e.target.value)}
-                    />
-                  </div>
-                </>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Article Content *</label>
+                  <LexicalRichTextEditor value={articleContent} onChange={setArticleContent} />
+                </div>
               )}
 
               {contentType === "course" && (
@@ -824,6 +806,9 @@ function ContentPageContent() {
   const [courses, setCourses] = useState<any[]>([])
   const [loadingContent, setLoadingContent] = useState(true)
 
+  const auth = typeof window !== "undefined" ? getAuth() : null;
+  const [currentAthleteId, setCurrentAthleteId] = useState<string | null>(null);
+
   // Fetch content from Firestore
   const fetchContent = async () => {
     setLoadingContent(true)
@@ -843,6 +828,19 @@ function ContentPageContent() {
   useEffect(() => {
     fetchContent()
   }, [])
+
+  useEffect(() => {
+    // Fetch current user's athlete document
+    const fetchAthleteId = async () => {
+      if (!auth?.currentUser?.uid) return;
+      const q = query(collection(db, "athletes"), where("email", "==", auth.currentUser.email));
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        setCurrentAthleteId(snapshot.docs[0].id);
+      }
+    };
+    fetchAthleteId();
+  }, [auth?.currentUser?.uid]);
 
   // Combine all content for "All" tab
   const allContent = useMemo(() => {
@@ -1059,6 +1057,26 @@ function ContentPageContent() {
                 {item.duration}
               </div>
             )}
+            {/* Three-dot menu in top right for user's own content */}
+            {item.authorId && currentAthleteId && item.authorId === currentAthleteId && (
+              <div className="absolute top-3 right-3 z-10">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="icon" variant="ghost">
+                      <MoreVertical className="h-5 w-5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleEdit(item)}>
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleDeleteClick(item)} className="text-red-600 focus:text-red-700">
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
           </div>
           <div className="p-4">
             {/* Tags as badges */}
@@ -1090,15 +1108,71 @@ function ContentPageContent() {
             {getContentMeta()}
             <div className="mt-4 flex items-center justify-between">
               <p className="text-xs text-gray-500">by {author || item.instructor || item.author || "Unknown"}</p>
-              <Link href={getContentLink()}>
-                <Button size="sm">View</Button>
-              </Link>
+              <div className="flex items-center space-x-2">
+                <Link href={getContentLink()}>
+                  <Button size="sm">View</Button>
+                </Link>
+              </div>
             </div>
           </div>
         </CardContent>
       </Card>
     )
   }
+
+  // State for edit/delete modals
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+
+  // Delete handler (Firestore logic to be added)
+  const handleDelete = async () => {
+    if (!selectedItem) return;
+    // TODO: Add Firestore delete logic here
+    setDeleteModalOpen(false);
+    setSelectedItem(null);
+    // Refetch content after delete
+    fetchContent();
+  };
+
+  // Edit handler (open modal)
+  const handleEdit = (item: any) => {
+    setSelectedItem(item);
+    setEditModalOpen(true);
+  };
+
+  // Delete handler (open modal)
+  const handleDeleteClick = (item: any) => {
+    setSelectedItem(item);
+    setDeleteModalOpen(true);
+  };
+
+  // Edit Modal (skeleton)
+  const EditModal = () => (
+    <div className={`fixed inset-0 z-50 flex items-center justify-center ${editModalOpen ? '' : 'hidden'}`}>
+      <div className="fixed inset-0 bg-black/40" onClick={() => setEditModalOpen(false)} />
+      <div className="relative bg-white rounded-lg shadow-lg p-8 w-full max-w-lg z-10">
+        <h2 className="text-xl font-bold mb-4">Edit Content</h2>
+        {/* TODO: Add edit form here */}
+        <Button onClick={() => setEditModalOpen(false)}>Close</Button>
+      </div>
+    </div>
+  );
+
+  // Delete Confirmation Modal
+  const DeleteModal = () => (
+    <div className={`fixed inset-0 z-50 flex items-center justify-center ${deleteModalOpen ? '' : 'hidden'}`}>
+      <div className="fixed inset-0 bg-black/40" onClick={() => setDeleteModalOpen(false)} />
+      <div className="relative bg-white rounded-lg shadow-lg p-8 w-full max-w-md z-10">
+        <h2 className="text-xl font-bold mb-4">Delete Content</h2>
+        <p className="mb-6">Are you sure you want to delete this content? This action cannot be undone.</p>
+        <div className="flex justify-end space-x-2">
+          <Button variant="outline" onClick={() => setDeleteModalOpen(false)}>Cancel</Button>
+          <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+        </div>
+      </div>
+    </div>
+  );
 
   const MainContent = (
     <div className={`${isMobile ? "p-4" : "max-w-7xl mx-auto px-6 py-4"}`}>
@@ -1344,6 +1418,8 @@ function ContentPageContent() {
         </div>
       </header>
       <div className="max-w-7xl mx-auto px-6 py-4">{MainContent}</div>
+      <EditModal />
+      <DeleteModal />
     </div>
   )
 }
