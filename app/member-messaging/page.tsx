@@ -34,10 +34,11 @@ import Image from "next/image"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import MemberMobileNavigation from "@/components/mobile/member-mobile-navigation"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
-import { auth, sendMessage, listenForMessages, getChatId } from "@/lib/firebase"
-import { getFirestore, doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
+import { auth, sendMessage, listenForMessages, getChatId, db } from "@/lib/firebase"
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
 import { MemberHeader } from "@/components/navigation/member-header"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import type { User as FirebaseUser } from "firebase/auth"
 
 export default function MemberMessagingPage() {
   const { unreadMessagesCount, unreadNotificationsCount, markMessagesAsRead, hasNewTrainingContent } =
@@ -58,8 +59,13 @@ export default function MemberMessagingPage() {
   const [conversations, setConversations] = useState<any[]>([])
   const [messages, setMessages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const db = getFirestore()
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null)
+  const [isClient, setIsClient] = useState(false)
+
+  // Client-side check
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   // Quick search suggestions
   const quickSearches = [
@@ -75,7 +81,12 @@ export default function MemberMessagingPage() {
 
   // Fetch current user and subscribed athletes
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    // Only run if we're on client side and Firebase is available
+    if (!isClient || !auth || !db) {
+      return
+    }
+
+    const unsubscribe = auth.onAuthStateChanged(async (user: FirebaseUser | null) => {
       if (user) {
         setCurrentUser(user)
         try {
@@ -131,7 +142,7 @@ export default function MemberMessagingPage() {
     })
 
     return () => unsubscribe()
-  }, [db])
+  }, [isClient])
 
   // Listen for messages when conversation is selected
   useEffect(() => {

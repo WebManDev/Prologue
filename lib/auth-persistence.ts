@@ -51,14 +51,18 @@ export const getPersistenceMethod = (type: PersistenceType) => {
 };
 
 export const setAuthPersistence = async (auth: Auth, type: PersistenceType): Promise<void> => {
+  // Only set persistence in browser environment
+  if (typeof window === 'undefined') {
+    console.log('Skipping auth persistence setup in server environment');
+    return;
+  }
+
   try {
     const persistenceMethod = getPersistenceMethod(type);
     await setPersistence(auth, persistenceMethod);
     
     // Store the user's preference
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('auth_persistence_preference', type);
-    }
+    localStorage.setItem('auth_persistence_preference', type);
     
     console.log(`Auth persistence set to: ${type}`);
   } catch (error) {
@@ -75,6 +79,12 @@ export const getStoredPersistencePreference = (): PersistenceType => {
 };
 
 export const initializeAuthPersistence = async (auth: Auth): Promise<void> => {
+  // Only initialize in browser environment
+  if (typeof window === 'undefined') {
+    console.log('Skipping auth persistence initialization in server environment');
+    return;
+  }
+  
   // Always default to local persistence to keep users logged in
   await setAuthPersistence(auth, 'local');
 };

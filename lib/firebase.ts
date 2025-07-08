@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, isSignInWithEmailLink, sendSignInLinkToEmail } from "firebase/auth";
 import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc, serverTimestamp, onSnapshot, orderBy, query, deleteDoc, increment, enableIndexedDbPersistence, arrayRemove, writeBatch, where } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -14,30 +14,52 @@ const firebaseConfig = {
   measurementId: "G-B7FZLZJBDY"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+// Check if we're in a browser environment and not during build
+const isBrowser = typeof window !== 'undefined';
+const isProduction = process.env.NODE_ENV === 'production';
+const isBuild = process.env.NODE_ENV === 'production' && typeof window === 'undefined';
 
-// Enable offline persistence
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    // Multiple tabs open, persistence can only be enabled in one tab at a time
-    console.warn('Firebase persistence failed: Multiple tabs open');
-  } else if (err.code === 'unimplemented') {
-    // The current browser doesn't support persistence
-    console.warn('Firebase persistence not supported by browser');
+// Initialize Firebase only in browser environment
+let app: any = null;
+let auth: any = null;
+let db: any = null;
+
+if (isBrowser) {
+  // Initialize Firebase
+  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+  auth = getAuth(app);
+  db = getFirestore(app);
+
+  // Initialize Firebase client-side features only when in browser environment
+  // Enable offline persistence with modern API
+  try {
+    enableIndexedDbPersistence(db).catch((err) => {
+      if (err.code === 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one tab at a time
+        console.warn('Firebase persistence failed: Multiple tabs open');
+      } else if (err.code === 'unimplemented') {
+        // The current browser doesn't support persistence
+        console.warn('Firebase persistence not supported by browser');
+      }
+    });
+  } catch (error) {
+    console.warn('Firebase persistence initialization failed:', error);
   }
-});
 
-// Initialize auth persistence with user preference or recommended setting
-initializeAuthPersistence(auth).catch((error) => {
-  console.error("Error initializing auth persistence:", error);
-  // Fallback to local persistence if initialization fails
-  setPersistence(auth, browserLocalPersistence).catch((fallbackError) => {
-    console.error("Error setting fallback auth persistence:", fallbackError);
+  // Initialize auth persistence with user preference or recommended setting
+  initializeAuthPersistence(auth).catch((error) => {
+    console.error("Error initializing auth persistence:", error);
+    // Fallback to local persistence if initialization fails
+    setPersistence(auth, browserLocalPersistence).catch((fallbackError) => {
+      console.error("Error setting fallback auth persistence:", fallbackError);
+    });
   });
-});
+} else {
+  // Create mock objects for server-side rendering
+  console.log('Firebase not initialized in server environment');
+  auth = null;
+  db = null;
+}
 
 // Initialize connection state
 let isInitialized = false;
@@ -49,13 +71,16 @@ const initializeFirebase = async () => {
   if (!initializationPromise) {
     initializationPromise = (async () => {
       try {
-        // Wait for auth to be ready
-        await new Promise((resolve) => {
-          const unsubscribe = auth.onAuthStateChanged(() => {
-            unsubscribe();
-            resolve(true);
+        // Only initialize in browser environment
+        if (typeof window !== 'undefined') {
+          // Wait for auth to be ready
+          await new Promise((resolve) => {
+            const unsubscribe = auth.onAuthStateChanged(() => {
+              unsubscribe();
+              resolve(true);
+            });
           });
-        });
+        }
         
         isInitialized = true;
       } catch (error) {
@@ -819,132 +844,137 @@ const notifySubscribersOfNewPost = async (
       const message = post.type === "workout" ? `${coachProfile.name} posted a new workout: ${post.title}` :
                      post.type === "blog" ? `${coachProfile.name} published a new blog: ${post.title}` :
                      `${coachProfile.name} shared a new post: ${post.title}`;
-      
-      return createMemberNotification(subscriber.id, {
-        type: notificationType,
-        title,
-        message,
-        coachId,
-        coachName: coachProfile.name || "Coach",
-        postId: post.id,
-        data: {
-          postTitle: post.title,
-          postDescription: post.description,
-          postType: post.type
-        }
-      });
-    });
-    
-    await Promise.all(notificationPromises);
-  } catch (error) {
-    console.error("Error notifying subscribers of new post:", error);
-  }
-};
-
-// Function to notify member when coach provides video feedback
-const notifyMemberOfFeedback = async (
-  memberId: string,
-  coachId: string,
-  feedbackRequestId: string,
-  feedbackText: string
-) => {
-  try {
-    const coachProfile = await getAthleteProfile(coachId);
-    
-    await createMemberNotification(memberId, {
-      type: "new_feedback",
-      title: "Video Feedback Received",
-      message: `${coachProfile?.name || "Coach"} has provided feedback on your video submission`,
-      coachId,
-      coachName: coachProfile?.name || "Coach",
-      feedbackRequestId,
-      data: {
-        feedbackText: feedbackText.substring(0, 100) + (feedbackText.length > 100 ? "..." : "")
-      }
-    });
-  } catch (error) {
-    console.error("Error notifying member of feedback:", error);
-  }
-};
-
-// Platform Feedback
-export async function addFeedback({ type, title, message, userId }: { type: string; title: string; message: string; userId?: string }) {
-  console.log("addFeedback called", { type, title, message, userId });
-  const docRef = await addDoc(collection(db, "platformFeedback"), {
-    type,
-    title,
-    message,
-    userId: userId || null,
-    createdAt: serverTimestamp(),
-    status: "new",
-    response: null,
-    respondedAt: null,
-  });
-  console.log("addFeedback docRef:", docRef);
-  return docRef;
-}
-
-export async function getAllFeedback() {
-  const snapshot = await getDocs(collection(db, "platformFeedback"))
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-}
-
-export async function respondToFeedback(feedbackId: string, response: string) {
-  const feedbackRef = doc(db, "platformFeedback", feedbackId)
-  return await updateDoc(feedbackRef, {
-    response,
-    status: "responded",
-    respondedAt: serverTimestamp(),
-  })
-}
-
-// Platform Updates
-export async function addUpdate({ title, message, createdBy }: { title: string; message: string; createdBy: string }) {
-  return await addDoc(collection(db, "platformUpdates"), {
-    title,
-    message,
-    createdBy,
-    createdAt: serverTimestamp(),
-  })
-}
-
-export async function getAllUpdates() {
-  const snapshot = await getDocs(collection(db, "platformUpdates"))
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-}
-
-// Export everything in a single statement
-export {
-  auth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  saveAthleteProfile,
-  getAthleteProfile,
-  saveMemberProfile,
-  getMemberProfile,
-  uploadProfilePicture,
-  saveAthletePost,
-  getAllAthletes,
-  addSubscriptionForMember,
-  getAthletesByIds,
-  rateAthlete,
-  updateAthletePost,
-  deleteAthletePost,
-  GoogleAuthProvider,
-  smartSignIn,
-  handleRedirectResult,
-  initializeFirebase,
-  db,
-  createMemberNotification,
-  getMemberNotifications,
-  markNotificationAsRead,
-  markAllNotificationsAsRead,
-  notifySubscribersOfNewPost,
-  notifyMemberOfFeedback,
-  app,
-  getComprehensiveAthleteProfile,
-  getComprehensiveAthletesByIds,
-  getAllComprehensiveAthletes,
-  getAthleteAnalytics
-}; 
+       
+       return createMemberNotification(subscriber.id, {
+         type: notificationType,
+         title,
+         message,
+         coachId,
+         coachName: coachProfile.name || "Coach",
+         postId: post.id,
+         data: {
+           postTitle: post.title,
+           postDescription: post.description,
+           postType: post.type
+         }
+       });
+     });
+     
+     await Promise.all(notificationPromises);
+   } catch (error) {
+     console.error("Error notifying subscribers of new post:", error);
+   }
+ };
+ 
+ // Function to notify member when coach provides video feedback
+ const notifyMemberOfFeedback = async (
+   memberId: string,
+   coachId: string,
+   feedbackRequestId: string,
+   feedbackText: string
+ ) => {
+   try {
+     const coachProfile = await getAthleteProfile(coachId);
+     
+     await createMemberNotification(memberId, {
+       type: "new_feedback",
+       title: "Video Feedback Received",
+       message: `${coachProfile?.name || "Coach"} has provided feedback on your video submission`,
+       coachId,
+       coachName: coachProfile?.name || "Coach",
+       feedbackRequestId,
+       data: {
+         feedbackText: feedbackText.substring(0, 100) + (feedbackText.length > 100 ? "..." : "")
+       }
+     });
+   } catch (error) {
+     console.error("Error notifying member of feedback:", error);
+   }
+ };
+ 
+ // Platform Feedback
+ export async function addFeedback({ type, title, message, userId }: { type: string; title: string; message: string; userId?: string }) {
+   if (!db) return null;
+   console.log("addFeedback called", { type, title, message, userId });
+   const docRef = await addDoc(collection(db, "platformFeedback"), {
+     type,
+     title,
+     message,
+     userId: userId || null,
+     createdAt: serverTimestamp(),
+     status: "new",
+     response: null,
+     respondedAt: null,
+   });
+   console.log("addFeedback docRef:", docRef);
+   return docRef;
+ }
+ 
+ export async function getAllFeedback() {
+   if (!db) return [];
+   const snapshot = await getDocs(collection(db, "platformFeedback"))
+   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+ }
+ 
+ export async function respondToFeedback(feedbackId: string, response: string) {
+   if (!db) return null;
+   const feedbackRef = doc(db, "platformFeedback", feedbackId)
+   return await updateDoc(feedbackRef, {
+     response,
+     status: "responded",
+     respondedAt: serverTimestamp(),
+   })
+ }
+ 
+ // Platform Updates
+ export async function addUpdate({ title, message, createdBy }: { title: string; message: string; createdBy: string }) {
+   if (!db) return null;
+   return await addDoc(collection(db, "platformUpdates"), {
+     title,
+     message,
+     createdBy,
+     createdAt: serverTimestamp(),
+   })
+ }
+ 
+ export async function getAllUpdates() {
+   if (!db) return [];
+   const snapshot = await getDocs(collection(db, "platformUpdates"))
+   return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+ }
+ 
+ // Export everything in a single statement
+ export {
+   auth,
+   signInWithEmailAndPassword,
+   createUserWithEmailAndPassword,
+   signOut,
+   saveAthleteProfile,
+   getAthleteProfile,
+   saveMemberProfile,
+   getMemberProfile,
+   uploadProfilePicture,
+   saveAthletePost,
+   getAllAthletes,
+   addSubscriptionForMember,
+   getAthletesByIds,
+   rateAthlete,
+   updateAthletePost,
+   deleteAthletePost,
+   GoogleAuthProvider,
+   smartSignIn,
+   handleRedirectResult,
+   initializeFirebase,
+   db,
+   createMemberNotification,
+   getMemberNotifications,
+   markNotificationAsRead,
+   markAllNotificationsAsRead,
+   notifySubscribersOfNewPost,
+   notifyMemberOfFeedback,
+   app,
+   getComprehensiveAthleteProfile,
+   getComprehensiveAthletesByIds,
+   getAllComprehensiveAthletes,
+   getAthleteAnalytics
+ };

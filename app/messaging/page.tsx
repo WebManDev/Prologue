@@ -33,9 +33,10 @@ import { AthleteNav } from "@/components/navigation/athlete-nav"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { AdvancedNotificationProvider } from "@/contexts/advanced-notification-context"
-import { auth, getSubscribersForAthlete, sendMessage, listenForMessages, getChatId } from "@/lib/firebase"
-import { getFirestore, collection, query, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore"
+import { auth, getSubscribersForAthlete, sendMessage, listenForMessages, getChatId, db } from "@/lib/firebase"
+import { collection, query, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import type { User as FirebaseUser } from "firebase/auth"
 
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
@@ -70,8 +71,8 @@ function MessagingPageContent() {
   const [conversations, setConversations] = useState<any[]>([])
   const [messages, setMessages] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [currentUser, setCurrentUser] = useState<any>(null)
-  const db = getFirestore()
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null)
+  const [isClient, setIsClient] = useState(false)
 
   const headerSearchRef = useRef<HTMLDivElement>(null)
   const headerSearchInputRef = useRef<HTMLInputElement>(null)
@@ -80,9 +81,19 @@ function MessagingPageContent() {
 
   const { logout } = useUnifiedLogout();
 
+  // Client-side check
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
   // Fetch current user and subscribers
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    // Only run if we're on client side and Firebase is available
+    if (!isClient || !auth || !db) {
+      return
+    }
+
+    const unsubscribe = auth.onAuthStateChanged(async (user: FirebaseUser | null) => {
       if (user) {
         setCurrentUser(user)
         try {
@@ -118,7 +129,7 @@ function MessagingPageContent() {
     })
 
     return () => unsubscribe()
-  }, [])
+  }, [isClient])
 
   // Listen for messages when conversation is selected
   useEffect(() => {

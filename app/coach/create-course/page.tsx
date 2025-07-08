@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,9 +8,9 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Loader2, BookOpen, ArrowLeft, Plus, X, Upload } from "lucide-react"
-import { auth } from "@/lib/firebase"
+import { auth, db } from "@/lib/firebase"
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
-import { getFirestore, collection, addDoc, serverTimestamp } from "firebase/firestore"
+import { collection, addDoc, serverTimestamp } from "firebase/firestore"
 import { Logo } from "@/components/logo"
 
 interface CourseData {
@@ -39,6 +39,7 @@ export default function CreateCoursePage() {
   const [loading, setLoading] = useState(false)
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false)
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null)
+  const [isClient, setIsClient] = useState(false)
   
   const [course, setCourse] = useState<CourseData>({
     title: "",
@@ -61,7 +62,10 @@ export default function CreateCoursePage() {
     order: 0,
   })
 
-  const db = getFirestore()
+  // Client-side check
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   const handleThumbnailUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !e.target.files[0]) return
@@ -102,7 +106,11 @@ export default function CreateCoursePage() {
   }
 
   const handleCreateCourse = async () => {
-    if (!auth.currentUser) return
+    // Check if we're on client side and Firebase is available
+    if (!isClient || !auth?.currentUser || !db) {
+      console.error("Firebase not available or user not authenticated")
+      return
+    }
     
     setLoading(true)
     setUploadingThumbnail(true)
