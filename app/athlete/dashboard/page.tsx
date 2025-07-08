@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CoachDashboard } from "@/components/coach-dashboard";
-import { auth } from "@/lib/firebase";
 import type { User } from "firebase/auth";
+
+// Dynamically import Firebase to prevent issues during build
+let auth: any = null;
 
 export default function AthleteDashboardPage() {
   const router = useRouter();
@@ -12,13 +14,30 @@ export default function AthleteDashboardPage() {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    // Ensure we're on the client side
-    setIsClient(true);
+    // Ensure we're on the client side and initialize Firebase
+    const initializeAuth = async () => {
+      if (typeof window !== 'undefined') {
+        try {
+          const { auth: firebaseAuth } = await import("@/lib/firebase");
+          auth = firebaseAuth;
+          setIsClient(true);
+        } catch (error) {
+          console.error("Error loading Firebase:", error);
+          setIsClient(true);
+        }
+      }
+    };
+
+    initializeAuth();
   }, []);
 
   useEffect(() => {
     // Only run auth check if we're on client side and auth is available
     if (!isClient || !auth) {
+      if (isClient && !auth) {
+        // If we're on client but auth is null, redirect to login
+        router.push("/");
+      }
       return;
     }
 

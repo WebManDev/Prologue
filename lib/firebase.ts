@@ -24,39 +24,47 @@ let app: any = null;
 let auth: any = null;
 let db: any = null;
 
-if (isBrowser) {
-  // Initialize Firebase
-  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-  auth = getAuth(app);
-  db = getFirestore(app);
-
-  // Initialize Firebase client-side features only when in browser environment
-  // Enable offline persistence with modern API
+// Prevent Firebase initialization during build or server-side rendering
+if (isBrowser && !isBuild) {
   try {
-    enableIndexedDbPersistence(db).catch((err) => {
-      if (err.code === 'failed-precondition') {
-        // Multiple tabs open, persistence can only be enabled in one tab at a time
-        console.warn('Firebase persistence failed: Multiple tabs open');
-      } else if (err.code === 'unimplemented') {
-        // The current browser doesn't support persistence
-        console.warn('Firebase persistence not supported by browser');
-      }
+    // Initialize Firebase
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+    auth = getAuth(app);
+    db = getFirestore(app);
+
+    // Initialize Firebase client-side features only when in browser environment
+    // Enable offline persistence with modern API
+    try {
+      enableIndexedDbPersistence(db).catch((err) => {
+        if (err.code === 'failed-precondition') {
+          // Multiple tabs open, persistence can only be enabled in one tab at a time
+          console.warn('Firebase persistence failed: Multiple tabs open');
+        } else if (err.code === 'unimplemented') {
+          // The current browser doesn't support persistence
+          console.warn('Firebase persistence not supported by browser');
+        }
+      });
+    } catch (error) {
+      console.warn('Firebase persistence initialization failed:', error);
+    }
+
+    // Initialize auth persistence with user preference or recommended setting
+    initializeAuthPersistence(auth).catch((error) => {
+      console.error("Error initializing auth persistence:", error);
+      // Fallback to local persistence if initialization fails
+      setPersistence(auth, browserLocalPersistence).catch((fallbackError) => {
+        console.error("Error setting fallback auth persistence:", fallbackError);
+      });
     });
   } catch (error) {
-    console.warn('Firebase persistence initialization failed:', error);
+    console.error('Firebase initialization failed:', error);
+    // Set to null if initialization fails
+    auth = null;
+    db = null;
   }
-
-  // Initialize auth persistence with user preference or recommended setting
-  initializeAuthPersistence(auth).catch((error) => {
-    console.error("Error initializing auth persistence:", error);
-    // Fallback to local persistence if initialization fails
-    setPersistence(auth, browserLocalPersistence).catch((fallbackError) => {
-      console.error("Error setting fallback auth persistence:", fallbackError);
-    });
-  });
 } else {
-  // Create mock objects for server-side rendering
-  console.log('Firebase not initialized in server environment');
+  // Create mock objects for server-side rendering and build time
+  console.log('Firebase not initialized in server environment or during build');
   auth = null;
   db = null;
 }
