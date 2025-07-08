@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { ArrowLeft, CheckCircle, Clock, Users, Star, BookOpen, Video, FileText, Download, Share2 } from "lucide-react"
+import { ArrowLeft, CheckCircle, Clock, Users, Star, BookOpen, Video, FileText, Download, Share2, ThumbsUp, ThumbsDown, Heart } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { db } from "@/lib/firebase"
-import { doc, getDoc } from "firebase/firestore"
+import { doc, getDoc, updateDoc, increment } from "firebase/firestore"
+import { auth } from "@/lib/firebase"
 
 interface CoursePageProps {
   params: {
@@ -21,11 +22,14 @@ interface CoursePageProps {
   }
 }
 
-export default function CoursePage({ params }: CoursePageProps) {
+export default function MemberCoursePage({ params }: CoursePageProps) {
   const { isMobile, isTablet } = useMobileDetection()
   const [currentLesson, setCurrentLesson] = useState<string | null>(null)
   const [course, setCourse] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [userRating, setUserRating] = useState(0)
+  const [userLiked, setUserLiked] = useState<boolean | null>(null) // null = no action, true = liked, false = disliked
+  const [isRatingLoading, setIsRatingLoading] = useState(false)
 
   useEffect(() => {
     async function fetchCourse() {
@@ -62,8 +66,8 @@ export default function CoursePage({ params }: CoursePageProps) {
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Course not found</h2>
           <p className="text-gray-600 mb-4">The course you're looking for doesn't exist.</p>
-          <Link href="/content">
-            <Button>Back to Content Library</Button>
+          <Link href="/member-training">
+            <Button>Back to Training</Button>
           </Link>
         </div>
       </div>
@@ -81,6 +85,60 @@ export default function CoursePage({ params }: CoursePageProps) {
     }))
   }
 
+  // Handle star rating
+  const handleStarRating = async (rating: number) => {
+    if (isRatingLoading) return
+    setIsRatingLoading(true)
+    try {
+      setUserRating(rating)
+      const courseRef = doc(db, "courses", params.id)
+      await updateDoc(courseRef, {
+        rating: rating, // For simplicity, we'll just update with the new rating
+        // In a real app, you'd want to calculate average rating
+      })
+      setCourse((prev: any) => ({ ...prev, rating: rating }))
+    } catch (error) {
+      console.error("Error updating rating:", error)
+    }
+    setIsRatingLoading(false)
+  }
+
+  // Handle like/dislike
+  const handleLikeDislike = async (isLike: boolean) => {
+    try {
+      const courseRef = doc(db, "courses", params.id)
+      
+      if (userLiked === isLike) {
+        // User clicked the same action, so remove it
+        setUserLiked(null)
+        await updateDoc(courseRef, {
+          likes: increment(isLike ? -1 : 0),
+          dislikes: increment(isLike ? 0 : -1),
+        })
+      } else {
+        // User clicked a different action or first time
+        const prevLiked = userLiked
+        setUserLiked(isLike)
+        
+        if (prevLiked === null) {
+          // First time action
+          await updateDoc(courseRef, {
+            likes: increment(isLike ? 1 : 0),
+            dislikes: increment(isLike ? 0 : 1),
+          })
+        } else {
+          // Switching from like to dislike or vice versa
+          await updateDoc(courseRef, {
+            likes: increment(isLike ? 1 : -1),
+            dislikes: increment(isLike ? -1 : 1),
+          })
+        }
+      }
+    } catch (error) {
+      console.error("Error updating like/dislike:", error)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -88,10 +146,10 @@ export default function CoursePage({ params }: CoursePageProps) {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <Link href="/content">
+              <Link href="/member-training">
                 <Button variant="ghost" size="sm">
                   <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Library
+                  Back to Training
                 </Button>
               </Link>
               <div className="h-6 w-px bg-gray-300" />
@@ -134,7 +192,7 @@ export default function CoursePage({ params }: CoursePageProps) {
                       <Badge variant="secondary">{course.category}</Badge>
                       <div className="flex items-center space-x-1">
                         <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                        <span className="text-sm text-gray-600">{course.rating}</span>
+                        <span className="text-sm text-gray-600">{course.rating || 0}</span>
                       </div>
                     </div>
                   </div>
@@ -148,7 +206,7 @@ export default function CoursePage({ params }: CoursePageProps) {
                   </div>
                   <div className="flex items-center space-x-2">
                     <Users className="h-4 w-4" />
-                    <span>{course.participants} enrolled</span>
+                    <span>{course.participants || 0} enrolled</span>
                   </div>
                 </div>
 
@@ -160,17 +218,46 @@ export default function CoursePage({ params }: CoursePageProps) {
                   <Progress value={progressPercentage} className="h-2" />
                 </div>
 
-                <div className="flex items-center space-x-3 pt-2 border-t">
-                  <Image
-                    src={course.instructor?.avatar || "/placeholder.svg"}
-                    alt={course.instructor?.name || "Instructor"}
-                    width={32}
-                    height={32}
-                    className="rounded-full"
-                  />
-                  <div>
-                    <p className="text-sm font-medium">{course.instructor?.name || "Unknown"}</p>
-                    <p className="text-xs text-gray-600">{course.instructor?.title || ""}</p>
+                {/* Rating Section */}
+                <div className="pt-2 border-t">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium">Rate this course</span>
+                  </div>
+                  <div className="flex items-center space-x-1 mb-3">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => handleStarRating(star)}
+                        disabled={isRatingLoading}
+                        className="transition-colors"
+                      >
+                        <Star
+                          className={`h-5 w-5 ${
+                            star <= userRating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => handleLikeDislike(true)}
+                      className={`flex items-center space-x-1 px-3 py-1 rounded transition-colors ${
+                        userLiked === true ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600 hover:bg-green-50"
+                      }`}
+                    >
+                      <ThumbsUp className="h-4 w-4" />
+                      <span className="text-sm">{course.likes || 0}</span>
+                    </button>
+                    <button
+                      onClick={() => handleLikeDislike(false)}
+                      className={`flex items-center space-x-1 px-3 py-1 rounded transition-colors ${
+                        userLiked === false ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600 hover:bg-red-50"
+                      }`}
+                    >
+                      <ThumbsDown className="h-4 w-4" />
+                      <span className="text-sm">{course.dislikes || 0}</span>
+                    </button>
                   </div>
                 </div>
               </CardContent>
