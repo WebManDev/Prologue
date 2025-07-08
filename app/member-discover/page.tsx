@@ -697,7 +697,7 @@ export default function MemberDiscoverPage() {
   if (isMobile || isTablet) {
     return (
       <MobileLayout
-        currentPath="/member-discover"
+        currentPath="/member-browse"
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
@@ -901,7 +901,7 @@ export default function MemberDiscoverPage() {
               <span className="text-xs font-medium">Training</span>
             </Link>
             <Link
-              href="/member-discover"
+              href="/member-browse"
               className="flex flex-col items-center space-y-2 text-prologue-electric transition-colors"
             >
               <Search className="h-6 w-6" />
@@ -934,7 +934,7 @@ export default function MemberDiscoverPage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <MemberHeader
-        currentPath="/member-discover"
+        currentPath="/member-browse"
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}

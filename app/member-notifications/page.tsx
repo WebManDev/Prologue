@@ -933,7 +933,7 @@ export default function MemberNotificationsPage() {
               <span className="text-xs font-medium">Training</span>
             </Link>
             <Link
-              href="/member-discover"
+              href="/member-browse"
               className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
             >
               <Search className="h-6 w-6" />

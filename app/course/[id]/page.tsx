@@ -152,22 +152,24 @@ export default function MemberCoursePage({ params }: CoursePageProps) {
                   Back to Training
                 </Button>
               </Link>
-              <div className="h-6 w-px bg-gray-300" />
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900 truncate max-w-md">{course.title}</h1>
+              <div className={`h-6 w-px bg-gray-300 ${isMobile ? 'hidden' : ''}`} />
+              <div className={isMobile ? 'hidden' : ''}>
+                <h1 className="text-lg font-semibold text-gray-900 truncate max-w-md">
+                  {course.title && course.title.length > 2 ? course.title : 'Course Content'}
+                </h1>
                 <p className="text-sm text-gray-600">
                   {completedLessons} of {course.lessons.length} lessons completed
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <Button variant="outline" size="sm">
-                <Share2 className="h-4 w-4 mr-2" />
-                Share
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm" className={isMobile ? "px-2" : ""}>
+                <Share2 className={`h-4 w-4 ${isMobile ? '' : 'mr-2'}`} />
+                {isMobile ? '' : 'Share'}
               </Button>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Download
+              <Button variant="outline" size="sm" className={isMobile ? "px-2" : ""}>
+                <Download className={`h-4 w-4 ${isMobile ? '' : 'mr-2'}`} />
+                {isMobile ? '' : 'Download'}
               </Button>
             </div>
           </div>
@@ -175,19 +177,42 @@ export default function MemberCoursePage({ params }: CoursePageProps) {
       </header>
 
       {/* Main Content */}
-      <div className={`${isMobile ? "p-4" : "max-w-7xl mx-auto px-6 py-8"}`}>
-        <div className={`grid ${isMobile ? "grid-cols-1 gap-6" : "grid-cols-3 gap-8"}`}>
+      <div className={`${isMobile ? "px-4 py-4" : "max-w-7xl mx-auto px-6 py-8"}`}>
+        {/* Mobile Course Header */}
+        {isMobile && (
+          <div className="mb-4 mx-2">
+            <h1 className="text-lg font-bold text-gray-900 mb-2">
+              {course.title && course.title.length > 2 ? course.title : 'Course Content'}
+            </h1>
+            <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
+              <span>{completedLessons} of {course.lessons.length} lessons completed</span>
+              <span className="font-medium">{Math.round(progressPercentage)}%</span>
+            </div>
+            <Progress value={progressPercentage} className="h-1.5 mb-3" />
+            <div className="flex items-center space-x-3">
+              <Badge variant="secondary" className="text-xs">{course.category}</Badge>
+              <div className="flex items-center space-x-1">
+                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                <span className="text-xs text-gray-600">{course.rating || 0}</span>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        <div className={`grid ${isMobile ? "grid-cols-1 gap-4" : "grid-cols-3 gap-8"}`}>
           {/* Course Sidebar */}
-          <div className={`${isMobile ? "order-2" : "order-1"} space-y-6`}>
+          <div className={`${isMobile ? "order-2" : "order-1"} ${isMobile ? "space-y-4" : "space-y-6"}`}>
             {/* Course Info */}
-            <Card>
+            <Card className={isMobile ? 'hidden' : ''}>
               <CardHeader>
                 <div className="flex items-center space-x-3">
                   <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
                     <BookOpen className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <CardTitle className="text-lg">{course.title}</CardTitle>
+                    <CardTitle className="text-lg">
+                      {course.title && course.title.length > 2 ? course.title : 'Course Content'}
+                    </CardTitle>
                     <div className="flex items-center space-x-2 mt-1">
                       <Badge variant="secondary">{course.category}</Badge>
                       <div className="flex items-center space-x-1">
@@ -263,37 +288,84 @@ export default function MemberCoursePage({ params }: CoursePageProps) {
               </CardContent>
             </Card>
 
+            {/* Mobile Rating Section */}
+            {isMobile && (
+              <Card className="mx-2">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Rate this course</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3 pt-0">
+                  <div className="flex items-center justify-center space-x-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => handleStarRating(star)}
+                        disabled={isRatingLoading}
+                        className="transition-colors"
+                      >
+                        <Star
+                          className={`h-6 w-6 ${
+                            star <= userRating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                          }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-center space-x-2">
+                    <button
+                      onClick={() => handleLikeDislike(true)}
+                      className={`flex items-center space-x-1 px-4 py-2 rounded-lg transition-colors ${
+                        userLiked === true ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600 hover:bg-green-50"
+                      }`}
+                    >
+                      <ThumbsUp className="h-4 w-4" />
+                      <span className="text-sm font-medium">{course.likes || 0}</span>
+                    </button>
+                    <button
+                      onClick={() => handleLikeDislike(false)}
+                      className={`flex items-center space-x-1 px-4 py-2 rounded-lg transition-colors ${
+                        userLiked === false ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600 hover:bg-red-50"
+                      }`}
+                    >
+                      <ThumbsDown className="h-4 w-4" />
+                      <span className="text-sm font-medium">{course.dislikes || 0}</span>
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Lessons List */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Course Lessons</CardTitle>
+            <Card className={isMobile ? 'mx-2' : ''}>
+              <CardHeader className={isMobile ? 'pb-3' : ''}>
+                <CardTitle className={`${isMobile ? 'text-sm' : 'text-base'}`}>Course Lessons</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className={`${isMobile ? 'space-y-1 pt-0' : 'space-y-2'}`}>
                 {course.lessons.map((lesson: any, index: number) => (
                   <button
                     key={lesson.id}
                     onClick={() => setCurrentLesson(lesson.id)}
-                    className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                    className={`w-full text-left ${isMobile ? 'p-2' : 'p-3'} rounded-lg border transition-colors ${
                       currentLesson === lesson.id
                         ? "border-blue-500 bg-blue-50"
                         : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                     }`}
                   >
-                    <div className="flex items-center space-x-3">
+                    <div className={`flex items-center ${isMobile ? 'space-x-2' : 'space-x-3'}`}>
                       <div className="flex-shrink-0">
                         {lesson.completed ? (
-                          <CheckCircle className="h-5 w-5 text-green-500" />
+                          <CheckCircle className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} text-green-500`} />
                         ) : lesson.type === "video" ? (
-                          <Video className="h-5 w-5 text-blue-500" />
+                          <Video className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} text-blue-500`} />
                         ) : (
-                          <FileText className="h-5 w-5 text-green-500" />
+                          <FileText className={`${isMobile ? 'h-4 w-4' : 'h-5 w-5'} text-green-500`} />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
+                        <p className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-gray-900 truncate`}>
                           {index + 1}. {lesson.title}
                         </p>
-                        <p className="text-xs text-gray-600">{lesson.duration}</p>
+                        <p className={`${isMobile ? 'text-xs' : 'text-xs'} text-gray-600`}>{lesson.duration}</p>
                       </div>
                     </div>
                   </button>
@@ -303,16 +375,16 @@ export default function MemberCoursePage({ params }: CoursePageProps) {
           </div>
 
           {/* Main Content Area */}
-          <div className={`${isMobile ? "order-1 col-span-1" : "order-2 col-span-2"} space-y-6`}>
+          <div className={`${isMobile ? "order-1 col-span-1" : "order-2 col-span-2"} ${isMobile ? "space-y-4" : "space-y-6"}`}>
             {currentLessonData && (
               <>
                 {/* Lesson Header */}
-                <div>
-                  <h2 className={`${isMobile ? "text-xl" : "text-2xl"} font-bold text-gray-900 mb-2`}>
+                <div className={isMobile ? 'mb-4' : 'mb-6'}>
+                  <h2 className={`${isMobile ? "text-lg" : "text-2xl"} font-bold text-gray-900 mb-2`}>
                     {currentLessonData.title}
                   </h2>
-                  <p className="text-gray-600 mb-4">{currentLessonData.description}</p>
-                  <div className="flex items-center space-x-4">
+                  <p className={`text-gray-600 ${isMobile ? 'text-sm mb-3' : 'mb-4'}`}>{currentLessonData.description}</p>
+                  <div className={`flex items-center ${isMobile ? 'flex-wrap gap-2' : 'space-x-4'}`}>
                     <Badge variant="outline">{currentLessonData.type === "video" ? "Video Lesson" : "Article"}</Badge>
                     <span className="text-sm text-gray-600">{currentLessonData.duration}</span>
                     {currentLessonData.completed && (
@@ -324,10 +396,10 @@ export default function MemberCoursePage({ params }: CoursePageProps) {
                 </div>
 
                 {/* Lesson Content */}
-                <Card>
+                <Card className={isMobile ? 'mx-2' : ''}>
                   <CardContent className="p-0">
                     {currentLessonData.type === "video" ? (
-                      <div className="aspect-video">
+                      <div className={`${isMobile ? 'aspect-video' : 'aspect-video'}`}>
                         <iframe
                           src={currentLessonData.videoUrl}
                           title={currentLessonData.title}
@@ -392,16 +464,17 @@ export default function MemberCoursePage({ params }: CoursePageProps) {
                 </Card>
 
                 {/* Lesson Actions */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    {!currentLessonData.completed && (
-                      <Button onClick={() => markLessonComplete(currentLessonData.id)}>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Mark as Complete
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-3">
+                <div className={`${isMobile ? 'space-y-4' : 'flex items-center justify-between'}`}>
+                  {!currentLessonData.completed && (
+                    <Button 
+                      onClick={() => markLessonComplete(currentLessonData.id)}
+                      className={isMobile ? 'w-full' : ''}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Mark as Complete
+                    </Button>
+                  )}
+                  <div className={`flex items-center ${isMobile ? 'justify-between' : 'space-x-3'}`}>
                     {course.lessons.findIndex((l: any) => l.id === currentLesson) > 0 && (
                       <Button
                         variant="outline"
@@ -409,8 +482,9 @@ export default function MemberCoursePage({ params }: CoursePageProps) {
                           const currentIndex = course.lessons.findIndex((l: any) => l.id === currentLesson)
                           setCurrentLesson(course.lessons[currentIndex - 1].id)
                         }}
+                        className={isMobile ? 'flex-1 mr-2' : ''}
                       >
-                        Previous
+                        {isMobile ? 'Previous' : 'Previous'}
                       </Button>
                     )}
                     {course.lessons.findIndex((l: any) => l.id === currentLesson) < course.lessons.length - 1 && (
@@ -419,6 +493,7 @@ export default function MemberCoursePage({ params }: CoursePageProps) {
                           const currentIndex = course.lessons.findIndex((l: any) => l.id === currentLesson)
                           setCurrentLesson(course.lessons[currentIndex + 1].id)
                         }}
+                        className={isMobile ? 'flex-1' : ''}
                       >
                         Next Lesson
                       </Button>

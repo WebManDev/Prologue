@@ -353,13 +353,27 @@ interface ArticlePageProps {
   }
 }
 
-// Utility to allow only <b>, <strong>, <i>, <em> tags in HTML
+// Utility to allow only <b>, <strong>, <i>, <em> tags in HTML and filter out meaningless content
 function sanitizeDescription(html: string) {
   if (!html) return "";
+  
   // Remove all tags except <b>, <strong>, <i>, <em>
-  return html
+  let cleaned = html
     .replace(/<(?!\/?(b|strong|i|em)\b)[^>]*>/gi, "")
     .replace(/<\/?(script|style)[^>]*>/gi, "");
+  
+  // Filter out single letters or very short meaningless content
+  const lines = cleaned.split('\n');
+  const filteredLines = lines.filter(line => {
+    const trimmedLine = line.trim();
+    // Remove lines that are just single letters, single characters, or very short meaningless content
+    if (trimmedLine.length <= 2) return false;
+    if (/^[a-zA-Z]$/.test(trimmedLine)) return false; // Single letters
+    if (/^[a-zA-Z]{1,2}$/.test(trimmedLine)) return false; // 1-2 character strings
+    return true;
+  });
+  
+  return filteredLines.join('\n');
 }
 
 export default function ArticlePage({ params }: ArticlePageProps) {
@@ -526,8 +540,8 @@ export default function ArticlePage({ params }: ArticlePageProps) {
               </Link>
               <div className="h-6 w-px bg-gray-300" />
               <div>
-                <h1 className="text-lg font-semibold text-gray-900 truncate max-w-md">{article.title}</h1>
-                <p className="text-sm text-gray-600">
+                <h1 className={`text-lg font-semibold text-gray-900 truncate max-w-md ${isMobile ? 'hidden' : ''}`}>{article.title}</h1>
+                <p className={`text-sm text-gray-600 ${isMobile ? 'hidden' : ''}`}>
                   by {instructor
                     ? `${instructor.firstName || ""} ${instructor.lastName || ""}`.trim()
                     : (article.author.name === "Unknown Author" && article.author.firstName && article.author.lastName)
@@ -536,14 +550,14 @@ export default function ArticlePage({ params }: ArticlePageProps) {
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <Button variant="outline" size="sm" onClick={handleBookmark}>
-                <BookmarkPlus className={`h-4 w-4 mr-2 ${isBookmarked ? "fill-current" : ""}`} />
-                {isBookmarked ? "Bookmarked" : "Bookmark"}
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm" onClick={handleBookmark} className={isMobile ? "px-2" : ""}>
+                <BookmarkPlus className={`h-4 w-4 ${isMobile ? "" : "mr-2"} ${isBookmarked ? "fill-current" : ""}`} />
+                {isMobile ? "" : (isBookmarked ? "Bookmarked" : "Bookmark")}
                 </Button>
-              <Button variant="outline" size="sm">
-                <Share2 className="h-4 w-4 mr-2" />
-                Share
+              <Button variant="outline" size="sm" className={isMobile ? "px-2" : ""}>
+                <Share2 className={`h-4 w-4 ${isMobile ? "" : "mr-2"}`} />
+                {isMobile ? "" : "Share"}
                 </Button>
               </div>
           </div>

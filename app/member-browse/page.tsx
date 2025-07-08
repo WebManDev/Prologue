@@ -29,7 +29,6 @@ import {
 } from "lucide-react"
 import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
-import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { MemberHeader } from "@/components/navigation/member-header"
 import Link from "next/link"
@@ -77,7 +76,7 @@ export default function MemberDiscoverPage() {
 
   // Firebase state
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
-  const [profileData, setProfileData] = useState<any>(null)
+  const [profileData, setProfileData] = useState<{ firstName: string; lastName: string; profileImageUrl: string | null; profilePic?: string; profilePicture?: string }>({ firstName: "", lastName: "", profileImageUrl: null })
   const [selectedAthleteId, setSelectedAthleteId] = useState<string | null>(null)
   const [profileCache, setProfileCache] = useState<Record<string, any>>({})
   const [subscriptions, setSubscriptions] = useState<{[athleteId: string]: any}>({})
@@ -97,18 +96,21 @@ export default function MemberDiscoverPage() {
   // Refs for maintaining focus
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Firebase effects
+  // Firebase effects - Load profile (synced with member-home)
   useEffect(() => {
-    if (!auth.currentUser) return
-    const fetchProfile = async () => {
+    const loadProfile = async () => {
       if (!auth.currentUser) return
       const memberProfile = await getMemberProfile(auth.currentUser.uid)
       if (memberProfile) {
-        setProfileImageUrl(memberProfile.profileImageUrl || memberProfile.profilePic || memberProfile.profilePicture || null)
-        setProfileData({ firstName: memberProfile.firstName || "", lastName: memberProfile.lastName || "" })
+        setProfileData({
+          firstName: memberProfile.firstName || "",
+          lastName: memberProfile.lastName || "",
+          profileImageUrl: memberProfile.profileImageUrl || null,
+        })
+        setProfileImageUrl(memberProfile.profileImageUrl || null)
       }
     }
-    fetchProfile()
+    loadProfile()
   }, [])
 
   // Listen to real-time updates
@@ -617,13 +619,17 @@ export default function MemberDiscoverPage() {
 
   if (isMobile || isTablet) {
     return (
-      <MobileLayout
-        userType="member"
-        currentPath="/member-browse"
-        unreadNotifications={unreadNotificationsCount}
-        unreadMessages={unreadMessagesCount}
-        hasNewContent={hasNewTrainingContent}
-      >
+      <div className="min-h-screen bg-gray-50">
+        <MemberHeader
+          currentPath="/member-browse"
+          unreadNotifications={unreadNotificationsCount}
+          unreadMessages={unreadMessagesCount}
+          hasNewContent={hasNewTrainingContent}
+          onLogout={logout}
+          profileImageUrl={profileImageUrl}
+          profileData={profileData}
+        />
+
         <div className="min-h-screen bg-gray-50">
           {/* Search Bar */}
           <div className="p-6 space-y-8 mt-0">
@@ -847,7 +853,7 @@ export default function MemberDiscoverPage() {
             </Link>
           </div>
         </nav>
-      </MobileLayout>
+      </div>
     )
   }
 

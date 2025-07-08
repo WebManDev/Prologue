@@ -49,11 +49,11 @@ export function MemberHeader({
 }: MemberHeaderProps) {
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-6">
+      <div className="max-w-7xl mx-auto px-4 lg:px-6">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center space-x-8">
-            <Link href="/member-home" className="flex items-center space-x-3 group cursor-pointer">
-              <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
+          <div className="flex items-center space-x-4 lg:space-x-8">
+            <Link href="/member-home" className="flex items-center space-x-2 lg:space-x-3 group cursor-pointer">
+              <div className="w-7 h-7 lg:w-8 lg:h-8 relative transition-transform group-hover:scale-110">
                 <Image
                   src="/Prologue LOGO-1.png"
                   alt="PROLOGUE"
@@ -62,7 +62,7 @@ export function MemberHeader({
                   className="w-full h-full object-contain"
                 />
               </div>
-              <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-prologue-electric transition-colors tracking-wider">
+              <span className="text-lg lg:text-xl font-athletic font-bold text-gray-900 group-hover:text-prologue-electric transition-colors tracking-wider">
                 PROLOGUE
               </span>
             </Link>
@@ -79,9 +79,9 @@ export function MemberHeader({
               </div>
             )}
           </div>
-          <div className="flex items-center space-x-6">
-            {/* Navigation Items */}
-            <nav className="flex items-center space-x-6">
+          <div className="flex items-center space-x-3 lg:space-x-6">
+            {/* Navigation Items - Hidden on mobile since bottom nav exists */}
+            <nav className="hidden lg:flex items-center space-x-6">
               <Link
                 href="/member-home"
                 className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
@@ -125,11 +125,11 @@ export function MemberHeader({
             </nav>
 
             {/* Notification Bell to the right of profile avatar */}
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 lg:space-x-3">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center space-x-2 p-2">
-                    <Avatar className="w-8 h-8">
+                  <Button variant="ghost" className="flex items-center space-x-1 lg:space-x-2 p-1 lg:p-2">
+                    <Avatar className="w-7 h-7 lg:w-8 lg:h-8">
                       {(() => {
                         const profileImageUrl = profileData && profileData.profileImageUrl && profileData.profileImageUrl.trim() !== '' ? profileData.profileImageUrl : (profileData && profileData.profilePic && profileData.profilePic.trim() !== '' ? profileData.profilePic : (profileData && profileData.profilePicture && profileData.profilePicture.trim() !== '' ? profileData.profilePicture : null));
                         if (profileImageUrl) {
@@ -164,8 +164,8 @@ export function MemberHeader({
 
               {/* Notification Bell */}
               <Link href="/member-notifications" className="relative">
-                <Button variant="ghost" size="icon" className="p-2">
-                  <Bell className="h-5 w-5 text-gray-700" />
+                <Button variant="ghost" size="icon" className="p-1 lg:p-2">
+                  <Bell className="h-4 w-4 lg:h-5 lg:w-5 text-gray-700" />
                   {unreadNotifications > 0 && (
                     <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
                   )}

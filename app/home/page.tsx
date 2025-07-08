@@ -1503,7 +1503,7 @@ export default function MemberHomePage() {
               )}
             </Link>
             <Link
-              href="/member-discover"
+              href="/member-browse"
               className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
             >
               <Search className="h-5 w-5" />

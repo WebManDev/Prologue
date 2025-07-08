@@ -582,6 +582,8 @@ export default function MemberTrainingPage() {
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
         onLogout={logout}
+        profileImageUrl={profileImageUrl}
+        profileData={profileData}
       />
 
       {/* Main Content */}
@@ -677,7 +679,7 @@ export default function MemberTrainingPage() {
               {showSearchDropdown && searchDropdownContent}
             </div>
 
-            <Link href="/member-discover">
+            <Link href="/member-browse">
               <Button className="bg-prologue-electric hover:bg-prologue-blue text-white">
                 <Compass className="h-4 w-4 mr-2" />
                 <span className="hidden sm:inline">Discover</span>
@@ -856,7 +858,7 @@ export default function MemberTrainingPage() {
                 <Button variant="outline" onClick={() => setSearchQuery("")}>
                   Clear Search
                 </Button>
-                <Link href="/member-discover">
+                <Link href="/member-browse">
                   <Button className="bg-prologue-electric hover:bg-prologue-blue text-white">Discover Content</Button>
                 </Link>
               </div>
@@ -883,7 +885,7 @@ export default function MemberTrainingPage() {
             <span className="text-xs font-medium">Training</span>
           </Link>
           <Link
-            href="/member-discover"
+            href="/member-browse"
             className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
           >
             <Search className="h-5 w-5" />
