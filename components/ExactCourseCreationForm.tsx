@@ -107,11 +107,30 @@ export function ExactCourseCreationForm({ onSubmit, onSuccess }: { onSubmit: (da
     }
   };
 
+  // Sanitize course data to remove File objects before submitting
+  const getSanitizedCourseData = () => {
+    return {
+      title: courseData.title,
+      description: courseData.description,
+      category: courseData.category,
+      lessons: courseData.lessons.map(lesson => ({
+        id: lesson.id,
+        type: lesson.type,
+        title: lesson.title,
+        description: lesson.description,
+        articleContent: lesson.articleContent,
+        duration: lesson.duration,
+        order: lesson.order,
+        // Note: videoFile and coverImage are excluded as they are File objects
+      }))
+    };
+  };
+
   const handleCreateCourse = async () => {
     if (isLoading) return;
     setIsLoading(true);
     try {
-      await onSubmit(courseData);
+      await onSubmit(getSanitizedCourseData());
       if (onSuccess) onSuccess();
       // Reset form
       setCourseData({ title: "", description: "", category: "", lessons: [] });

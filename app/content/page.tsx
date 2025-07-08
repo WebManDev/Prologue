@@ -321,12 +321,27 @@ const CreateContentModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () 
             await uploadBytes(lessonImageRef, lesson.imageFile);
             lessonImageUrl = await getDownloadURL(lessonImageRef);
           }
+          // Only include serializable fields in Firestore
           courseLessons.push({
-            ...lesson,
+            id: lesson.id,
+            type: lesson.type,
+            title: lesson.title,
+            description: lesson.description,
+            content: lesson.content,
+            duration: lesson.duration,
             videoUrl: lessonVideoUrl,
             imageUrl: lessonImageUrl,
           });
         }
+      }
+
+      // After uploading and preparing courseLessons, clear File objects from lessons state
+      if (contentType === "course") {
+        setLessons(lessons.map(lesson => ({
+          ...lesson,
+          videoFile: undefined,
+          imageFile: undefined,
+        })));
       }
 
       // Save to Firestore
@@ -1020,7 +1035,7 @@ function ContentPageContent() {
             <div className="flex items-center space-x-4 text-sm text-gray-600">
               <div className="flex items-center space-x-1">
                 <BookOpen className="h-4 w-4" />
-                <span>{item.lessons} lessons</span>
+                <span>{Array.isArray(item.lessons) ? item.lessons.length : 0} lessons</span>
               </div>
               <div className="flex items-center space-x-1">
                 <Users className="h-4 w-4" />
