@@ -179,9 +179,9 @@ function MemberSubscriptionPlansContent() {
               athlete={{
                 ...athlete,
                 pricing: athlete.pricing || {
-                  basic: 9.99,
-                  pro: 29.99,
-                  premium: 49.99,
+                  basic: 4.99,
+                  pro: 9.99,
+                  premium: 19.99,
                 },
               }}
               members={member || {
@@ -208,7 +208,7 @@ function MemberSubscriptionPlansContent() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {subscriptionTiers.map((tier) => {
                 const price = athlete?.pricing?.[tier.key] || 
-                  (tier.key === "basic" ? 9.99 : tier.key === "pro" ? 29.99 : 49.99)
+                  (tier.key === "basic" ? 4.99 : tier.key === "pro" ? 9.99 : 19.99)
                 
                 return (
                   <Card

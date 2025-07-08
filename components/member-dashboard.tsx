@@ -647,8 +647,12 @@ export function MemberDashboard({ onLogout }: MemberDashboardProps) {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <SubscriptionCheckout
           athlete={showSubscriptionCheckout}
-          memberEmail={profile.email}
-          memberName={profile.name}
+          members={{
+            id: auth.currentUser?.uid || "",
+            name: profile.name,
+            email: profile.email,
+          }}
+          selectedPlan="basic"
           onSuccess={async () => {
             await refreshSubscribedAthletes();
             setShowSubscriptionCheckout(null);
@@ -1488,7 +1492,7 @@ function AthleteProfileView({
                     {/* Basic Plan */}
                     <div className="bg-white p-4 rounded-lg border border-gray-200">
                       <h4 className="font-bold text-lg mb-2">Basic</h4>
-                      <p className="text-2xl font-bold text-gray-900 mb-2">$4.99<span className="text-sm text-gray-500">/month</span></p>
+                      <p className="text-2xl font-bold text-gray-900 mb-2">${athlete.pricing?.basic || 4.99}<span className="text-sm text-gray-500">/month</span></p>
                       <ul className="text-sm text-gray-600 space-y-2 mb-4">
                         <li>• Access to basic content</li>
                         <li>• Monthly Q&A session</li>

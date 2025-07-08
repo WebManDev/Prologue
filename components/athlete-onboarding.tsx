@@ -45,6 +45,7 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
     lastName: "",
     bio: "",
     selectedSports: [] as string[],
+    basicTierPrice: "4.99",
     proTierPrice: "9.99",
     premiumTierPrice: "19.99",
     profileImage: null as File | null,
@@ -104,6 +105,7 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
         profilePicture: profilePictureUrl,
         role: "athlete",
         pricing: {
+          basic: parseFloat(formData.basicTierPrice),
           pro: parseFloat(formData.proTierPrice),
           premium: parseFloat(formData.premiumTierPrice)
         }
@@ -298,10 +300,31 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
               <h2 className="text-2xl font-bold text-gray-900">Subscription Pricing</h2>
             </div>
             <p className="text-gray-600 mb-6">
-              Set your custom pricing for Pro and Premium tiers. Basic tier remains at $4.99/month.
+              Set your custom pricing for all three subscription tiers. Consider your expertise, content quality, and market rates when setting your prices.
             </p>
 
-            <div className="grid md:grid-cols-2 gap-6 mb-6">
+            <div className="grid md:grid-cols-3 gap-6 mb-6">
+              <div>
+                <Label htmlFor="basicTierPrice" className="text-base font-semibold text-gray-900 mb-3 block">
+                  Basic Tier Price ($/month)
+                </Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold">
+                    $
+                  </span>
+                  <Input
+                    id="basicTierPrice"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={formData.basicTierPrice}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, basicTierPrice: e.target.value }))}
+                    className="h-12 pl-8 text-base border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
+                    required
+                  />
+                </div>
+              </div>
+
               <div>
                 <Label htmlFor="proTierPrice" className="text-base font-semibold text-gray-900 mb-3 block">
                   Pro Tier Price ($/month)
