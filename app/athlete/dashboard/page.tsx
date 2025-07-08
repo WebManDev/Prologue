@@ -2,8 +2,24 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CoachDashboard } from "@/components/coach-dashboard";
+import dynamic from "next/dynamic";
 import type { User } from "firebase/auth";
+
+// Dynamically import the CoachDashboard with no SSR to prevent Firebase issues during build
+const CoachDashboard = dynamic(
+  () => import("@/components/coach-dashboard").then((mod) => ({ default: mod.CoachDashboard })),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+);
 
 // Dynamically import Firebase to prevent issues during build
 let auth: any = null;
