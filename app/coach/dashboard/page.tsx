@@ -1,16 +1,63 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CoachDashboard } from '@/components/coach-dashboard';
 import { useRouter } from 'next/navigation';
-import { auth } from '@/lib/firebase';
+import dynamic from 'next/dynamic';
+import type { User } from 'firebase/auth';
+
+// Dynamically import the CoachDashboard with no SSR to prevent Firebase issues during build
+const CoachDashboard = dynamic(
+  () => import('@/components/coach-dashboard').then((mod) => ({ default: mod.CoachDashboard })),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+);
+
+// Dynamically import Firebase to prevent issues during build
+let auth: any = null;
 
 export default function CoachDashboardPage() {
   const router = useRouter();
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    // Ensure we're on the client side and initialize Firebase
+    const initializeAuth = async () => {
+      if (typeof window !== 'undefined') {
+        try {
+          const { auth: firebaseAuth } = await import('@/lib/firebase');
+          auth = firebaseAuth;
+          setIsClient(true);
+        } catch (error) {
+          console.error('Error loading Firebase:', error);
+          setIsClient(true);
+        }
+      }
+    };
+
+    initializeAuth();
+  }, []);
+
+  useEffect(() => {
+    // Only run auth check if we're on client side and auth is available
+    if (!isClient || !auth) {
+      if (isClient && !auth) {
+        // If we're on client but auth is null, redirect to login
+        router.push('/');
+      }
+      return;
+    }
+
+    const unsubscribe = auth.onAuthStateChanged((user: User | null) => {
       if (!user) {
         router.push('/');
         return;
@@ -19,23 +66,28 @@ export default function CoachDashboardPage() {
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, [router, isClient]);
 
   const handleLogout = async () => {
     try {
-      await auth.signOut();
+      if (auth) {
+        await auth.signOut();
+      }
       router.push('/');
     } catch (error) {
       console.error('Error signing out:', error);
     }
   };
 
-  if (isCheckingAuth) {
+  // Show loading while checking if we're on client side or checking auth
+  if (!isClient || isCheckingAuth) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white flex items-center justify-center p-4">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Checking authentication...</p>
+          <p className="text-gray-600">
+            {!isClient ? 'Loading...' : 'Checking authentication...'}
+          </p>
         </div>
       </div>
     );
