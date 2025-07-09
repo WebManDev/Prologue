@@ -2,374 +2,249 @@
 
 import type React from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
-  Settings,
-  User,
-  LayoutDashboard,
-  ChevronDown,
-  LogOut,
-  Search,
-  TrendingUp,
   MessageSquare,
   Star,
-  ThumbsUp,
-  Filter,
-  X,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  Users,
-  BarChart3,
   Plus,
-  Play,
-  Send,
+  CheckCircle,
+  Clock,
+  Search,
+  X,
   Home,
-  FileText,
   MessageCircle,
   Bell,
+  LayoutDashboard,
+  TrendingUp,
+  FileText,
+  Settings,
+  User,
+  LogOut,
+  ChevronDown,
 } from "lucide-react"
-import Link from "next/link"
-import Image from "next/image"
 import { useState, useRef, useEffect, useCallback, useMemo } from "react"
-import { AthleteNav } from "@/components/navigation/athlete-nav"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
-import { AdvancedNotificationProvider } from "@/contexts/advanced-notification-context"
+import FeedbackDialog from "@/components/feedback-dialog"
+import Image from "next/image"
+import Link from "next/link"
+import { useAdvancedNotifications } from "@/contexts/advanced-notification-context"
 import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc, deleteDoc } from "firebase/firestore"
-import { db, auth, getAthleteProfile } from "@/lib/firebase"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ThumbsDown } from "lucide-react"
-import { useNotifications } from "@/contexts/notification-context"
-import { useUnifiedLogout } from "@/hooks/use-unified-logout"
-import { LogoutNotification } from "@/components/ui/logout-notification"
-import { onAuthStateChanged } from "firebase/auth";
+import { db, auth, getAthleteProfile, addFeedback } from "@/lib/firebase"
+import { onAuthStateChanged } from "firebase/auth"
 
-// Static data to prevent recreation on every render
-const QUICK_SEARCHES = [
-  "Training Content Feedback",
-  "Nutrition Video Reviews",
-  "Workout Program Effectiveness",
-  "Mental Performance Content",
-  "Recruitment Advice Quality",
-  "NIL Content Feedback",
-  "Coaching Style Review",
-  "Content Improvement Ideas",
-]
-
-const FEEDBACK_DATA = {
-  requested: [
-    {
-      id: 1,
-      subject: "Training Program Effectiveness",
-      description: "How effective has my 12-week strength program been for you?",
-      recipients: 45,
-      responses: 32,
-      avgRating: 4.6,
-      timestamp: "2 days ago",
-      status: "active",
-      category: "Training Content",
-      deadline: "Dec 15, 2024",
-    },
-    {
-      id: 2,
-      subject: "Nutrition Content Quality",
-      description: "Please rate the quality and usefulness of my nutrition guidance videos.",
-      recipients: 28,
-      responses: 28,
-      avgRating: 4.8,
-      timestamp: "1 week ago",
-      status: "completed",
-      category: "Nutrition",
-      deadline: "Dec 1, 2024",
-    },
-    {
-      id: 3,
-      subject: "Mental Performance Series",
-      description: "Feedback on my mental performance and mindset content series.",
-      recipients: 67,
-      responses: 23,
-      avgRating: 4.4,
-      timestamp: "3 days ago",
-      status: "active",
-      category: "Mental Performance",
-      deadline: "Dec 20, 2024",
-    },
-  ],
-  given: [
-    {
-      id: 1,
-      to: "Alex Rodriguez",
-      avatar: "/placeholder.svg?height=40&width=40",
-      rating: 5,
-      content: "Great collaboration on the NIL content. Your insights were valuable.",
-      timestamp: "1 week ago",
-      status: "delivered",
-      category: "Collaboration",
-    },
-    {
-      id: 2,
-      to: "Sarah Mitchell",
-      avatar: "/placeholder.svg?height=40&width=40",
-      rating: 4,
-      content: "Excellent training methodology. Really helped improve my content structure.",
-      timestamp: "2 weeks ago",
-      status: "delivered",
-      category: "Training",
-    },
-  ],
+// Types for feedback
+interface FeedbackRequest {
+  id: string
+  title: string
+  description: string
+  category: string
+  status: "active" | "completed"
+  videoUrl?: string
+  createdAt: string
+  completedAt?: string
+  userRating?: number
+  userComment?: string
+  memberId?: string
 }
 
-// Add a type for requested feedback
-interface RequestedFeedback {
-  id: string;
-  title: string;
-  message: string;
-  createdAt?: { seconds: number };
-  videoUrl?: string;
-  memberId?: string; // Added memberId
-  // Add other fields as needed
-}
-
-// Add a type for given feedback
 interface GivenFeedback {
-  id: string;
-  requestId: string;
-  title: string;
-  rating: number;
-  comment: string;
-  createdAt?: { seconds: number };
+  id: string
+  requestId: string
+  title: string
+  rating: number
+  comment: string
+  createdAt?: { seconds: number }
+  category?: string
+  userComment?: string
+}
+
+// Helper function to extract YouTube video ID
+const getYouTubeVideoId = (url: string): string | null => {
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/
+  const match = url.match(regExp)
+  return match && match[2].length === 11 ? match[2] : null
 }
 
 export default function FeedbackPage() {
-  return (
-    <AdvancedNotificationProvider>
-      <FeedbackPageContent />
-    </AdvancedNotificationProvider>
-  )
-}
+  const { isMobile, isTablet } = useMobileDetection()
 
-function FeedbackPageContent() {
-  const { isMobile, isTablet } = useMobileDetection();
-  const { hasUnreadMessages } = useNotifications();
-  const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout();
+  // State management
+  const [activeTab, setActiveTab] = useState("requested")
+  const [selectedFilter, setSelectedFilter] = useState("all")
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
+  const [selectedRequest, setSelectedRequest] = useState<FeedbackRequest | null>(null)
+  const [feedbackRating, setFeedbackRating] = useState(0)
+  const [feedbackComment, setFeedbackComment] = useState("")
+  
+  // Firebase state
+  const [requestedFeedback, setRequestedFeedback] = useState<FeedbackRequest[]>([])
+  const [givenFeedback, setGivenFeedback] = useState<GivenFeedback[]>([])
+  const [loading, setLoading] = useState(true)
+  const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null)
 
-  // Platform feedback form state
-  const [platformFeedbackType, setPlatformFeedbackType] = useState("");
-  const [platformFeedbackTitle, setPlatformFeedbackTitle] = useState("");
-  const [platformFeedbackMessage, setPlatformFeedbackMessage] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Platform feedback state
+  const [platformFeedbackType, setPlatformFeedbackType] = useState("")
+  const [platformFeedbackTitle, setPlatformFeedbackTitle] = useState("")
+  const [platformFeedbackMessage, setPlatformFeedbackMessage] = useState("")
+  const [isSubmittingPlatform, setIsSubmittingPlatform] = useState(false)
 
-  // Feedback completion state
-  const [selectedFeedback, setSelectedFeedback] = useState<RequestedFeedback | null>(null);
-  const [feedbackRating, setFeedbackRating] = useState(0);
-  const [feedbackComment, setFeedbackComment] = useState("");
-  const [isCompletingFeedback, setIsCompletingFeedback] = useState(false);
+  // Refs
+  const searchRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // State for requested feedback
-  const [requestedFeedback, setRequestedFeedback] = useState<RequestedFeedback[]>([]);
-  const [givenFeedback, setGivenFeedback] = useState<GivenFeedback[]>([]);
+  // Contexts
+  const { hasUnreadMessages } = useAdvancedNotifications()
 
-  // Profile picture state
-  const [profilePicUrl, setProfilePicUrl] = useState<string | null>(null);
+  // Quick search suggestions
+  const quickSearches = [
+    "Navigate Recruitment",
+    "Nutrition",
+    "NIL",
+    "Training Programs",
+    "Mental Performance",
+    "Injury Prevention",
+    "Sports Psychology",
+    "Athletic Scholarships",
+  ]
 
+  // Firebase data fetching
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Fetch member profile picture (works for both athlete and member roles)
-        const docRef = doc(db, "members", user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          // Try both possible field names
-          setProfilePicUrl(docSnap.data().profilePic || docSnap.data().profilePicture || null);
-        }
-        // Fetch requested feedback
-        const q = query(collection(db, "feedbackToAthlete"), where("athleteId", "==", user.uid));
-        getDocs(q).then(snapshot => {
-          setRequestedFeedback(snapshot.docs.map(doc => {
-            const data = doc.data();
+        try {
+          // Fetch athlete profile picture
+          const docRef = doc(db, "athletes", user.uid)
+          const docSnap = await getDoc(docRef)
+          if (docSnap.exists()) {
+            setProfilePicUrl(docSnap.data().profileImageUrl || docSnap.data().profilePicture || null)
+          }
+
+          // Fetch requested feedback
+          const requestedQuery = query(collection(db, "feedbackToAthlete"), where("athleteId", "==", user.uid))
+          const requestedSnapshot = await getDocs(requestedQuery)
+          const requestedData = requestedSnapshot.docs.map(doc => {
+            const data = doc.data()
             return {
               id: doc.id,
               title: data.title || '',
-              message: data.message || '',
-              createdAt: data.createdAt,
-              videoUrl: data.videoUrl || '',
-              memberId: data.memberId || null, // Assuming memberId is stored in feedbackToAthlete
-            };
-          }));
-        });
-        // Fetch given feedback
-        const q2 = query(collection(db, "feedbackGiven"), where("athleteId", "==", user.uid));
-        getDocs(q2).then(snapshot => {
-          setGivenFeedback(snapshot.docs.map(doc => {
-            const data = doc.data();
+              description: data.message || '',
+              category: data.category || 'General',
+              status: "active" as const,
+              videoUrl: data.videoUrl,
+              createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+              memberId: data.memberId || null,
+            }
+          })
+
+          // Fetch given feedback
+          const givenQuery = query(collection(db, "feedbackGiven"), where("athleteId", "==", user.uid))
+          const givenSnapshot = await getDocs(givenQuery)
+          const givenData = givenSnapshot.docs.map(doc => {
+            const data = doc.data()
             return {
               id: doc.id,
-              requestId: data.requestId,
+              requestId: data.requestId || '',
               title: data.title || '',
               rating: data.rating || 0,
               comment: data.comment || '',
               createdAt: data.createdAt,
-            };
-          }));
-        });
+              category: data.category || 'General',
+              userComment: data.comment || '',
+            }
+          })
+
+          setRequestedFeedback(requestedData)
+          setGivenFeedback(givenData)
+        } catch (error) {
+          console.error("Error fetching feedback data:", error)
+        } finally {
+          setLoading(false)
+        }
+      } else {
+        setLoading(false)
       }
-    });
-    return () => unsubscribe();
-  }, []);
+    })
 
-  // Helper function to extract YouTube video ID from URL
-  const getYouTubeVideoId = (url: string) => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-    const match = url.match(regExp);
-    return match && match[2].length === 11 ? match[2] : null;
-  };
+    return () => unsubscribe()
+  }, [])
 
-  // Mock video-based feedback requests data
-  const feedbackRequests = [
-    {
-      id: 1,
-      title: "Training Program Effectiveness",
-      subtitle: "Watch my 12-week strength program overview and share your thoughts",
-      videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      category: "Training Content",
-      status: "active",
-      sentTo: 45,
-      responses: 32,
-      averageRating: 4.6,
-      dueDate: "Dec 15, 2024",
-      createdAt: "2 days ago",
-      completed: false,
-    },
-    {
-      id: 2,
-      title: "Nutrition Content Quality",
-      subtitle: "Review my latest nutrition guidance video series",
-      videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      category: "Nutrition",
-      status: "completed",
-      sentTo: 28,
-      responses: 28,
-      averageRating: 4.8,
-      dueDate: "Dec 1, 2024",
-      createdAt: "1 week ago",
-      completed: true,
-      userRating: 5,
-      userComment: "Excellent content! Very helpful for my nutrition planning.",
-    },
-    {
-      id: 3,
-      title: "Mental Performance Series",
-      subtitle: "Provide feedback on my mental performance and mindset content",
-      videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-      category: "Mental Performance",
-      status: "active",
-      sentTo: 67,
-      responses: 43,
-      averageRating: 4.4,
-      dueDate: "Dec 20, 2024",
-      createdAt: "3 days ago",
-      completed: false,
-    },
-  ];
-
-  // Mock platform feedback history
-  const platformFeedbackHistory = [
-    {
-      id: 1,
-      type: "suggestion",
-      title: "Improve analytics dashboard",
-      message: "The analytics dashboard could show more detailed engagement metrics for content creators.",
-      status: "resolved",
-      date: "2024-01-15",
-      response:
-        "Thank you for your feedback! We've added more detailed analytics including engagement rates, watch time, and subscriber growth metrics.",
-      rating: 5,
-    },
-    {
-      id: 2,
-      type: "bug",
-      title: "Video upload issues",
-      message: "Sometimes videos fail to upload when they're longer than 30 minutes.",
-      status: "in-progress",
-      date: "2024-01-10",
-      response: "We're working on fixing this issue. A patch will be released in the next update.",
-      rating: null,
-    },
-    {
-      id: 3,
-      type: "feature",
-      title: "Bulk messaging feature",
-      message: "It would be helpful to send messages to multiple subscribers at once.",
-      status: "under-review",
-      date: "2024-01-05",
-      response: null,
-      rating: null,
-    },
-  ];
-
-  const handleSubmitPlatformFeedback = async () => {
-    if (!platformFeedbackType || !platformFeedbackTitle || !platformFeedbackMessage) {
-      return;
+  // Handle clicks outside search dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSearchDropdown(false)
+      }
     }
-    setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setPlatformFeedbackType("");
-    setPlatformFeedbackTitle("");
-    setPlatformFeedbackMessage("");
-    setIsSubmitting(false);
-    alert("Platform feedback submitted successfully!");
-  };
 
-  const handleOpenCompleteFeedback = (feedback: RequestedFeedback) => {
-    setSelectedFeedback(feedback);
-    setFeedbackRating(0);
-    setFeedbackComment("");
-  };
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
 
-  // Update handleCompleteFeedback to save to Firestore
-  const handleCompleteFeedback = async () => {
-    if (!selectedFeedback || feedbackRating === 0) return;
-    setIsCompletingFeedback(true);
-    const user = auth.currentUser;
-    if (!user) return;
-    
+  // Search handlers
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value)
+  }, [])
+
+  const handleSearchFocus = useCallback(() => {
+    setShowSearchDropdown(true)
+  }, [])
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery("")
+    setShowSearchDropdown(false)
+    if (searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [])
+
+  // Feedback handlers
+  const handleCompleteFeedback = useCallback((request: FeedbackRequest) => {
+    setSelectedRequest(request)
+    setShowFeedbackDialog(true)
+  }, [])
+
+  const handleSubmitFeedback = useCallback(async () => {
+    if (!selectedRequest || feedbackRating === 0) return
+
+    const user = auth.currentUser
+    if (!user) return
+
     try {
       // Save to feedbackGiven collection
       const docRef = await addDoc(collection(db, "feedbackGiven"), {
         athleteId: user.uid,
-        requestId: selectedFeedback.id,
-        title: selectedFeedback.title,
+        requestId: selectedRequest.id,
+        title: selectedRequest.title,
         rating: feedbackRating,
         comment: feedbackComment,
         createdAt: serverTimestamp(),
-        memberId: selectedFeedback.memberId || null,
-      });
+        memberId: selectedRequest.memberId || null,
+        category: selectedRequest.category,
+      })
 
-      // Delete the original feedback request document
-      if (selectedFeedback.id) {
-        const feedbackRequestRef = doc(db, "feedbackToAthlete", selectedFeedback.id);
-        await deleteDoc(feedbackRequestRef);
+      // Delete the original feedback request
+      if (selectedRequest.id) {
+        const feedbackRequestRef = doc(db, "feedbackToAthlete", selectedRequest.id)
+        await deleteDoc(feedbackRequestRef)
       }
 
       // Send notification to the member who requested feedback
-      if (selectedFeedback.memberId) {
-        // Get athlete profile for sender info
-        const athleteProfile = await getAthleteProfile(user.uid);
+      if (selectedRequest.memberId) {
+        const athleteProfile = await getAthleteProfile(user.uid)
         
-        // Create notification for the member
         await addDoc(collection(db, "notifications"), {
           type: "feedback",
           title: "Feedback Received",
-          message: `${athleteProfile?.name || "Coach"} has provided feedback on your submission: "${selectedFeedback.title}".`,
-          recipientId: selectedFeedback.memberId,
+          message: `${athleteProfile?.name || "Coach"} has provided feedback on your submission: "${selectedRequest.title}".`,
+          recipientId: selectedRequest.memberId,
           senderId: user.uid,
           senderName: athleteProfile?.name || "Coach",
           priority: "medium",
@@ -384,499 +259,445 @@ function FeedbackPageContent() {
           },
           createdAt: serverTimestamp(),
           read: false
-        });
+        })
       }
 
       // Update local state
       setGivenFeedback(prev => [
         {
           id: docRef.id,
-          requestId: selectedFeedback.id,
-          title: selectedFeedback.title,
+          requestId: selectedRequest.id,
+          title: selectedRequest.title,
           rating: feedbackRating,
           comment: feedbackComment,
           createdAt: { seconds: Math.floor(Date.now() / 1000) },
+          category: selectedRequest.category,
+          userComment: feedbackComment,
         },
         ...prev,
-      ]);
-      setRequestedFeedback(prev => prev.filter(req => req.id !== selectedFeedback.id));
-      setSelectedFeedback(null);
-      setFeedbackRating(0);
-      setFeedbackComment("");
+      ])
+      setRequestedFeedback(prev => prev.filter(req => req.id !== selectedRequest.id))
+
+      // Reset form
+      setFeedbackRating(0)
+      setFeedbackComment("")
+      setShowFeedbackDialog(false)
+      setSelectedRequest(null)
     } catch (error) {
-      console.error("Error completing feedback:", error);
-      alert("Failed to complete feedback. Please try again.");
+      console.error("Error submitting feedback:", error)
+      alert("Failed to submit feedback. Please try again.")
+    }
+  }, [selectedRequest, feedbackRating, feedbackComment])
+
+  // Platform feedback submission
+  const handleSubmitPlatformFeedback = useCallback(async () => {
+    if (!platformFeedbackType || !platformFeedbackTitle || !platformFeedbackMessage) {
+      alert("Please fill in all fields")
+      return
+    }
+
+    setIsSubmittingPlatform(true)
+    
+    try {
+      await addFeedback({
+        type: platformFeedbackType,
+        title: platformFeedbackTitle,
+        message: platformFeedbackMessage,
+        userId: auth.currentUser?.uid
+      })
+
+      // Reset form
+      setPlatformFeedbackType("")
+      setPlatformFeedbackTitle("")
+      setPlatformFeedbackMessage("")
+      
+      alert("Platform feedback submitted successfully!")
+    } catch (error) {
+      console.error("Error submitting platform feedback:", error)
+      alert("Failed to submit platform feedback. Please try again.")
     } finally {
-      setIsCompletingFeedback(false);
+      setIsSubmittingPlatform(false)
     }
-  };
+  }, [platformFeedbackType, platformFeedbackTitle, platformFeedbackMessage])
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "resolved":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case "in-progress":
-        return <Clock className="h-4 w-4 text-yellow-500" />;
-      case "under-review":
-        return <AlertCircle className="h-4 w-4 text-blue-500" />;
-      default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
+  // Filter feedback requests by tab
+  const filteredRequestedFeedback = useMemo(() => {
+    let requests = requestedFeedback
+    
+    if (searchQuery) {
+      return requests.filter((request) => {
+        return (
+          request.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          request.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          request.category.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      })
     }
-  };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "resolved":
-        return "bg-green-100 text-green-700";
-      case "in-progress":
-        return "bg-yellow-100 text-yellow-700";
-      case "under-review":
-        return "bg-blue-100 text-blue-700";
-      default:
-        return "bg-gray-100 text-gray-700";
+    return requests
+  }, [searchQuery, requestedFeedback])
+
+  const filteredGivenFeedback = useMemo(() => {
+    let requests = givenFeedback
+    
+    if (searchQuery) {
+      return requests.filter((request) => {
+        return (
+          request.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          request.comment.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (request.category || '').toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      })
     }
-  };
 
-  const getRequestStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-green-100 text-green-700">Active</Badge>;
-      case "completed":
-        return <Badge className="bg-blue-100 text-blue-700">Completed</Badge>;
-      case "expired":
-        return <Badge className="bg-red-100 text-red-700">Expired</Badge>;
-      default:
-        return <Badge variant="secondary">Unknown</Badge>;
-    }
-  };
+    return requests
+  }, [searchQuery, givenFeedback])
 
-  // Main content UI from user-provided code
-  const mainContent = (
-    <main className="max-w-7xl mx-auto px-6 py-8">
-      {/* Page Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center space-x-4">
-          <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-            <MessageSquare className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Feedback Center</h1>
-            <p className="text-gray-600">Request feedback from subscribers and give testimonials</p>
-          </div>
+  // Stats
+  const stats = useMemo(() => {
+    const total = requestedFeedback.length + givenFeedback.length
+    const completed = givenFeedback.length
+    const active = requestedFeedback.length
+    const avgRating = givenFeedback.length > 0
+      ? givenFeedback.reduce((sum, r) => sum + (r.rating || 0), 0) / givenFeedback.length
+      : 0
+
+    return { total, completed, active, avgRating }
+  }, [requestedFeedback, givenFeedback])
+
+  const handleLogout = () => {
+    localStorage.removeItem("userToken")
+    localStorage.removeItem("userData")
+    localStorage.removeItem("authToken")
+    sessionStorage.clear()
+
+    document.cookie.split(";").forEach((c) => {
+      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")
+    })
+
+    window.location.href = "/"
+  }
+
+  // Search dropdown content
+  const searchDropdownContent = (
+    <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+      <div className="p-3 border-b border-gray-100">
+        <h4 className="text-sm font-semibold text-gray-700 mb-2">Quick Searches</h4>
+        <div className="space-y-1">
+          {quickSearches.map((search, index) => (
+            <button
+              key={index}
+              className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-blue-500 rounded transition-colors"
+              onClick={() => {
+                setSearchQuery(search)
+                setShowSearchDropdown(false)
+              }}
+            >
+              {search}
+            </button>
+          ))}
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-          <Filter className="h-4 w-4 mr-2" />
-          Filter
-        </Button>
       </div>
+    </div>
+  )
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                <MessageSquare className="h-5 w-5 text-gray-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{requestedFeedback.length + givenFeedback.length}</p>
-                <p className="text-sm text-gray-600">All feedback</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Users className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{requestedFeedback.length}</p>
-                <p className="text-sm text-gray-600">From subscribers</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <Star className="h-5 w-5 text-yellow-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">4.6</p>
-                <p className="text-sm text-gray-600">Star rating</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <BarChart3 className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-900">78%</p>
-                <p className="text-sm text-gray-600">Response rate</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading feedback...</p>
+        </div>
       </div>
+    )
+  }
 
-      {/* Tabs */}
-      <Tabs defaultValue="requested" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="requested" className="flex items-center space-x-2">
-            <Users className="h-4 w-4" />
-            <span>Requested ({requestedFeedback.length})</span>
+  // Main content component
+  const renderMainContent = () => (
+    <main className={`${isMobile ? "px-4 py-6 pb-24" : "max-w-7xl mx-auto px-6 py-8"}`}>
+      {/* Feedback Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className={`${isMobile ? "grid w-full grid-cols-3 h-auto" : "grid w-full grid-cols-3"}`}>
+          <TabsTrigger
+            value="requested"
+            className={`flex items-center space-x-1 ${isMobile ? "flex-col space-x-0 space-y-1 py-3" : "space-x-2"}`}
+          >
+            <Clock className={`${isMobile ? "h-3 w-3" : "h-4 w-4"}`} />
+            <span className={`${isMobile ? "text-xs" : ""}`}>Requested ({stats.active})</span>
           </TabsTrigger>
-          <TabsTrigger value="given" className="flex items-center space-x-2">
-            <Star className="h-4 w-4" />
-            <span>Given ({givenFeedback.length})</span>
+          <TabsTrigger
+            value="given"
+            className={`flex items-center space-x-1 ${isMobile ? "flex-col space-x-0 space-y-1 py-3" : "space-x-2"}`}
+          >
+            <CheckCircle className={`${isMobile ? "h-3 w-3" : "h-4 w-4"}`} />
+            <span className={`${isMobile ? "text-xs" : ""}`}>Given ({stats.completed})</span>
           </TabsTrigger>
-          <TabsTrigger value="platform" className="flex items-center space-x-2">
-            <Plus className="h-4 w-4" />
-            <span>Platform Feedback</span>
+          <TabsTrigger
+            value="platform"
+            className={`flex items-center space-x-1 ${isMobile ? "flex-col space-x-0 space-y-1 py-3" : "space-x-2"}`}
+          >
+            <Plus className={`${isMobile ? "h-3 w-3" : "h-4 w-4"}`} />
+            <span className={`${isMobile ? "text-xs" : ""}`}>Platform Feedback</span>
           </TabsTrigger>
         </TabsList>
 
         {/* Requested Feedback Tab */}
-        <TabsContent value="requested" className="space-y-6">
-          <div className="space-y-6">
-            {requestedFeedback.length > 0 ? (
-              requestedFeedback.map((request) => (
-                <Card key={request.id}>
+        <TabsContent value="requested" className="space-y-4">
+          {filteredRequestedFeedback.length === 0 ? (
+            <div className="text-center py-12">
+              <MessageSquare className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No feedback requests</h3>
+              <p className="text-gray-600">You haven't requested any feedback yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredRequestedFeedback.map((request) => (
+                <Card key={request.id} className="hover:shadow-lg transition-shadow">
                   <CardContent className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900">{request.title}</h3>
-                          {/* Add status/category badges if you have them */}
-                        </div>
-                        <p className="text-gray-600 mb-4">{request.message}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-500 mb-2">{request.createdAt ? new Date(request.createdAt.seconds * 1000).toLocaleString() : ""}</p>
-                      </div>
-                    </div>
-                    {/* Native video player for videoUrl */}
-                    {request.videoUrl && (
-                      <div className="mb-6">
-                        <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                          <video controls className="w-full h-full">
-                            <source src={request.videoUrl} type="video/mp4" />
-                            Your browser does not support the video tag.
-                          </video>
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex items-center space-x-3">
-                      <Dialog open={selectedFeedback?.id === request.id} onOpenChange={(open) => !open && setSelectedFeedback(null)}>
-                        <DialogTrigger asChild>
-                          <Button size="sm" variant="outline" onClick={() => handleOpenCompleteFeedback(request)}>
-                            Complete Feedback
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-md">
-                          <DialogHeader>
-                            <DialogTitle>Complete Feedback</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-6">
-                            <div>
-                              <h4 className="font-medium text-gray-900 mb-1">{selectedFeedback?.title}</h4>
-                              <p className="text-sm text-gray-600">{selectedFeedback?.message}</p>
-                            </div>
-                            <div>
-                              <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                                Rate this content
-                              </Label>
-                              <div className="flex items-center space-x-1">
-                                {[1, 2, 3, 4, 5].map((rating) => (
-                                  <button
-                                    key={rating}
-                                    onClick={() => setFeedbackRating(rating)}
-                                    className="p-1 hover:scale-110 transition-transform"
-                                  >
-                                    <Star
-                                      className={`h-6 w-6 ${rating <= feedbackRating ? "text-yellow-400 fill-current" : "text-gray-300 hover:text-yellow-200"}`}
-                                    />
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                            <div>
-                              <Label htmlFor="feedback-comment" className="text-sm font-medium text-gray-700 mb-2 block">
-                                Additional Comments (Optional)
-                              </Label>
-                              <Textarea
-                                id="feedback-comment"
-                                value={feedbackComment}
-                                onChange={(e) => setFeedbackComment(e.target.value)}
-                                placeholder="Share your thoughts about this content..."
-                                rows={4}
-                              />
-                            </div>
-                            <Button
-                              onClick={handleCompleteFeedback}
-                              disabled={feedbackRating === 0 || isCompletingFeedback}
-                              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    <div className="space-y-4">
+                      {/* Header */}
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                              {request.category}
+                            </Badge>
+                            <Badge
+                              variant={request.status === "active" ? "default" : "secondary"}
+                              className={request.status === "active" ? "bg-green-100 text-green-700" : ""}
                             >
-                              {isCompletingFeedback ? (
-                                <>
-                                  <Clock className="h-4 w-4 mr-2 animate-spin" />
-                                  Submitting...
-                                </>
-                              ) : (
-                                <>
-                                  <Send className="h-4 w-4 mr-2" />
-                                  Submit Feedback
-                                </>
-                              )}
-                            </Button>
+                              {request.status === "active" ? "Active" : "Completed"}
+                            </Badge>
                           </div>
-                        </DialogContent>
-                      </Dialog>
+                          <h3 className="text-lg font-semibold text-gray-900 mb-1">{request.title}</h3>
+                          <p className="text-gray-600 text-sm">{request.description}</p>
+                        </div>
+                      </div>
+
+                      {/* Video Player */}
+                      {request.videoUrl && (
+                        <div className="space-y-3">
+                          <div className="aspect-video rounded-lg overflow-hidden bg-gray-100">
+                            {(() => {
+                              const videoId = getYouTubeVideoId(request.videoUrl)
+                              if (videoId) {
+                                return (
+                                  <iframe
+                                    src={`https://www.youtube.com/embed/${videoId}`}
+                                    title={request.title}
+                                    className="w-full h-full"
+                                    frameBorder="0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                  />
+                                )
+                              }
+                              return (
+                                <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                                  <div className="text-center">
+                                    <div className="w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center mx-auto mb-2">
+                                      <svg className="w-8 h-8 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                        <path
+                                          fillRule="evenodd"
+                                          d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                                          clipRule="evenodd"
+                                        />
+                                      </svg>
+                                    </div>
+                                    <p className="text-sm text-gray-500">Video not available</p>
+                                  </div>
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action Button */}
+                      <div className="flex justify-end">
+                        <Button
+                          className="bg-blue-600 hover:bg-blue-700"
+                          onClick={() => handleCompleteFeedback(request as FeedbackRequest)}
+                        >
+                          Complete Feedback
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
-              ))
-            ) : (
-              <Card>
-                <CardContent className="text-center py-12">
-                  <Users className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback requested</h3>
-                  <p className="text-gray-600">
-                    Start requesting feedback from your subscribers to improve your content.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </TabsContent>
-        {/* Given Feedback Tab */}
-        <TabsContent value="given" className="space-y-6">
-          {givenFeedback.length > 0 ? (
-            givenFeedback.map((feedback) => (
-              <Card key={feedback.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start space-x-4">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <h4 className="font-semibold text-gray-900">{feedback.title}</h4>
-                          <Badge className="bg-green-100 text-green-700">Given</Badge>
-                        </div>
-                        <div className="flex items-center space-x-2 text-sm text-gray-500">
-                          <span>{feedback.createdAt ? new Date(feedback.createdAt.seconds * 1000).toLocaleString() : ""}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-1 mb-3">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`h-4 w-4 ${i < feedback.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
-                          />
-                        ))}
-                        <span className="text-sm text-gray-600 ml-2">({feedback.rating}/5)</span>
-                      </div>
-                      <p className="text-gray-700">{feedback.comment}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          ) : (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <Star className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback given yet</h3>
-                <p className="text-gray-600">Feedback you've given to other creators will appear here.</p>
-              </CardContent>
-            </Card>
+              ))}
+            </div>
           )}
         </TabsContent>
-        {/* Platform Feedback Tab */}
-        <TabsContent value="platform" className="space-y-6">
-          <Tabs defaultValue="submit" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="submit">Submit Feedback</TabsTrigger>
-              <TabsTrigger value="history">Feedback History</TabsTrigger>
-            </TabsList>
-            {/* Submit Platform Feedback */}
-            <TabsContent value="submit">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Submit Platform Feedback</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div>
-                    <Label htmlFor="platform-feedback-type">Feedback Type</Label>
-                    <Select value={platformFeedbackType} onValueChange={setPlatformFeedbackType}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select feedback type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="bug">Bug Report</SelectItem>
-                        <SelectItem value="feature">Feature Request</SelectItem>
-                        <SelectItem value="suggestion">Suggestion</SelectItem>
-                        <SelectItem value="complaint">Complaint</SelectItem>
-                        <SelectItem value="compliment">Compliment</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="platform-feedback-title">Title</Label>
-                    <Input
-                      id="platform-feedback-title"
-                      value={platformFeedbackTitle}
-                      onChange={(e) => setPlatformFeedbackTitle(e.target.value)}
-                      placeholder="Brief description of your feedback"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="platform-feedback-message">Message</Label>
-                    <Textarea
-                      id="platform-feedback-message"
-                      value={platformFeedbackMessage}
-                      onChange={(e) => setPlatformFeedbackMessage(e.target.value)}
-                      placeholder="Please provide detailed feedback..."
-                      rows={6}
-                    />
-                    <p className="text-sm text-gray-500 mt-1">{platformFeedbackMessage.length}/1000 characters</p>
-                  </div>
-                  <Button
-                    onClick={handleSubmitPlatformFeedback}
-                    disabled={
-                      !platformFeedbackType || !platformFeedbackTitle || !platformFeedbackMessage || isSubmitting
-                    }
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Clock className="h-4 w-4 mr-2 animate-spin" />
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4 mr-2" />
-                        Submit Feedback
-                      </>
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            {/* Platform Feedback History */}
-            <TabsContent value="history">
-              <div className="space-y-4">
-                {platformFeedbackHistory.map((feedback) => (
-                  <Card key={feedback.id}>
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between mb-4">
+
+        {/* Given Feedback Tab */}
+        <TabsContent value="given" className="space-y-4">
+          {filteredGivenFeedback.length === 0 ? (
+            <div className="text-center py-12">
+              <CheckCircle className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No completed feedback</h3>
+              <p className="text-gray-600">You haven't completed any feedback yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredGivenFeedback.map((feedback) => (
+                <Card key={feedback.id} className="hover:shadow-lg transition-shadow">
+                  <CardContent className="p-6">
+                    <div className="space-y-4">
+                      {/* Header */}
+                      <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <h3 className="font-semibold text-gray-900">{feedback.title}</h3>
-                            <Badge variant="secondary" className={getStatusColor(feedback.status)}>
-                              {getStatusIcon(feedback.status)}
-                              <span className="ml-1 capitalize">{feedback.status.replace("-", " ")}</span>
+                          <div className="flex items-center space-x-2 mb-2">
+                            <Badge variant="secondary" className="bg-blue-100 text-blue-700">
+                              {feedback.category || 'General'}
+                            </Badge>
+                            <Badge variant="secondary" className="bg-green-100 text-green-700">
+                              Completed
                             </Badge>
                           </div>
-                          <p className="text-gray-600 mb-3">{feedback.message}</p>
-                          <div className="flex items-center space-x-4 text-sm text-gray-500">
-                            <span>Type: {feedback.type}</span>
-                            <span>•</span>
-                            <span>{feedback.date}</span>
-                          </div>
+                          <h3 className="text-lg font-semibold text-gray-900 mb-1">{feedback.title}</h3>
+                          <p className="text-gray-600 text-sm">{feedback.comment}</p>
                         </div>
                       </div>
-                      {feedback.response && (
-                        <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                          <div className="flex items-start space-x-3">
-                            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                              <User className="h-4 w-4 text-white" />
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="font-medium text-blue-600 mb-1">PROLOGUE Team Response</h4>
-                              <p className="text-gray-800">{feedback.response}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      {feedback.status === "resolved" && feedback.rating && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
+
+                      {/* User Feedback Display */}
+                      {feedback.rating && (
+                        <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                           <div className="flex items-center space-x-2">
-                            <span className="text-sm text-gray-600">Your rating:</span>
+                            <span className="text-sm font-medium text-gray-700">Your Feedback:</span>
                             <div className="flex items-center space-x-1">
-                              {[...Array(5)].map((_, i) => (
+                              {[1, 2, 3, 4, 5].map((star) => (
                                 <Star
-                                  key={i}
-                                  className={`h-4 w-4 ${i < feedback.rating! ? "text-yellow-400 fill-current" : "text-gray-300"}`}
+                                  key={star}
+                                  className={`h-4 w-4 ${
+                                    star <= (feedback.rating || 0)
+                                      ? "text-yellow-400 fill-current"
+                                      : "text-gray-300"
+                                  }`}
                                 />
                               ))}
+                              <span className="text-sm text-gray-600 ml-1">{feedback.rating}/5</span>
                             </div>
                           </div>
+                          {feedback.comment && (
+                            <p className="text-sm text-gray-700 italic">"{feedback.comment}"</p>
+                          )}
+                          <p className="text-xs text-gray-500">
+                            Completed on {feedback.createdAt ? new Date(feedback.createdAt.seconds * 1000).toLocaleDateString() : "Unknown"}
+                          </p>
                         </div>
                       )}
-                      {feedback.status === "resolved" && !feedback.rating && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">How satisfied are you with the resolution?</span>
-                            <div className="flex items-center space-x-2">
-                              <Button variant="outline" size="sm">
-                                <ThumbsUp className="h-4 w-4 mr-1" />
-                                Satisfied
-                              </Button>
-                              <Button variant="outline" size="sm">
-                                <ThumbsDown className="h-4 w-4 mr-1" />
-                                Not Satisfied
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-                {platformFeedbackHistory.length === 0 && (
-                  <Card>
-                    <CardContent className="p-12 text-center">
-                      <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback submitted yet</h3>
-                      <p className="text-gray-600">Your feedback history will appear here once you submit feedback.</p>
-                    </CardContent>
-                  </Card>
-                )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Platform Feedback Tab */}
+        <TabsContent value="platform" className="space-y-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <div className="text-center mb-6">
+                  <Plus className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Platform Feedback</h3>
+                  <p className="text-gray-600">Share feedback about the PROLOGUE platform</p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Feedback Type
+                    </label>
+                    <select
+                      value={platformFeedbackType}
+                      onChange={(e) => setPlatformFeedbackType(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select feedback type</option>
+                      <option value="bug">Bug Report</option>
+                      <option value="feature">Feature Request</option>
+                      <option value="improvement">Improvement Suggestion</option>
+                      <option value="general">General Feedback</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Title
+                    </label>
+                    <input
+                      type="text"
+                      value={platformFeedbackTitle}
+                      onChange={(e) => setPlatformFeedbackTitle(e.target.value)}
+                      placeholder="Brief title for your feedback"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Message
+                    </label>
+                    <textarea
+                      value={platformFeedbackMessage}
+                      onChange={(e) => setPlatformFeedbackMessage(e.target.value)}
+                      placeholder="Describe your feedback in detail..."
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleSubmitPlatformFeedback}
+                      disabled={isSubmittingPlatform || !platformFeedbackType || !platformFeedbackTitle || !platformFeedbackMessage}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      {isSubmittingPlatform ? "Submitting..." : "Submit Feedback"}
+                    </Button>
+                  </div>
+                </div>
               </div>
-            </TabsContent>
-          </Tabs>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
-    </main>
-  );
 
-  // Top-level conditional rendering
+      {showFeedbackDialog && selectedRequest && (
+        <FeedbackDialog
+          request={selectedRequest}
+          rating={feedbackRating}
+          comment={feedbackComment}
+          onRatingChange={setFeedbackRating}
+          onCommentChange={setFeedbackComment}
+          onSubmit={handleSubmitFeedback}
+          onClose={() => setShowFeedbackDialog(false)}
+        />
+      )}
+    </main>
+  )
+
   if (isMobile || isTablet) {
     return (
       <MobileLayout
         userType="athlete"
         currentPath="/feedback"
         showBottomNav={true}
-        unreadNotifications={hasUnreadMessages ? 1 : 0}
+        unreadNotifications={0}
         unreadMessages={0}
         hasNewContent={false}
       >
-        {mainContent}
+        {renderMainContent()}
       </MobileLayout>
-    );
+    )
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* DesktopHeader from athleteDashboard/content page */}
+      {/* Desktop Header */}
       <header className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-center justify-between h-16">
@@ -884,7 +705,7 @@ function FeedbackPageContent() {
               <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
                 <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
                   <Image
-                    src="/prologue-logo.png"
+                    src="/Prologue LOGO-1.png"
                     alt="PROLOGUE"
                     width={32}
                     height={32}
@@ -895,21 +716,18 @@ function FeedbackPageContent() {
                   PROLOGUE
                 </span>
               </Link>
-              {/* Memoized search component to prevent re-renders (adapted from athleteDashboard) */}
-              {/* This part of the code was not provided in the edit_specification,
-                  so it's kept as is, but the searchRef and searchInputRef are removed
-                  as they are not defined in the new_code. */}
-              {/* <div className="flex items-center space-x-1 relative" ref={searchRef}>
+
+              <div className="flex items-center space-x-1 relative" ref={searchRef}>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     ref={searchInputRef}
                     type="text"
-                    placeholder="Search feedback..."
+                    placeholder="Search athletes, content..."
                     value={searchQuery}
                     onChange={handleSearchChange}
+                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     onFocus={handleSearchFocus}
-                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
                   />
                   {searchQuery && (
                     <button
@@ -920,88 +738,97 @@ function FeedbackPageContent() {
                     </button>
                   )}
                 </div>
-                {SearchDropdown}
-              </div> */}
+
+                {showSearchDropdown && searchDropdownContent}
+              </div>
             </div>
+
             <div className="flex items-center space-x-6">
               <nav className="flex items-center space-x-6">
-                <Link href="/home" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
+                <Link
+                  href="/home"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
+                >
                   <Home className="h-5 w-5" />
                   <span className="text-xs font-medium">Home</span>
                   <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </Link>
-                <Link href="/content" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
+                <Link
+                  href="/content"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
+                >
                   <FileText className="h-5 w-5" />
                   <span className="text-xs font-medium">Content</span>
                   <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </Link>
-                <Link href="/feedback" className="flex flex-col items-center space-y-1 text-blue-600 group">
+                <Link
+                  href="/feedback"
+                  className="flex flex-col items-center space-y-1 text-blue-500 transition-colors group relative"
+                >
                   <MessageSquare className="h-5 w-5" />
                   <span className="text-xs font-medium">Feedback</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-100 transition-opacity"></div>
+                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full"></div>
                 </Link>
-                <Link href="/messaging" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
+                <Link
+                  href="/messaging"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group"
+                >
                   <MessageCircle className="h-5 w-5" />
                   <span className="text-xs font-medium">Messages</span>
                   <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
                 </Link>
-                <Link href="/notifications" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group">
+                <Link
+                  href="/notifications"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group"
+                >
                   <Bell className="h-5 w-5" />
                   <span className="text-xs font-medium">Notifications</span>
                   <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                   {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
                 </Link>
               </nav>
+
               <div className="flex items-center space-x-3">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="flex items-center space-x-2 p-2"
-                      disabled={loadingState.isLoading}
-                    >
-                      {profilePicUrl ? (
-                        <Image
-                          src={profilePicUrl}
-                          alt="Profile"
-                          width={32}
-                          height={32}
-                          className="w-8 h-8 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
+                    <Button variant="ghost" className="flex items-center space-x-2 p-2">
+                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
+                        {profilePicUrl ? (
+                          <Image
+                            src={profilePicUrl}
+                            alt="Profile"
+                            width={32}
+                            height={32}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
                           <User className="w-full h-full text-gray-500 p-1" />
-                        </div>
-                      )}
+                        )}
+                      </div>
                       <ChevronDown className="h-4 w-4 text-gray-500" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem>
-                      <Link href="/athleteDashboard" className="flex items-center w-full">
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard" className="flex items-center w-full cursor-pointer">
                         <LayoutDashboard className="h-4 w-4 mr-2" />
                         Profile
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Link href="/promote" className="flex items-center w-full">
+                    <DropdownMenuItem asChild>
+                      <Link href="/promote" className="flex items-center w-full cursor-pointer">
                         <TrendingUp className="h-4 w-4 mr-2" />
                         Promote
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem>
-                      <Link href="/athlete-settings" className="flex items-center w-full">
-                        <Settings className="h-4 w-4 mr-2" />
-                        Settings
-                      </Link>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Settings
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => logout()}
-                      className="cursor-pointer"
-                      disabled={loadingState.isLoading}
-                    >
+                    <DropdownMenuItem onClick={handleLogout}>
                       <LogOut className="h-4 w-4 mr-2" />
-                      {loadingState.isLoading ? "Logging out..." : "Logout"}
+                      Logout
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1010,17 +837,7 @@ function FeedbackPageContent() {
           </div>
         </div>
       </header>
-      {mainContent}
-      <LogoutNotification
-        isVisible={loadingState.isVisible}
-        userType={loadingState.userType}
-        stage={loadingState.stage}
-        message={loadingState.message}
-        error={loadingState.error}
-        canRetry={loadingState.canRetry}
-        onRetry={retryLogout}
-        onCancel={cancelLogout}
-      />
+      {renderMainContent()}
     </div>
-  );
+  )
 } 
