@@ -10,7 +10,7 @@ import Link from "next/link"
 import { MemberDashboard } from "../components/member-dashboard"
 import { CoachDashboard } from "../components/coach-dashboard"
 import { AthleteOnboarding } from "../components/athlete-onboarding"
-import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider, getMemberProfile } from "@/lib/firebase"
+import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider, getMemberProfile, resetPassword } from "@/lib/firebase"
 import { Logo } from "@/components/logo"
 import PrologueLanding from "./components/prologue-landing"
 import { useRouter } from "next/navigation"
@@ -190,6 +190,10 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
     password: "",
     confirmPassword: ""
   })
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("")
+  const [forgotPasswordMessage, setForgotPasswordMessage] = useState<string | null>(null)
+  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false)
 
   const router = useRouter()
 
@@ -376,6 +380,46 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
       setErrorMessage(error.message || "Google login failed. Please try again.")
       setIsSubmitting(false)
     }
+  }
+
+  const handleForgotPassword = async () => {
+    if (!forgotPasswordEmail) {
+      setForgotPasswordMessage("Please enter your email address")
+      return
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(forgotPasswordEmail)) {
+      setForgotPasswordMessage("Please enter a valid email address")
+      return
+    }
+
+    setIsSubmitting(true)
+    setForgotPasswordMessage(null)
+
+    try {
+      const result = await resetPassword(forgotPasswordEmail)
+      if (result.success) {
+        setForgotPasswordSuccess(true)
+        setForgotPasswordMessage("Password reset email sent! Check your inbox for instructions.")
+      } else {
+        setForgotPasswordMessage(result.message)
+      }
+    } catch (error: any) {
+      console.error("Forgot password error:", error)
+      setForgotPasswordMessage("Failed to send password reset email. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleBackFromForgotPassword = () => {
+    setShowForgotPassword(false)
+    setForgotPasswordEmail("")
+    setForgotPasswordMessage(null)
+    setForgotPasswordSuccess(false)
+    setErrorMessage(null)
   }
 
   const dismissError = () => {
@@ -660,9 +704,13 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
 
                   {!isSignUp && (
                     <div className="flex items-center justify-between pt-1">
-                      <Link href="#" className="text-xs text-blue-500 hover:text-blue-600 font-medium">
+                      <button 
+                        type="button"
+                        onClick={() => setShowForgotPassword(true)} 
+                        className="text-xs text-blue-500 hover:text-blue-600 font-medium"
+                      >
                         Forgot password?
-                      </Link>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -762,6 +810,125 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
             </div>
           </div>
         </div>
+
+        {/* Forgot Password Modal */}
+        {showForgotPassword && (
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-gray-50 rounded-3xl shadow-2xl border border-gray-200 overflow-hidden max-w-md w-full">
+              <div className="px-8 py-10">
+                {/* Title Section */}
+                <div className="text-center mb-8">
+                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-3 tracking-tight leading-tight">
+                    Reset Password
+                  </h1>
+                  <p className="text-xs sm:text-sm lg:text-base text-gray-600 leading-relaxed px-2">
+                    {forgotPasswordSuccess 
+                      ? "Check your email for reset instructions"
+                      : "Enter your email address to receive password reset instructions"
+                    }
+                  </p>
+                </div>
+
+                {!forgotPasswordSuccess ? (
+                  <>
+                    {/* Email Input */}
+                    <div className="space-y-5 mb-6">
+                      <div>
+                        <Label htmlFor="forgotEmail" className="text-xs font-semibold text-gray-900 mb-2 block leading-tight">
+                          Email
+                        </Label>
+                        <Input
+                          id="forgotEmail"
+                          type="email"
+                          value={forgotPasswordEmail}
+                          onChange={(e) => {
+                            setForgotPasswordEmail(e.target.value)
+                            setForgotPasswordMessage(null)
+                          }}
+                          className="w-full h-12 px-4 border-0 bg-white rounded-3xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs shadow-sm"
+                          placeholder="Enter your email"
+                          style={{ backgroundColor: "#ffffff" }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Error/Success Message */}
+                    {forgotPasswordMessage && (
+                      <div className="mb-4 animate-in slide-in-from-bottom-2 duration-300">
+                        <div className={`border rounded-2xl p-4 flex items-center justify-between shadow-sm ${
+                          forgotPasswordSuccess 
+                            ? "bg-green-50 border-green-200" 
+                            : "bg-red-50 border-red-200"
+                        }`}>
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              forgotPasswordSuccess 
+                                ? "bg-green-500" 
+                                : "bg-red-500"
+                            }`}>
+                              <span className="text-white text-xs font-bold">
+                                {forgotPasswordSuccess ? "✓" : "!"}
+                              </span>
+                            </div>
+                            <p className={`text-xs font-medium leading-tight ${
+                              forgotPasswordSuccess 
+                                ? "text-green-700" 
+                                : "text-red-700"
+                            }`}>
+                              {forgotPasswordMessage}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Send Reset Email Button */}
+                    <Button
+                      onClick={handleForgotPassword}
+                      disabled={!forgotPasswordEmail || isSubmitting}
+                      className="w-full h-12 text-xs sm:text-sm font-bold rounded-3xl transition-all duration-300 transform hover:scale-[1.02] flex items-center justify-center space-x-3 bg-blue-500 hover:bg-blue-600 text-white shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none mb-4"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>SENDING...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>SEND RESET EMAIL</span>
+                          <ArrowRight className="h-4 w-4" />
+                        </>
+                      )}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {/* Success Message */}
+                    <div className="mb-6 animate-in slide-in-from-bottom-2 duration-300">
+                      <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center space-x-3 shadow-sm">
+                        <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="text-white text-xs font-bold">✓</span>
+                        </div>
+                        <p className="text-green-700 text-xs font-medium leading-tight">
+                          Password reset email sent to {forgotPasswordEmail}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* Back Button */}
+                <Button
+                  onClick={handleBackFromForgotPassword}
+                  variant="outline"
+                  className="w-full h-11 text-xs font-semibold rounded-2xl border-2 border-gray-300 text-gray-700 hover:bg-gray-50 transition-all duration-300"
+                >
+                  {forgotPasswordSuccess ? "Back to Login" : "Cancel"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )

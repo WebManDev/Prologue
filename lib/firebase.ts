@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, isSignInWithEmailLink, sendSignInLinkToEmail } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, isSignInWithEmailLink, sendSignInLinkToEmail, sendPasswordResetEmail } from "firebase/auth";
 import { getFirestore, collection, doc, setDoc, getDoc, addDoc, Timestamp, getDocs, CollectionReference, arrayUnion, updateDoc, serverTimestamp, onSnapshot, orderBy, query, deleteDoc, increment, enableIndexedDbPersistence, arrayRemove, writeBatch, where } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { initializeAuthPersistence, getRecommendedPersistence, signInWithGooglePersistence } from "./auth-persistence";
@@ -918,6 +918,34 @@ const handleRedirectResult = async () => {
   return null;
 };
 
+// Send password reset email
+const resetPassword = async (email: string) => {
+  try {
+    await sendPasswordResetEmail(auth, email);
+    return { success: true, message: 'Password reset email sent successfully' };
+  } catch (error: any) {
+    console.error('Error sending password reset email:', error);
+    let errorMessage = 'Failed to send password reset email';
+    
+    // Handle specific Firebase Auth errors
+    switch (error.code) {
+      case 'auth/user-not-found':
+        errorMessage = 'No account found with this email address';
+        break;
+      case 'auth/invalid-email':
+        errorMessage = 'Invalid email address';
+        break;
+      case 'auth/too-many-requests':
+        errorMessage = 'Too many requests. Please try again later';
+        break;
+      default:
+        errorMessage = error.message || 'Failed to send password reset email';
+    }
+    
+    return { success: false, message: errorMessage };
+  }
+};
+
 // Create a notification
 export const createNotification = async (notificationData: {
   type: string;
@@ -1317,6 +1345,7 @@ export {
   GoogleAuthProvider,
   smartSignIn,
   handleRedirectResult,
+  resetPassword,
   initializeFirebase,
   db,
   createMemberNotification,
