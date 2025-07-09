@@ -54,6 +54,7 @@ import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
 import { formatDistanceToNow, parseISO, isValid } from "date-fns";
 import CommentSection from "@/components/ui/comment-section"
 import MobileLayout from "@/components/mobile/mobile-layout"
+import { AthleteHeader } from "@/components/navigation/athlete-header"
 
 export default function MemberHomePage() {
   // Mobile detection
@@ -697,104 +698,16 @@ export default function MemberHomePage() {
 
   const mainContent = (
     <div className="min-h-screen bg-gray-50">
-      <header className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
-                <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
-                  <Image
-                    src="/prologue-logo.png"
-                    alt="PROLOGUE"
-                    width={32}
-                    height={32}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
-                  PROLOGUE
-                </span>
-              </Link>
-            </div>
-            <div className="flex items-center space-x-6">
-              <nav className="flex items-center space-x-6">
-                <Link href="/home" className="flex flex-col items-center space-y-1 text-blue-600 group">
-                  <Home className="h-5 w-5" />
-                  <span className="text-xs font-medium">Home</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-100 transition-opacity"></div>
-                </Link>
-                <Link href="/content" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
-                  <FileText className="h-5 w-5" />
-                  <span className="text-xs font-medium">Content</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link href="/feedback" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
-                  <MessageSquare className="h-5 w-5" />
-                  <span className="text-xs font-medium">Feedback</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link href="/messaging" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group">
-                  <MessageCircle className="h-5 w-5" />
-                  <span className="text-xs font-medium">Messages</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link href="/notifications" className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group">
-                  <Bell className="h-5 w-5" />
-                  <span className="text-xs font-medium">Notifications</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {unreadNotificationsCount > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
-                </Link>
-              </nav>
-              <div className="flex items-center space-x-3">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center space-x-2 p-2">
-                      {profileImageUrl ? (
-                        <Image
-                          src={profileImageUrl}
-                          alt="Profile"
-                          width={32}
-                          height={32}
-                          className="w-8 h-8 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                          <User className="w-full h-full text-gray-500 p-1" />
-                        </div>
-                      )}
-                      <ChevronDown className="h-4 w-4 text-gray-500" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem>
-                      <Link href="/member-dashboard" className="flex items-center w-full">
-                        <LayoutDashboard className="h-4 w-4 mr-2" />
-                        Profile
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Link href="/promote" className="flex items-center w-full">
-                        <TrendingUp className="h-4 w-4 mr-2" />
-                        Promote
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Link href="/member-settings" className="flex items-center w-full">
-                        <Settings className="h-4 w-4 mr-2" />
-                        Settings
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Logout
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AthleteHeader
+        currentPath="/home"
+        onLogout={logout}
+        showSearch={false}
+        unreadNotifications={unreadNotificationsCount}
+        unreadMessages={unreadMessagesCount}
+        hasNewContent={hasNewTrainingContent}
+        profileImageUrl={profileImageUrl}
+        profileData={profileData}
+      />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-8 pb-24 sm:pb-20 lg:pb-8">
@@ -1518,18 +1431,21 @@ export default function MemberHomePage() {
 
   // Return with conditional mobile/desktop layout
   if (isMobile || isTablet) {
-    return userType ? (
+    // Always use MobileLayout for mobile, defaulting to athlete if userType is not detected yet
+    console.log("Mobile Layout - userType:", userType || "athlete", "isMobile:", isMobile)
+    return (
       <MobileLayout
-        userType={userType}
+        userType={userType || "athlete"}
         currentPath="/home"
         showBottomNav={true}
+        showHeader={true}
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
       >
         {mainContent}
       </MobileLayout>
-    ) : mainContent // Show content without nav while detecting user type
+    )
   }
 
   return mainContent

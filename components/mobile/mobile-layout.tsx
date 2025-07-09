@@ -10,6 +10,7 @@ interface MobileLayoutProps {
   userType: "member" | "athlete" | "coach"
   currentPath: string
   showBottomNav?: boolean
+  showHeader?: boolean
   unreadNotifications?: number
   unreadMessages?: number
   hasNewContent?: boolean
@@ -20,10 +21,14 @@ export default function MobileLayout({
   userType,
   currentPath,
   showBottomNav = true,
+  showHeader = true,
   unreadNotifications = 0,
   unreadMessages = 0,
   hasNewContent = false,
 }: MobileLayoutProps) {
+  
+  console.log("MobileLayout render - userType:", userType, "showBottomNav:", showBottomNav)
+  
   const getNavItems = () => {
     if (userType === "member") {
       return [
@@ -104,28 +109,30 @@ export default function MobileLayout({
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="px-4 py-3">
-          <div className="flex items-center justify-between">
-            <Link href={userType === "member" ? "/member-home" : "/home"} className="flex items-center space-x-2">
-              <div className="w-6 h-6 bg-prologue-electric rounded"></div>
-              <span className="text-lg font-bold text-gray-900">PROLOGUE</span>
-            </Link>
-            
-            <Link href={userType === "member" ? "/member-notifications" : "/notifications"} className="relative">
-              <Bell className="h-5 w-5 text-gray-600" />
-              {unreadNotifications > 0 && (
-                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs bg-red-500">
-                  {unreadNotifications}
-                </Badge>
-              )}
-            </Link>
+      {showHeader && (
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
+          <div className="px-4 py-3">
+            <div className="flex items-center justify-between">
+              <Link href={userType === "member" ? "/member-home" : "/home"} className="flex items-center space-x-2">
+                <div className="w-6 h-6 bg-prologue-electric rounded"></div>
+                <span className="text-lg font-bold text-gray-900">PROLOGUE</span>
+              </Link>
+              
+              <Link href={userType === "member" ? "/member-notifications" : "/notifications"} className="relative">
+                <Bell className="h-5 w-5 text-gray-600" />
+                {unreadNotifications > 0 && (
+                  <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs bg-red-500">
+                    {unreadNotifications}
+                  </Badge>
+                )}
+              </Link>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       {/* Main Content */}
-      <main className="px-4 py-4">
+      <main className={showHeader ? "px-4 py-4" : "px-0 py-0"}>
         {children}
       </main>
 
