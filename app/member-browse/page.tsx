@@ -99,7 +99,7 @@ export default function MemberDiscoverPage() {
   // Firebase effects - Load profile (synced with member-home)
   useEffect(() => {
     const loadProfile = async () => {
-      if (!auth.currentUser) return
+      if (!auth?.currentUser) return
       const memberProfile = await getMemberProfile(auth.currentUser.uid)
       if (memberProfile) {
         setProfileData({
@@ -115,7 +115,7 @@ export default function MemberDiscoverPage() {
 
   // Listen to real-time updates
   useEffect(() => {
-    if (!auth.currentUser) return
+    if (!auth?.currentUser) return
 
     // Listen to athletes collection and fetch comprehensive data
     const unsubscribeAthletes = onSnapshot(collection(db, "athletes"), async (snapshot) => {
@@ -194,7 +194,7 @@ export default function MemberDiscoverPage() {
       unsubscribeAthletes()
       unsubscribeMember()
     }
-  }, [auth.currentUser])
+  }, [auth?.currentUser])
 
   // Enhanced fetch for initial load with comprehensive data
   useEffect(() => {
@@ -271,7 +271,7 @@ export default function MemberDiscoverPage() {
   }, [])
 
   const fetchSubscriptions = async () => {
-    if (auth.currentUser) {
+    if (auth?.currentUser) {
       const memberRef = doc(db, "members", auth.currentUser.uid)
       const memberSnap = await getDoc(memberRef)
       if (memberSnap.exists()) {
