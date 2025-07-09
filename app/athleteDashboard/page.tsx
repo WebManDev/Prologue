@@ -507,7 +507,7 @@ export default function DashboardPage() {
       <NotificationProvider>
         <MobileLayout
           userType="athlete"
-          currentPath="/dashboard"
+          currentPath="/athleteDashboard"
           showBottomNav={true}
           unreadNotifications={hasUnreadMessages ? 1 : 0}
           unreadMessages={0}

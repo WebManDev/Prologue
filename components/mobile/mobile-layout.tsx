@@ -59,6 +59,42 @@ export default function MobileLayout({
         },
       ]
     }
+    
+    if (userType === "athlete") {
+      return [
+        {
+          href: "/home",
+          icon: Home,
+          label: "Home",
+          badge: null,
+        },
+        {
+          href: "/content",
+          icon: BookOpen,
+          label: "Content",
+          badge: null,
+        },
+        {
+          href: "/feedback",
+          icon: MessageSquare,
+          label: "Feedback",
+          badge: null,
+        },
+        {
+          href: "/messaging",
+          icon: MessageCircle,
+          label: "Messages",
+          badge: unreadMessages > 0 ? unreadMessages : null,
+        },
+        {
+          href: "/notifications",
+          icon: Bell,
+          label: "Notifications",
+          badge: unreadNotifications > 0 ? unreadNotifications : null,
+        },
+      ]
+    }
+    
     // Add other user types as needed
     return []
   }
@@ -71,12 +107,12 @@ export default function MobileLayout({
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
         <div className="px-4 py-3">
           <div className="flex items-center justify-between">
-            <Link href="/member-home" className="flex items-center space-x-2">
+            <Link href={userType === "member" ? "/member-home" : "/home"} className="flex items-center space-x-2">
               <div className="w-6 h-6 bg-prologue-electric rounded"></div>
               <span className="text-lg font-bold text-gray-900">PROLOGUE</span>
             </Link>
             
-            <Link href="/member-notifications" className="relative">
+            <Link href={userType === "member" ? "/member-notifications" : "/notifications"} className="relative">
               <Bell className="h-5 w-5 text-gray-600" />
               {unreadNotifications > 0 && (
                 <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs bg-red-500">
