@@ -103,24 +103,26 @@ export default function MemberMessagingPage() {
           if (memberDoc.exists()) {
             const memberData = memberDoc.data()
             const subscriptions = memberData.subscriptions || {}
-            const subscribedAthleteIds = Object.keys(subscriptions).filter(
-              (athleteId) => subscriptions[athleteId]?.status === "active"
-            )
             
-            if (subscribedAthleteIds.length > 0) {
-              // Fetch athlete profiles for subscribed athletes
-              const athletePromises = subscribedAthleteIds.map(async (athleteId: string) => {
+            // Allow messaging for all subscriptions (active and inactive) to preserve history
+            const allSubscribedAthleteIds = Object.keys(subscriptions)
+            
+            if (allSubscribedAthleteIds.length > 0) {
+              // Fetch athlete profiles for all subscribed athletes (active and inactive)
+              const athletePromises = allSubscribedAthleteIds.map(async (athleteId: string) => {
                 const athleteDoc = await getDoc(doc(db, "athletes", athleteId))
                 if (athleteDoc.exists()) {
                   const athleteData = athleteDoc.data()
+                  const subscriptionStatus = subscriptions[athleteId]?.status || 'inactive'
+                  
                   return {
                     id: athleteId,
                     name: athleteData.name || "Athlete",
                     avatar: athleteData.profileImageUrl || athleteData.profilePic || athleteData.profilePicture || "/placeholder.svg",
-                    lastMessage: "Click to start a conversation",
+                    lastMessage: subscriptionStatus === 'active' ? "Click to start a conversation" : "Subscription expired - view history only",
                     timestamp: "Just now",
                     unread: 0,
-                    online: false,
+                    online: subscriptionStatus === 'active', // Show as offline if subscription inactive
                     isCoach: true,
                     role: `${athleteData.sport || "Sport"} Coach`,
                     email: athleteData.email,
@@ -131,6 +133,7 @@ export default function MemberMessagingPage() {
                     experience: athleteData.experience || "5+ years",
                     specialties: athleteData.specialties || ["Training", "Performance"],
                     achievements: athleteData.achievements || ["Team Captain", "All-Star"],
+                    subscriptionStatus: subscriptionStatus, // Add subscription status
                   }
                 }
                 return null
@@ -273,6 +276,15 @@ export default function MemberMessagingPage() {
 
   const handleSendMessage = async () => {
     if (!messageInput.trim() || !selectedConversation || !currentUser) return
+    
+    // Check if the selected conversation has an active subscription
+    const selectedConversationData = conversations.find(conv => conv.id === selectedConversation)
+    if (selectedConversationData?.subscriptionStatus !== 'active') {
+      // Show error message for inactive subscriptions
+      console.warn("Cannot send messages - subscription is inactive")
+      // You could add a toast notification here
+      return
+    }
     
     try {
       await sendMessage({

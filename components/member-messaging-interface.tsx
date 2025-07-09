@@ -37,6 +37,10 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
   const athleteId = isMember ? coach.id || coach.athleteId : currentUser?.uid
   const senderRole = isMember ? "member" : "coach"
   const senderId = currentUser?.uid
+  
+  // Check subscription status
+  const subscriptionStatus = coach.subscriptionStatus || 'active'
+  const isSubscriptionActive = subscriptionStatus === 'active'
 
   useEffect(() => {
     if (!memberId || !athleteId) return
@@ -53,6 +57,13 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
 
   const handleSend = async () => {
     if (!message.trim() || !memberId || !athleteId || !senderId) return
+    
+    // Prevent sending messages if subscription is inactive
+    if (!isSubscriptionActive) {
+      alert("Cannot send messages - subscription has expired. Please resubscribe to continue messaging.")
+      return
+    }
+    
     await sendMessage({
       memberId,
       athleteId,
@@ -72,6 +83,13 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
       alert("Please enter feedback details.");
       return;
     }
+    
+    // Prevent feedback submission if subscription is inactive
+    if (!isSubscriptionActive) {
+      alert("Cannot submit new feedback requests - subscription has expired. Please resubscribe to continue using feedback services.")
+      return
+    }
+    
     setIsUploading(true);
     try {
       const userId = auth.currentUser?.uid;
@@ -158,7 +176,11 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                 <h1 className="text-xl font-bold text-gray-900">{coachInfo.name}</h1>
                 <div className="flex items-center space-x-2">
                   <Badge variant="outline">{coachInfo.sport}</Badge>
-                  <span className="text-sm text-gray-600">Online</span>
+                  {isSubscriptionActive ? (
+                    <span className="text-sm text-green-600">Active Subscription</span>
+                  ) : (
+                    <span className="text-sm text-orange-600">Subscription Expired</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -172,6 +194,26 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
       </header>
 
       <div className="container mx-auto p-4">
+        {/* Subscription Status Warning */}
+        {!isSubscriptionActive && (
+          <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <div className="text-orange-600">
+                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-orange-800">Subscription Expired</h3>
+                <p className="text-sm text-orange-700">
+                  You can view your message history and past feedback, but cannot send new messages or submit new feedback requests. 
+                  <a href="/member-browse" className="underline ml-1">Resubscribe to restore full access</a>.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+        
         <div className="grid lg:grid-cols-4 gap-6">
           {/* Chat Area */}
           <div className="lg:col-span-3">
@@ -276,8 +318,9 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                             handleSend()
                           }
                         }}
+                        disabled={!isSubscriptionActive}
                       />
-                      <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSend} disabled={isUploadingImage}>
+                      <Button className="bg-blue-600 hover:bg-blue-700" onClick={handleSend} disabled={isUploadingImage || !isSubscriptionActive}>
                         <Send className="h-4 w-4" />
                       </Button>
                     </div>
@@ -321,12 +364,13 @@ export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInter
                         rows={4}
                         value={feedbackText}
                         onChange={e => setFeedbackText(e.target.value)}
+                        disabled={!isSubscriptionActive}
                       />
                     </div>
                     <Button
                       className="w-full bg-orange-500 hover:bg-orange-600 mt-6"
                       onClick={handleSubmit}
-                      disabled={isUploading}
+                      disabled={isUploading || !videoFile || !feedbackText.trim() || !isSubscriptionActive}
                     >
                       {isUploading ? "Uploading..." : "Submit for Feedback"}
                     </Button>

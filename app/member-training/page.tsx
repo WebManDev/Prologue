@@ -28,9 +28,11 @@ import {
   Grid3X3,
   List,
   Compass,
+  Lock,
+  MoreHorizontal,
 } from "lucide-react"
 import Link from "next/link"
-import { useState, useMemo, useRef, useEffect } from "react"
+import { useState, useMemo, useRef, useEffect, useCallback } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
@@ -159,12 +161,36 @@ export default function MemberTrainingPage() {
     loadProfile()
   }, [])
 
-  // Get subscribed athlete IDs
+  // Get subscribed athlete IDs (only active subscriptions for new content)
   const athleteIds = useMemo(() => {
-    if (!profileData?.subscribedAthletes) return []
-    return Array.isArray(profileData.subscribedAthletes) 
-      ? profileData.subscribedAthletes 
-      : Object.keys(profileData.subscribedAthletes || {})
+    if (!profileData?.subscriptions) return []
+    
+    // Only return athletes with active subscriptions for new training content
+    return Object.keys(profileData.subscriptions).filter(
+      athleteId => profileData.subscriptions[athleteId]?.status === "active"
+    )
+  }, [profileData])
+
+  // Get all athlete IDs (including inactive) for historical content access
+  const allAthleteIds = useMemo(() => {
+    if (!profileData?.subscriptions) return []
+    return Object.keys(profileData.subscriptions)
+  }, [profileData])
+
+  // Check if user has access to specific content
+  const hasContentAccess = useCallback((authorId: string, contentType: 'training' | 'feedback' | 'messaging') => {
+    if (!profileData?.subscriptions || !authorId) return false
+    
+    const subscription = profileData.subscriptions[authorId]
+    if (!subscription) return false
+    
+    // Always allow access to feedback and messaging history
+    if (contentType === 'feedback' || contentType === 'messaging') {
+      return true
+    }
+    
+    // Only allow training content for active subscriptions
+    return subscription.status === "active"
   }, [profileData])
 
   // Listen to content from subscribed creators
@@ -326,13 +352,8 @@ export default function MemberTrainingPage() {
     window.location.href = `/${type}/${id}`
   }
 
-  // Combine all content for "All" tab
-  const allContent = useMemo(() => {
-    const videosWithType = videos.map((item) => ({ ...item, type: "video" }))
-    const articlesWithType = articles.map((item) => ({ ...item, type: "article" }))
-    const coursesWithType = courses.map((item) => ({ ...item, type: "course" }))
-    return [...videosWithType, ...articlesWithType, ...coursesWithType]
-  }, [videos, articles, courses])
+  // All combined content for display
+  const allContent = useMemo(() => [...articles, ...videos, ...courses], [articles, videos, courses])
 
   // Filter content based on active tab and search
   const filteredContent = useMemo(() => {
@@ -344,6 +365,12 @@ export default function MemberTrainingPage() {
           : activeTab === "articles"
             ? articles.map((item) => ({ ...item, type: "article" }))
             : courses.map((item) => ({ ...item, type: "course" }))
+
+    // Only show content from creators with active subscriptions
+    content = content.filter((item) => {
+      if (!item.authorId) return false
+      return hasContentAccess(item.authorId, 'training')
+    })
 
     if (selectedFilter !== "all") {
       if (selectedFilter === "enrolled" && activeTab === "courses") {
@@ -365,7 +392,7 @@ export default function MemberTrainingPage() {
     }
 
     return content
-  }, [activeTab, selectedFilter, searchQuery, allContent])
+  }, [activeTab, selectedFilter, searchQuery, allContent, hasContentAccess])
 
   // Helper function to sanitize and convert HTML to plain text
   function sanitizeDescription(html: string) {
@@ -406,52 +433,6 @@ export default function MemberTrainingPage() {
           return <FileText className="h-4 w-4" />
         case "course":
           return <BookOpen className="h-4 w-4" />
-        default:
-          return null
-      }
-    }
-
-    const getContentMeta = () => {
-      switch (item.type) {
-        case "video":
-          return (
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <div className="flex items-center space-x-1">
-                <Clock className="h-4 w-4" />
-                <span>{item.duration || "10:30"}</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Eye className="h-4 w-4" />
-                <span>{item.views || 0}</span>
-              </div>
-            </div>
-          )
-        case "article":
-          return (
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <div className="flex items-center space-x-1">
-                <Clock className="h-4 w-4" />
-                <span>{item.readTime || "5 min read"}</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Eye className="h-4 w-4" />
-                <span>{item.views || 0}</span>
-              </div>
-            </div>
-          )
-        case "course":
-          return (
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <div className="flex items-center space-x-1">
-                <BookOpen className="h-4 w-4" />
-                <span>{Array.isArray(item.lessons) ? item.lessons.length : 0} lessons</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Users className="h-4 w-4" />
-                <span>{item.participants || 0}</span>
-              </div>
-            </div>
-          )
         default:
           return null
       }
@@ -505,7 +486,7 @@ export default function MemberTrainingPage() {
     const creator = getCreatorInfo(item.createdBy)
 
     return (
-      <Card className="hover:shadow-lg transition-shadow">
+      <Card className={`hover:shadow-lg transition-shadow`}>
         <CardContent className="p-0">
           <div className="relative">
             <div className="aspect-video bg-gray-200 rounded-t-lg overflow-hidden">
@@ -528,6 +509,7 @@ export default function MemberTrainingPage() {
                   <Play className="h-12 w-12 text-gray-600" />
                 </div>
               )}
+              
             </div>
             <Badge className="absolute top-3 left-3 flex items-center space-x-1 bg-prologue-electric text-white">
               {getContentIcon()}
@@ -543,29 +525,94 @@ export default function MemberTrainingPage() {
             )}
           </div>
           <div className="p-4">
-            <div className="flex items-start justify-between mb-2">
-              <Badge variant="outline" className="text-xs border-prologue-electric text-prologue-electric">
-                {item.category || "Training"}
-              </Badge>
-              <div className="flex items-center space-x-1">
-                <Star className="h-3 w-3 text-yellow-400 fill-current" />
-                <span className="text-xs text-gray-600">{item.rating || "4.5"}</span>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <div className="w-8 h-8 rounded-full bg-prologue-electric flex items-center justify-center">
+                  <span className="text-white text-xs font-semibold">
+                    {creator.firstName ? creator.firstName.charAt(0) : "U"}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    {creator.firstName} {creator.lastName}
+                  </p>
+                  <p className="text-xs text-gray-500">{author || "Creator"}</p>
+                </div>
               </div>
+              <Link href={getContentLink()}>
+                <Button size="sm" variant="ghost" className="p-1">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </Link>
             </div>
+            
             <Link href={getContentLink()}>
-              <h3 className="font-semibold text-gray-900 mb-2 hover:text-prologue-electric transition-colors line-clamp-2">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2 hover:text-prologue-electric transition-colors">
                 {item.title}
               </h3>
             </Link>
-            <p className="text-sm text-gray-600 mb-3 line-clamp-2">{sanitizeDescription(item.description)}</p>
-            {getContentMeta()}
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-xs text-gray-500">by {author || item.instructor || item.author || "Unknown"}</p>
-              <Link href={getContentLink()}>
-                <Button size="sm" className="bg-prologue-electric hover:bg-prologue-blue text-white">
-                  View
-                </Button>
-              </Link>
+            
+            <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+              {item.description ? sanitizeDescription(item.description) : "No description available."}
+            </p>
+            
+            {/* Content metadata */}
+            <div className="flex items-center space-x-4 text-xs text-gray-500 mb-4">
+              {item.type === "video" && (
+                <>
+                  <div className="flex items-center space-x-1">
+                    <Clock className="h-4 w-4" />
+                    <span>{item.duration || "10:30"}</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Users className="h-4 w-4" />
+                    <span>{item.views || 0} views</span>
+                  </div>
+                </>
+              )}
+              {item.type === "article" && (
+                <>
+                  <div className="flex items-center space-x-1">
+                    <Clock className="h-4 w-4" />
+                    <span>{item.readTime || "5 min read"}</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Users className="h-4 w-4" />
+                    <span>{item.reads || 0} reads</span>
+                  </div>
+                </>
+              )}
+              {item.type === "course" && (
+                <>
+                  <div className="flex items-center space-x-1">
+                    <BookOpen className="h-4 w-4" />
+                    <span>{item.lessons?.length || item.sessions || 0} lessons</span>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <Users className="h-4 w-4" />
+                    <span>{item.participants || 0} enrolled</span>
+                  </div>
+                  {item.isEnrolled && item.progress > 0 && (
+                    <div className="flex items-center space-x-1">
+                      <span className="text-prologue-electric font-medium">
+                        {item.progress || 0}% complete
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            
+            {/* Action button */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-1">
+                <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                <span className="text-sm text-gray-600">{item.rating || "4.5"}</span>
+                <Badge variant="outline" className="ml-2 text-xs border-prologue-electric text-prologue-electric">
+                  {item.category || "Training"}
+                </Badge>
+              </div>
+              {getActionButton()}
             </div>
           </div>
         </CardContent>
@@ -691,22 +738,22 @@ export default function MemberTrainingPage() {
         {/* Content Grid */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-prologue-electric"></div>
-            <span className="ml-3 text-gray-600">Loading content...</span>
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-prologue-electric mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading training content...</p>
+            </div>
           </div>
         ) : error ? (
-          <Card>
-            <CardContent className="text-center py-16">
-              <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-                <X className="h-10 w-10 text-red-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-3">Error loading content</h3>
-              <p className="text-gray-600 mb-6">{error}</p>
-              <Button onClick={() => window.location.reload()} variant="outline">
-                Try Again
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="text-red-500 mb-4">
+              <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Error loading content</h3>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()}>Try Again</Button>
+          </div>
         ) : filteredContent.length > 0 ? (
           viewMode === "grid" ? (
             <div
@@ -843,27 +890,41 @@ export default function MemberTrainingPage() {
             </div>
           )
         ) : (
-          <Card>
-            <CardContent className="text-center py-16">
-              <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
+              {athleteIds.length === 0 ? (
+                <BookOpen className="h-10 w-10 text-gray-400" />
+              ) : (
                 <Search className="h-10 w-10 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-3">No content found</h3>
-              <p className="text-gray-600 mb-6">
-                {articles.length === 0 && videos.length === 0 && courses.length === 0
-                  ? "Subscribe to creators to see their content here."
-                  : "Try adjusting your search or filters to find what you're looking for."}
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button variant="outline" onClick={() => setSearchQuery("")}>
-                  Clear Search
+              )}
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-3">
+              {athleteIds.length === 0 ? "No Training Content Available" : "No content found"}
+            </h3>
+            <p className="text-gray-600 mb-6 max-w-md">
+              {athleteIds.length === 0 
+                ? "You don't have any active subscriptions. Subscribe to creators to access their training content, courses, and exclusive materials."
+                : searchQuery 
+                  ? `No content matches "${searchQuery}". Try a different search term.`
+                  : "No content available for the selected filters."
+              }
+            </p>
+            {athleteIds.length === 0 ? (
+              <Link href="/member-browse">
+                <Button className="bg-prologue-electric hover:bg-prologue-blue text-white">
+                  Browse Creators
                 </Button>
-                <Link href="/member-browse">
-                  <Button className="bg-prologue-electric hover:bg-prologue-blue text-white">Discover Content</Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+              </Link>
+            ) : searchQuery ? (
+              <Button onClick={clearSearch} variant="outline">
+                Clear Search
+              </Button>
+            ) : (
+              <Button onClick={() => setSelectedFilter("all")} variant="outline">
+                Clear Filters
+              </Button>
+            )}
+          </div>
         )}
       </main>
 
