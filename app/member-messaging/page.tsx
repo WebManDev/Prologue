@@ -42,7 +42,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
-import { auth, sendMessage, listenForMessages, getChatId, db } from "@/lib/firebase"
+import { auth, sendMessage, listenForMessages, getChatId, db, getMemberProfile } from "@/lib/firebase"
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
 import { MemberHeader } from "@/components/navigation/member-header"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
@@ -389,15 +389,25 @@ export default function MemberMessagingPage() {
   useEffect(() => {
     if (!currentUser) return
     const fetchProfile = async () => {
-      const memberDoc = await getDoc(doc(db, "members", currentUser.uid))
-      if (memberDoc.exists()) {
-        const data = memberDoc.data()
-        setProfileImageUrl(data.profileImageUrl || data.profilePic || data.profilePicture || null)
-        setProfileData({ firstName: data.firstName || "", lastName: data.lastName || "" })
+      try {
+        const memberProfile = await getMemberProfile(currentUser.uid)
+                 if (memberProfile) {
+           const imageUrl = memberProfile.profileImageUrl || memberProfile.profilePic || memberProfile.profilePicture || null
+           setProfileImageUrl(imageUrl)
+           setProfileData({ 
+             firstName: memberProfile.firstName || "", 
+             lastName: memberProfile.lastName || "",
+             profileImageUrl: imageUrl,
+             profilePic: memberProfile.profilePic || null,
+             profilePicture: memberProfile.profilePicture || null
+           })
+         }
+      } catch (error) {
+        console.error("Error fetching member profile:", error)
       }
     }
     fetchProfile()
-  }, [currentUser, db])
+  }, [currentUser])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -702,7 +712,7 @@ export default function MemberMessagingPage() {
               className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
             >
               <Search className="h-5 w-5" />
-              <span className="text-xs font-medium">Browse</span>
+              <span className="text-xs font-medium">Discover</span>
             </Link>
             <Link
               href="/member-feedback"

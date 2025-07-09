@@ -37,7 +37,6 @@ import {
 } from "lucide-react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
-import MobileLayout from "@/components/mobile/mobile-layout"
 import { MemberHeader } from "@/components/navigation/member-header"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import Link from "next/link"
@@ -747,220 +746,7 @@ export default function MemberNotificationsPage() {
     [selectedNotifications, handleNotificationClick, handleMarkAsRead, handleMarkAsUnread, handleDeleteNotification],
   )
 
-  if (isMobile || isTablet) {
-    return (
-      <MobileLayout
-        currentPath="/member-notifications"
-        unreadNotifications={unreadNotificationsCount}
-        unreadMessages={unreadMessagesCount}
-        hasNewContent={hasNewTrainingContent}
-        userType="member"
-      >
-        <div className="min-h-screen bg-gray-50">
-          <div className="p-6 space-y-6 mt-0">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
-                <p className="text-gray-600">{unreadCount} unread notifications</p>
-              </div>
-              {unreadCount > 0 && (
-                <Button
-                  onClick={handleBulkMarkAsRead}
-                  size="sm"
-                  className="bg-prologue-electric hover:bg-prologue-blue text-white"
-                >
-                  Mark All Read
-                </Button>
-              )}
-            </div>
 
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                ref={searchInputRef}
-                type="text"
-                placeholder="Search notifications..."
-                value={searchQuery}
-                onChange={handleSearchChange}
-                onFocus={handleSearchFocus}
-                onBlur={handleSearchBlur}
-                className="pl-12 pr-12 h-12 bg-white border-0 shadow-lg rounded-xl focus:ring-2 focus:ring-prologue-electric/20 text-base"
-              />
-              {searchQuery && (
-                <button
-                  onClick={handleClearSearch}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              )}
-              {SearchDropdown}
-            </div>
-
-            {/* Filter Toggle */}
-            <div className="flex items-center justify-between">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center space-x-2 h-10 px-4 bg-white shadow-sm"
-              >
-                <SlidersHorizontal className="h-4 w-4" />
-                <span>Filters</span>
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-10 px-4 bg-white shadow-sm">
-                    <Filter className="h-4 w-4 mr-2" />
-                    Sort
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setSortBy("newest")}>Newest First</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy("oldest")}>Oldest First</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy("priority")}>By Priority</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy("unread")}>Unread First</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* Mobile Filters */}
-            {showFilters && (
-              <Card className="bg-white border border-gray-200 shadow-sm">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-semibold text-gray-900 text-lg">Filters</h3>
-                    {hasActiveFilters && (
-                      <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-prologue-electric">
-                        <X className="h-4 w-4 mr-1" />
-                        Clear All
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="space-y-6">
-                    {/* Type Filter */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-3">Type</label>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" className="w-full justify-between bg-transparent h-10">
-                            {NOTIFICATION_TYPES.find(t => t.value === selectedType)?.label || "All Types"}
-                            <ChevronDown className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-full">
-                          {NOTIFICATION_TYPES.map((type) => (
-                            <DropdownMenuItem key={type.value} onClick={() => setSelectedType(type.value)}>
-                              {type.label}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-
-                    {/* Priority Filter */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-3">Priority</label>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" className="w-full justify-between bg-transparent h-10">
-                            {selectedPriority === "all" ? "All Priorities" : selectedPriority.charAt(0).toUpperCase() + selectedPriority.slice(1)}
-                            <ChevronDown className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="w-full">
-                          <DropdownMenuItem onClick={() => setSelectedPriority("all")}>All Priorities</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setSelectedPriority("high")}>High</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setSelectedPriority("medium")}>Medium</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setSelectedPriority("low")}>Low</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Notifications List */}
-            <div className="space-y-4">
-              {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-prologue-electric"></div>
-                  <span className="ml-3 text-gray-600">Loading notifications...</span>
-                </div>
-              ) : filteredNotifications.length > 0 ? (
-                filteredNotifications.map((notification) => (
-                  <NotificationCard key={notification.id} notification={notification} />
-                ))
-              ) : (
-                <div className="text-center py-16">
-                  <Bell className="h-20 w-20 mx-auto mb-6 text-gray-300" />
-                  <h3 className="text-xl font-medium text-gray-900 mb-3">No notifications found</h3>
-                  <p className="text-gray-600 mb-6">
-                    {hasActiveFilters 
-                      ? "Try adjusting your filters to see more notifications."
-                      : "You're all caught up! New notifications will appear here."}
-                  </p>
-                  {hasActiveFilters && (
-                    <Button onClick={clearAllFilters} variant="outline" className="h-12 px-6 bg-white shadow-sm">
-                      Clear Filters
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Bottom Navigation */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-          <div className="flex items-center justify-around h-20 px-6">
-            <Link
-              href="/member-home"
-              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
-            >
-              <Home className="h-6 w-6" />
-              <span className="text-xs font-medium">Home</span>
-            </Link>
-            <Link
-              href="/member-training"
-              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
-            >
-              <BookOpen className="h-6 w-6" />
-              <span className="text-xs font-medium">Training</span>
-            </Link>
-            <Link
-              href="/member-browse"
-              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
-            >
-              <Search className="h-6 w-6" />
-              <span className="text-xs font-medium">Discover</span>
-            </Link>
-            <Link
-              href="/member-feedback"
-              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
-            >
-              <MessageSquare className="h-6 w-6" />
-              <span className="text-xs font-medium">Feedback</span>
-            </Link>
-            <Link
-              href="/member-messaging"
-              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors relative"
-            >
-              <MessageCircle className="h-6 w-6" />
-              <span className="text-xs font-medium">Messages</span>
-              {unreadMessagesCount > 0 && (
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
-              )}
-            </Link>
-          </div>
-        </nav>
-      </MobileLayout>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1146,6 +932,55 @@ export default function MemberNotificationsPage() {
           )}
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      {isMobile && (
+        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 z-50 mobile-menu">
+          <div className="flex items-center justify-around h-16 px-4">
+            <Link
+              href="/member-home"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <Home className="h-5 w-5" />
+              <span className="text-xs font-medium">Home</span>
+            </Link>
+            <Link
+              href="/member-training"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
+            >
+              <BookOpen className="h-5 w-5" />
+              <span className="text-xs font-medium">Training</span>
+              {hasNewTrainingContent && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+              )}
+            </Link>
+            <Link
+              href="/member-browse"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <Search className="h-5 w-5" />
+              <span className="text-xs font-medium">Discover</span>
+            </Link>
+            <Link
+              href="/member-feedback"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <MessageSquare className="h-5 w-5" />
+              <span className="text-xs font-medium">Feedback</span>
+            </Link>
+            <Link
+              href="/member-messaging"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
+            >
+              <MessageCircle className="h-5 w-5" />
+              <span className="text-xs font-medium">Messages</span>
+              {unreadMessagesCount > 0 && (
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+              )}
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

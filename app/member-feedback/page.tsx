@@ -76,8 +76,15 @@ export default function MemberFeedbackPage() {
       if (!auth.currentUser) return;
       const memberProfile = await getMemberProfile(auth.currentUser.uid)
       if (memberProfile) {
-        setProfileImageUrl(memberProfile.profileImageUrl || memberProfile.profilePic || memberProfile.profilePicture || null)
-        setProfileData({ firstName: memberProfile.firstName || "", lastName: memberProfile.lastName || "" })
+        const imageUrl = memberProfile.profileImageUrl || memberProfile.profilePic || memberProfile.profilePicture || null
+        setProfileImageUrl(imageUrl)
+        setProfileData({ 
+          firstName: memberProfile.firstName || "", 
+          lastName: memberProfile.lastName || "",
+          profileImageUrl: imageUrl,
+          profilePic: memberProfile.profilePic || null,
+          profilePicture: memberProfile.profilePicture || null
+        })
       }
     }
     fetchProfile()
@@ -1023,43 +1030,43 @@ export default function MemberFeedbackPage() {
       {/* Mobile Bottom Navigation */}
       {(isMobile || isTablet) && (
         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-          <div className="flex items-center justify-around h-20 px-6">
+          <div className="flex items-center justify-around h-16 px-4">
             <Link
               href="/member-home"
-              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
             >
               <Home className="h-5 w-5" />
               <span className="text-xs font-medium">Home</span>
             </Link>
             <Link
               href="/member-training"
-              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
             >
               <BookOpen className="h-5 w-5" />
               <span className="text-xs font-medium">Training</span>
             </Link>
             <Link
               href="/member-browse"
-              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
             >
               <Search className="h-5 w-5" />
               <span className="text-xs font-medium">Discover</span>
             </Link>
             <Link
               href="/member-feedback"
-              className="flex flex-col items-center space-y-2 text-prologue-electric transition-colors"
+              className="flex flex-col items-center space-y-1 text-prologue-electric transition-colors"
             >
               <MessageSquare className="h-5 w-5" />
               <span className="text-xs font-medium">Feedback</span>
             </Link>
             <Link
               href="/member-messaging"
-              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors relative"
+              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
             >
               <MessageCircle className="h-5 w-5" />
               <span className="text-xs font-medium">Messages</span>
               {unreadMessagesCount > 0 && (
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
+                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
               )}
             </Link>
           </div>

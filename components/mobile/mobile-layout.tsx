@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Bell, Home, BookOpen, MessageCircle, User, Compass, MessageSquare } from "lucide-react"
+import { Bell, Home, BookOpen, MessageCircle, User, Search, MessageSquare } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 
@@ -41,8 +41,8 @@ export default function MobileLayout({
         },
         {
           href: "/member-browse",
-          icon: Compass,
-          label: "Browse",
+          icon: Search,
+          label: "Discover",
           badge: null,
         },
         {
@@ -56,12 +56,6 @@ export default function MobileLayout({
           icon: MessageCircle,
           label: "Messages",
           badge: null, // Removed badge for messages
-        },
-        {
-          href: "/member-dashboard",
-          icon: User,
-          label: "Profile",
-          badge: null,
         },
       ]
     }

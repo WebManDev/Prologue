@@ -383,7 +383,7 @@ export default function MemberSettingsPage() {
                   className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors group"
                 >
                   <Compass className="h-5 w-5" />
-                  <span className="text-xs font-medium">Browse</span>
+                  <span className="text-xs font-medium">Discover</span>
                   <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </Link>
                 <Link
@@ -402,17 +402,6 @@ export default function MemberSettingsPage() {
                   <span className="text-xs font-medium">Messages</span>
                   <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
                   {unreadMessagesCount > 0 && (
-                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-                  )}
-                </Link>
-                <Link
-                  href="/member-notifications"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-prologue-electric transition-colors relative group"
-                >
-                  <Bell className="h-5 w-5" />
-                  <span className="text-xs font-medium">Notifications</span>
-                  <div className="w-full h-0.5 bg-prologue-electric opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {unreadNotificationsCount > 0 && (
                     <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
                   )}
                 </Link>
