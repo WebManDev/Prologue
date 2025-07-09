@@ -401,19 +401,17 @@ export default function MemberMessagingPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header - Only show on desktop */}
-      {!isMobile && (
-        <MemberHeader
-          currentPath="/member-messaging"
-          onLogout={logout}
-          showSearch={true}
-          unreadNotifications={unreadNotificationsCount}
-          unreadMessages={unreadMessagesCount}
-          hasNewContent={hasNewTrainingContent}
-          profileImageUrl={profileImageUrl}
-          profileData={profileData}
-        />
-      )}
+      {/* Header */}
+      <MemberHeader
+        currentPath="/member-messaging"
+        onLogout={logout}
+        showSearch={true}
+        unreadNotifications={unreadNotificationsCount}
+        unreadMessages={unreadMessagesCount}
+        hasNewContent={hasNewTrainingContent}
+        profileImageUrl={profileImageUrl}
+        profileData={profileData}
+      />
 
       {/* Main Content */}
       <main className={`${isMobile ? "px-4 py-6 pb-24" : "max-w-8xl mx-auto px-4 py-6"}`}>
