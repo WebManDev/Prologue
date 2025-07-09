@@ -461,8 +461,11 @@ const MainContent = React.memo(
                       type="email"
                       value={profileData.email}
                       onChange={handleProfileChange}
-                      disabled={!isEditing}
+                      disabled={true}
                     />
+                    <p className="text-sm text-gray-500 mt-1">
+                      To change your email, please visit Settings → Security → Change Email
+                    </p>
                   </div>
 
                   <div>
@@ -1054,6 +1057,20 @@ export default function MemberDashboardPage() {
       })
       return
     }
+
+    // Check if email changed (though it shouldn't be editable)
+    const currentAuthEmail = auth.currentUser.email || ""
+    const emailChanged = profileData.email !== currentAuthEmail
+
+    if (emailChanged) {
+      toast({
+        title: "Email Change Required",
+        description: "To change your email, please visit Settings → Security → Change Email for secure authentication.",
+        variant: "destructive",
+        duration: 4000,
+      })
+      return
+    }
     
     setIsLoading(true)
     try {
@@ -1062,7 +1079,8 @@ export default function MemberDashboardPage() {
       const profileDataForFirebase = {
         ...profileData,
         name: profileData.firstName + ' ' + profileData.lastName,
-        email: profileData.email,
+        // Use the Firebase Auth email, not the form email
+        email: currentAuthEmail,
         sport: profileData.sport,
         role: 'member',
         onboardingCompleted: true,

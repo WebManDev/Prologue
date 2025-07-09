@@ -45,6 +45,30 @@ import {
 } from "@/lib/firebase"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 
+// Add function to fetch real-time ratings from subcollection
+const fetchAthleteRating = async (athleteId: string) => {
+  try {
+    const ratingsCol = collection(db, "athleteRatings", athleteId, "ratings")
+    const ratingsSnap = await getDocs(ratingsCol)
+    let total = 0
+    let count = 0
+    ratingsSnap.forEach((doc) => {
+      const data = doc.data()
+      if (data && typeof data.rating === "number") {
+        total += data.rating
+        count++
+      }
+    })
+    return {
+      avgRating: count > 0 ? total / count : 0,
+      ratingsCount: count
+    }
+  } catch (error) {
+    console.error("Error fetching rating for athlete:", athleteId, error)
+    return { avgRating: 0, ratingsCount: 0 }
+  }
+}
+
 // Static data to prevent recreation on every render
 const QUICK_SEARCHES = [
   "Navigate Recruitment",
@@ -126,11 +150,12 @@ export default function MemberDiscoverPage() {
         // Fetch comprehensive data for all athletes
         const comprehensiveAthletes = await getComprehensiveAthletesByIds(athleteIds)
         
-        // Enhance with analytics for each athlete
+        // Enhance with analytics and real-time ratings for each athlete
         const athletesWithAnalytics = await Promise.all(
           comprehensiveAthletes.map(async (athlete) => {
             try {
               const analytics = await getAthleteAnalytics(athlete.id)
+              const ratingData = await fetchAthleteRating(athlete.id)
               return {
                 ...athlete,
                 // Override with latest analytics
@@ -141,6 +166,9 @@ export default function MemberDiscoverPage() {
                 totalContent: analytics.totalContent,
                 totalViews: analytics.totalViews,
                 engagementRate: analytics.engagementRate,
+                // Override with real-time ratings from subcollection
+                rating: ratingData.avgRating,
+                ratingsCount: ratingData.ratingsCount,
                 // Ensure all UI fields are present
                 avatar: athlete.profileImageUrl || athlete.avatar || "/placeholder.svg?height=80&width=80",
                 coverImage: athlete.coverImage || "/placeholder.svg?height=200&width=400",
@@ -150,8 +178,13 @@ export default function MemberDiscoverPage() {
               }
             } catch (error) {
               console.error(`Error fetching analytics for athlete ${athlete.id}:`, error)
+              // Still fetch real-time ratings even if analytics fail
+              const ratingData = await fetchAthleteRating(athlete.id)
               return {
                 ...athlete,
+                // Override with real-time ratings even on error
+                rating: ratingData.avgRating,
+                ratingsCount: ratingData.ratingsCount,
                 avatar: athlete.profileImageUrl || athlete.avatar || "/placeholder.svg?height=80&width=80",
                 coverImage: athlete.coverImage || "/placeholder.svg?height=200&width=400",
                 followers: athlete.followers?.toString() || "0",
@@ -203,11 +236,12 @@ export default function MemberDiscoverPage() {
         // Fetch all comprehensive athlete data
         const comprehensiveAthletes = await getAllComprehensiveAthletes()
         
-        // Enhance with real-time analytics
+        // Enhance with real-time analytics and ratings
         const athletesWithAnalytics = await Promise.all(
           comprehensiveAthletes.map(async (athlete) => {
             try {
               const analytics = await getAthleteAnalytics(athlete.id)
+              const ratingData = await fetchAthleteRating(athlete.id)
               return {
                 ...athlete,
                 // Add real-time content counts
@@ -220,6 +254,9 @@ export default function MemberDiscoverPage() {
                 totalLikes: analytics.totalLikes,
                 totalComments: analytics.totalComments,
                 engagementRate: analytics.engagementRate,
+                // Override with real-time ratings from subcollection
+                rating: ratingData.avgRating,
+                ratingsCount: ratingData.ratingsCount,
                 // Ensure UI compatibility
                 avatar: athlete.profileImageUrl || athlete.avatar || "/placeholder.svg?height=80&width=80",
                 coverImage: athlete.coverImage || "/placeholder.svg?height=200&width=400",
@@ -229,8 +266,13 @@ export default function MemberDiscoverPage() {
               }
             } catch (error) {
               console.error(`Error fetching analytics for athlete ${athlete.id}:`, error)
+              // Still fetch real-time ratings even if analytics fail
+              const ratingData = await fetchAthleteRating(athlete.id)
               return {
                 ...athlete,
+                // Override with real-time ratings even on error
+                rating: ratingData.avgRating,
+                ratingsCount: ratingData.ratingsCount,
                 avatar: athlete.profileImageUrl || athlete.avatar || "/placeholder.svg?height=80&width=80",
                 coverImage: athlete.coverImage || "/placeholder.svg?height=200&width=400",
                 followers: athlete.followers?.toString() || "0",
@@ -534,8 +576,8 @@ export default function MemberDiscoverPage() {
                   <div className="flex items-center space-x-3">
                     <div className="flex items-center space-x-1">
                       <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                      <span className="text-sm font-medium">{athlete.rating}</span>
-                      <span className="text-xs text-gray-400">({Object.keys(athlete.ratings || {}).length})</span>
+                      <span className="text-sm font-medium">{athlete.rating > 0 ? athlete.rating.toFixed(1) : "0.0"}</span>
+                      <span className="text-xs text-gray-400">({athlete.ratingsCount || 0})</span>
                     </div>
                     <p className="text-sm text-gray-500">{athlete.followers} followers</p>
                   </div>

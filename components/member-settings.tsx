@@ -50,11 +50,22 @@ export function MemberSettings({ onBackToDashboard }: { onBackToDashboard: () =>
 
   async function handleSave() {
     if (!auth.currentUser) return alert("Not logged in!");
+    
+    // Check if email changed
+    const currentAuthEmail = auth.currentUser.email || ""
+    const emailChanged = email !== currentAuthEmail
+
+    if (emailChanged) {
+      alert("To change your email, please use the secure email change option in your main settings page for proper authentication.");
+      return;
+    }
+
     const userId = auth.currentUser.uid;
     const memberRef = doc(db, "members", userId);
     await updateDoc(memberRef, {
       name,
-      email,
+      // Use the Firebase Auth email, not the form email
+      email: currentAuthEmail,
       notifications,
     });
     setSaved(true);
@@ -132,7 +143,8 @@ export function MemberSettings({ onBackToDashboard }: { onBackToDashboard: () =>
             </div>
             <div>
               <Label htmlFor="email">Email</Label>
-              <Input id="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Your email" />
+              <Input id="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Your email" disabled />
+              <p className="text-sm text-gray-500 mt-1">To change your email, please use the secure email change option in your main settings page.</p>
             </div>
           </CardContent>
         </Card>

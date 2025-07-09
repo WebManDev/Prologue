@@ -46,6 +46,7 @@ import { auth, sendMessage, listenForMessages, getChatId, db, getMemberProfile }
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
 import { MemberHeader } from "@/components/navigation/member-header"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import { toast } from "@/components/ui/use-toast"
 import type { User as FirebaseUser } from "firebase/auth"
 
 export default function MemberMessagingPage() {
@@ -298,19 +299,6 @@ export default function MemberMessagingPage() {
     } catch (error) {
       console.error("Error sending message:", error)
     }
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem("userToken")
-    localStorage.removeItem("userData")
-    localStorage.removeItem("authToken")
-    sessionStorage.clear()
-
-    document.cookie.split(";").forEach((c) => {
-      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")
-    })
-
-    window.location.href = "/"
   }
 
   const selectedConv = conversations.find((conv) => conv.id === selectedConversation)

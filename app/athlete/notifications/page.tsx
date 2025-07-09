@@ -26,11 +26,15 @@ import { useMemberNotifications } from "@/contexts/member-notification-context"
 import MemberMobileNavigation from "@/components/mobile/member-mobile-navigation"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
+import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import { toast } from "@/components/ui/use-toast"
+import { Toaster } from "@/components/ui/toaster"
 
 export default function AthleteNotificationsPage() {
   const { unreadMessagesCount, unreadNotificationsCount, markNotificationsAsRead, hasNewTrainingContent } =
     useMemberNotifications()
   const { isMobile, isTablet } = useMobileDetection()
+  const { logout } = useUnifiedLogout()
 
   // Filter state
   const [selectedFilter, setSelectedFilter] = useState("all")
@@ -129,17 +133,28 @@ export default function AthleteNotificationsPage() {
     }
   }, [unreadNotificationsCount, markNotificationsAsRead])
 
-  const handleLogout = () => {
-    localStorage.removeItem("userToken")
-    localStorage.removeItem("userData")
-    localStorage.removeItem("authToken")
-    sessionStorage.clear()
-
-    document.cookie.split(";").forEach((c) => {
-      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")
+  const handleLogout = async () => {
+    console.log("🔄 Athlete logout initiated from notifications page")
+    await logout({
+      customMessage: "Securing your athlete account and logging out...",
+      onComplete: () => {
+        console.log("✅ Athlete logout completed successfully from notifications page")
+        toast({
+          title: "Logged Out Successfully",
+          description: "You have been securely logged out. Redirecting to login page...",
+          duration: 2000,
+        })
+      },
+      onError: (error) => {
+        console.error("❌ Athlete logout failed from notifications page:", error)
+        toast({
+          title: "Logout Failed",
+          description: "There was an issue logging you out. Please try again.",
+          variant: "destructive",
+          duration: 3000,
+        })
+      },
     })
-
-    window.location.href = "/"
   }
 
   const filteredNotifications = notifications.filter((notification) => {
@@ -321,6 +336,7 @@ export default function AthleteNotificationsPage() {
           hasNewContent={false}
         />
       )}
+      <Toaster />
     </div>
   )
 } 

@@ -9,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { toast } from "@/components/ui/use-toast"
+import { Toaster } from "@/components/ui/toaster"
 import {
   Settings,
   User,
@@ -25,6 +28,9 @@ import {
   Save,
   CreditCard,
   Compass,
+  Eye,
+  EyeOff,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -33,8 +39,8 @@ import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { auth, db } from "@/lib/firebase"
 import { doc, deleteDoc, getDoc, updateDoc } from "firebase/firestore"
-import { onAuthStateChanged } from "firebase/auth";
-import React from "react";
+import { onAuthStateChanged, updatePassword, reauthenticateWithCredential, EmailAuthProvider, updateEmail, fetchSignInMethodsForEmail, verifyBeforeUpdateEmail } from "firebase/auth"
+import React from "react"
 import { collection, getDoc as getDocFromCollection } from "firebase/firestore";
 
 function MemberSubscriptions({ members }: { members: any }) {
@@ -151,6 +157,29 @@ export default function MemberSettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
+  // Password change state
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  })
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false,
+  })
+  const [changingPassword, setChangingPassword] = useState(false)
+
+  // Email change state
+  const [showEmailDialog, setShowEmailDialog] = useState(false)
+  const [emailChangeData, setEmailChangeData] = useState({
+    currentPassword: "",
+    newEmail: "",
+  })
+  const [showEmailPassword, setShowEmailPassword] = useState(false)
+  const [changingEmail, setChangingEmail] = useState(false)
+
   // Quick search suggestions
   const quickSearches = [
     "Navigate Recruitment",
@@ -195,7 +224,12 @@ export default function MemberSettingsPage() {
 
   const handleSaveSettings = async () => {
     if (!auth.currentUser) {
-      alert("Not logged in!")
+      toast({
+        title: "Not Logged In",
+        description: "Please log in to save settings.",
+        variant: "destructive",
+        duration: 3000,
+      })
       return
     }
 
@@ -205,16 +239,200 @@ export default function MemberSettingsPage() {
       await updateDoc(memberRef, {
         firstName: settings.firstName,
         lastName: settings.lastName,
-        email: settings.email,
         phone: settings.phone,
+        // Email is always synced from Firebase Auth automatically
+        email: auth.currentUser.email || "",
         updatedAt: new Date().toISOString()
       })
-      alert("Settings saved successfully!")
+      toast({
+        title: "Settings Saved",
+        description: "Your profile settings have been updated successfully.",
+        duration: 3000,
+      })
     } catch (error) {
       console.error("Error saving settings:", error)
-      alert("Failed to save settings. Please try again.")
+      toast({
+        title: "Save Failed",
+        description: "Failed to save settings. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (!auth.currentUser) {
+      toast({
+        title: "Not Logged In",
+        description: "Please log in to change your password.",
+        variant: "destructive",
+        duration: 3000,
+      })
+      return
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast({
+        title: "Password Mismatch",
+        description: "New passwords don't match. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      })
+      return
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      toast({
+        title: "Password Too Short",
+        description: "Password must be at least 6 characters long.",
+        variant: "destructive",
+        duration: 3000,
+      })
+      return
+    }
+
+    setChangingPassword(true)
+
+    try {
+      // Re-authenticate the user with their current password
+      const credential = EmailAuthProvider.credential(
+        auth.currentUser.email!,
+        passwordData.currentPassword
+      )
+      await reauthenticateWithCredential(auth.currentUser, credential)
+
+      // Update the password
+      await updatePassword(auth.currentUser, passwordData.newPassword)
+
+      // Reset form and close dialog
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
+      setShowPasswordDialog(false)
+
+      toast({
+        title: "Password Changed",
+        description: "Your password has been updated successfully.",
+        duration: 3000,
+      })
+    } catch (error: any) {
+      console.error("Error changing password:", error)
+      let errorMessage = "Failed to change password. Please try again."
+      
+      if (error.code === "auth/wrong-password") {
+        errorMessage = "Current password is incorrect."
+      } else if (error.code === "auth/weak-password") {
+        errorMessage = "New password is too weak. Please choose a stronger password."
+      } else if (error.code === "auth/requires-recent-login") {
+        errorMessage = "Please log out and log back in, then try changing your password again."
+      }
+
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 3000,
+      })
+    } finally {
+      setChangingPassword(false)
+    }
+  }
+
+
+
+  const handleChangeEmail = async () => {
+    if (!auth.currentUser) {
+      toast({
+        title: "Not Logged In",
+        description: "Please log in to change your email.",
+        variant: "destructive",
+        duration: 3000,
+      })
+      return
+    }
+
+    // Basic validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(emailChangeData.newEmail)) {
+      toast({
+        title: "Invalid Email",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+        duration: 3000,
+      })
+      return
+    }
+
+    if (emailChangeData.newEmail === auth.currentUser.email) {
+      toast({
+        title: "Same Email",
+        description: "This is already your current email address.",
+        variant: "destructive",
+        duration: 3000,
+      })
+      return
+    }
+
+    setChangingEmail(true)
+
+    try {
+      // First, check if the new email is already taken
+      const signInMethods = await fetchSignInMethodsForEmail(auth, emailChangeData.newEmail)
+      if (signInMethods.length > 0) {
+        toast({
+          title: "Email Already Taken",
+          description: "This email address is already associated with another account.",
+          variant: "destructive",
+          duration: 4000,
+        })
+        return
+      }
+
+      // Re-authenticate the user with their current password
+      const credential = EmailAuthProvider.credential(
+        auth.currentUser.email!,
+        emailChangeData.currentPassword
+      )
+      await reauthenticateWithCredential(auth.currentUser, credential)
+
+      // Send verification email for the new email address
+      await verifyBeforeUpdateEmail(auth.currentUser, emailChangeData.newEmail)
+
+      // Reset form and close dialog
+      setEmailChangeData({ currentPassword: "", newEmail: "" })
+      setShowEmailDialog(false)
+
+      toast({
+        title: "Verification Email Sent",
+        description: `A verification email has been sent to ${emailChangeData.newEmail}. Please check your inbox and click the link to complete the email change. Your new email will automatically appear here once verified.`,
+        duration: 8000,
+      })
+    } catch (error: any) {
+      console.error("Error changing email:", error)
+      let errorMessage = "Failed to change email. Please try again."
+      
+      if (error.code === "auth/wrong-password") {
+        errorMessage = "Current password is incorrect."
+      } else if (error.code === "auth/email-already-in-use") {
+        errorMessage = "This email address is already associated with another account."
+      } else if (error.code === "auth/invalid-email") {
+        errorMessage = "The email address is invalid."
+      } else if (error.code === "auth/requires-recent-login") {
+        errorMessage = "Please log out and log back in, then try changing your email again."
+      } else if (error.code === "auth/operation-not-allowed") {
+        errorMessage = "Email change is not allowed. Please contact support."
+      } else if (error.code === "auth/too-many-requests") {
+        errorMessage = "Too many email change requests. Please try again later."
+      }
+
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+        duration: 4000,
+      })
+    } finally {
+      setChangingEmail(false)
     }
   }
 
@@ -276,23 +494,37 @@ export default function MemberSettingsPage() {
 
   const [members, setMembers] = useState<any>(null);
   
-  // Load member data
+  // Load member data - email always comes from Firebase Auth
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setLoading(true)
         try {
+          // Reload user to get latest auth state
+          await user.reload()
+          
           const docRef = doc(db, "members", user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             const memberData = docSnap.data()
             setMembers({ id: user.uid, ...memberData });
             
-            // Update settings with member data
+            // Always use Firebase Auth email as the source of truth
+            const authEmail = user.email || ""
+            
+            // Always keep Firestore in sync with Auth email
+            if (authEmail) {
+              await updateDoc(docRef, {
+                email: authEmail,
+                updatedAt: new Date().toISOString()
+              })
+            }
+            
+            // Update settings with member data (email always from Firebase Auth)
             setSettings({
               firstName: memberData.firstName || "",
               lastName: memberData.lastName || "",
-              email: memberData.email || user.email || "",
+              email: authEmail,
               phone: memberData.phone || "",
             })
           }
@@ -505,10 +737,12 @@ export default function MemberSettingsPage() {
                       <Input
                         id="email"
                         type="email"
-                        value={settings.email}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, email: e.target.value })}
-                        disabled={saving}
+                        value={auth.currentUser?.email || settings.email}
+                        disabled={true}
                       />
+                      <p className="text-sm text-gray-500 mt-1">
+                        This email is directly linked to your authentication account. To change it, use the secure change option below.
+                      </p>
                     </div>
 
                     <div>
@@ -527,7 +761,19 @@ export default function MemberSettingsPage() {
 
                 <div className="space-y-4">
                   <h4 className="font-medium text-gray-900">Security</h4>
-                  <Button variant="outline" className="w-full justify-start bg-transparent">
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start bg-transparent"
+                    onClick={() => setShowEmailDialog(true)}
+                  >
+                    <User className="h-4 w-4 mr-2" />
+                    Change Email
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-start bg-transparent"
+                    onClick={() => setShowPasswordDialog(true)}
+                  >
                     <Lock className="h-4 w-4 mr-2" />
                     Change Password
                   </Button>
@@ -560,6 +806,179 @@ export default function MemberSettingsPage() {
           </Button>
         </div>
       </main>
+
+      {/* Password Change Dialog */}
+      <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Enter your current password and choose a new one. Your password must be at least 6 characters long.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <div className="relative">
+                <Input
+                  id="currentPassword"
+                  type={showPasswords.current ? "text" : "password"}
+                  value={passwordData.currentPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                  disabled={changingPassword}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                  onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
+                >
+                  {showPasswords.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="newPassword">New Password</Label>
+              <div className="relative">
+                <Input
+                  id="newPassword"
+                  type={showPasswords.new ? "text" : "password"}
+                  value={passwordData.newPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                  disabled={changingPassword}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                  onClick={() => setShowPasswords({ ...showPasswords, new: !showPasswords.new })}
+                >
+                  {showPasswords.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">Must be at least 6 characters long</p>
+            </div>
+
+            <div>
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showPasswords.confirm ? "text" : "password"}
+                  value={passwordData.confirmPassword}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                  disabled={changingPassword}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                  onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
+                >
+                  {showPasswords.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowPasswordDialog(false)
+                setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" })
+              }}
+              disabled={changingPassword}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleChangePassword}
+              disabled={
+                changingPassword ||
+                !passwordData.currentPassword ||
+                !passwordData.newPassword ||
+                !passwordData.confirmPassword
+              }
+            >
+              {changingPassword ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Changing...
+                </>
+              ) : (
+                "Change Password"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email Change Dialog */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Email Address</DialogTitle>
+            <DialogDescription>
+              Enter your current password and your new email address. A verification email will be sent to the new address to complete the change securely.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="currentEmailPassword">Current Password</Label>
+              <div className="relative">
+                <Input
+                  id="currentEmailPassword"
+                  type={showEmailPassword ? "text" : "password"}
+                  value={emailChangeData.currentPassword}
+                  onChange={(e) => setEmailChangeData({ ...emailChangeData, currentPassword: e.target.value })}
+                  placeholder="Enter your current password"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowEmailPassword(!showEmailPassword)}
+                >
+                  {showEmailPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="newEmail">New Email Address</Label>
+              <Input
+                id="newEmail"
+                type="email"
+                value={emailChangeData.newEmail}
+                onChange={(e) => setEmailChangeData({ ...emailChangeData, newEmail: e.target.value })}
+                placeholder="Enter your new email address"
+              />
+              <p className="text-sm text-gray-500 mt-1">A verification link will be sent to this email address</p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEmailDialog(false)} disabled={changingEmail}>
+              Cancel
+            </Button>
+            <Button onClick={handleChangeEmail} disabled={changingEmail || !emailChangeData.currentPassword || !emailChangeData.newEmail}>
+              {changingEmail && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {changingEmail ? "Sending Verification..." : "Send Verification Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Toaster />
     </div>
   )
 } 

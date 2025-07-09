@@ -51,6 +51,9 @@ import { addDoc, collection, Timestamp, getDocs, query, orderBy, where } from "f
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { onAuthStateChanged } from "firebase/auth"
 import { MemberHeader } from "@/components/navigation/member-header"
+import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import { toast } from "@/components/ui/use-toast"
+import { Toaster } from "@/components/ui/toaster"
 
 // Add a type for received feedback
 interface ReceivedFeedback {
@@ -300,17 +303,30 @@ export default function MemberFeedbackPage() {
     }
   }, [])
 
-  const handleLogout = () => {
-    localStorage.removeItem("userToken")
-    localStorage.removeItem("userData")
-    localStorage.removeItem("authToken")
-    sessionStorage.clear()
+  const { logout } = useUnifiedLogout()
 
-    document.cookie.split(";").forEach((c) => {
-      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")
+  const handleLogout = async () => {
+    console.log("🔄 Member logout initiated from feedback page")
+    await logout({
+      customMessage: "Securing your member account and logging out...",
+      onComplete: () => {
+        console.log("✅ Member logout completed successfully from feedback page")
+        toast({
+          title: "Logged Out Successfully",
+          description: "You have been securely logged out. Redirecting to login page...",
+          duration: 2000,
+        })
+      },
+      onError: (error) => {
+        console.error("❌ Member logout failed from feedback page:", error)
+        toast({
+          title: "Logout Failed",
+          description: "There was an issue logging you out. Please try again.",
+          variant: "destructive",
+          duration: 3000,
+        })
+      },
     })
-
-    window.location.href = "/"
   }
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1072,6 +1088,7 @@ export default function MemberFeedbackPage() {
           </div>
         </nav>
       )}
+      <Toaster />
     </div>
   )
 } 

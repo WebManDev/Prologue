@@ -35,6 +35,9 @@ import { useAdvancedNotifications } from "@/contexts/advanced-notification-conte
 import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc, deleteDoc } from "firebase/firestore"
 import { db, auth, getAthleteProfile, addFeedback } from "@/lib/firebase"
 import { onAuthStateChanged } from "firebase/auth"
+import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import { toast } from "@/components/ui/use-toast"
+import { Toaster } from "@/components/ui/toaster"
 
 // Types for feedback
 interface FeedbackRequest {
@@ -71,6 +74,7 @@ const getYouTubeVideoId = (url: string): string | null => {
 
 export default function FeedbackPage() {
   const { isMobile, isTablet } = useMobileDetection()
+  const { logout } = useUnifiedLogout()
 
   // State management
   const [activeTab, setActiveTab] = useState("requested")
@@ -365,17 +369,28 @@ export default function FeedbackPage() {
     return { total, completed, active, avgRating }
   }, [requestedFeedback, givenFeedback])
 
-  const handleLogout = () => {
-    localStorage.removeItem("userToken")
-    localStorage.removeItem("userData")
-    localStorage.removeItem("authToken")
-    sessionStorage.clear()
-
-    document.cookie.split(";").forEach((c) => {
-      document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/")
+  const handleLogout = async () => {
+    console.log("🔄 Athlete logout initiated from feedback page")
+    await logout({
+      customMessage: "Securing your athlete account and logging out...",
+      onComplete: () => {
+        console.log("✅ Athlete logout completed successfully from feedback page")
+        toast({
+          title: "Logged Out Successfully",
+          description: "You have been securely logged out. Redirecting to login page...",
+          duration: 2000,
+        })
+      },
+      onError: (error: unknown) => {
+        console.error("❌ Athlete logout failed from feedback page:", error)
+        toast({
+          title: "Logout Failed",
+          description: "There was an issue logging you out. Please try again.",
+          variant: "destructive",
+          duration: 3000,
+        })
+      },
     })
-
-    window.location.href = "/"
   }
 
   // Search dropdown content
@@ -838,6 +853,7 @@ export default function FeedbackPage() {
         </div>
       </header>
       {renderMainContent()}
+      <Toaster />
     </div>
   )
 } 
