@@ -383,8 +383,13 @@ const MainContent = React.memo(
                       placeholder="Tell coaches about your athletic journey and goals..."
                       className="min-h-[120px] resize-none"
                     />
-                  ) : (
+                  ) : profileData.bio ? (
                     <p className="text-gray-700 leading-relaxed text-sm lg:text-base">{profileData.bio}</p>
+                  ) : (
+                    <div className="text-center py-8">
+                      <p className="text-gray-500 mb-2">📖 No bio added yet</p>
+                      <p className="text-sm text-gray-400">Share your athletic journey, goals, and what makes you unique to help coaches get to know you better.</p>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -395,27 +400,36 @@ const MainContent = React.memo(
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {profileData.interests.map((interest: string, index: number) => (
-                      <div key={index} className="flex items-start space-x-3">
-                        {isEditing ? (
-                          <div className="flex-1 flex items-center space-x-2">
-                            <Input
-                              value={interest}
-                              onChange={(e) => updateInterest(index, e.target.value)}
-                              className="flex-1"
-                            />
-                            <Button variant="outline" size="sm" onClick={() => removeInterest(index)} className="p-2">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <>
-                            <Star className="h-4 w-4 text-prologue-electric mt-0.5 flex-shrink-0" />
-                            <p className="text-gray-700 text-sm lg:text-base">{interest}</p>
-                          </>
-                        )}
+                    {profileData.interests.length === 0 && !isEditing ? (
+                      <div className="text-center py-8">
+                        <Star className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500 mb-2">⭐ No training interests listed yet</p>
+                        <p className="text-sm text-gray-400">Add your training interests and focus areas to help coaches understand your development priorities.</p>
                       </div>
-                    ))}
+                    ) : (
+                      profileData.interests.map((interest: string, index: number) => (
+                        <div key={index} className="flex items-start space-x-3">
+                          {isEditing ? (
+                            <div className="flex-1 flex items-center space-x-2">
+                              <Input
+                                value={interest}
+                                onChange={(e) => updateInterest(index, e.target.value)}
+                                className="flex-1"
+                                placeholder="Enter training interest"
+                              />
+                              <Button variant="outline" size="sm" onClick={() => removeInterest(index)} className="p-2">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <>
+                              <Star className="h-4 w-4 text-prologue-electric mt-0.5 flex-shrink-0" />
+                              <p className="text-gray-700 text-sm lg:text-base">{interest}</p>
+                            </>
+                          )}
+                        </div>
+                      ))
+                    )}
                     {isEditing && (
                       <Button variant="outline" size="sm" onClick={addInterest} className="w-full bg-transparent">
                         <Plus className="h-4 w-4 mr-2" />
@@ -441,7 +455,11 @@ const MainContent = React.memo(
                         value={profileData.firstName}
                         onChange={handleProfileChange}
                         disabled={!isEditing}
+                        placeholder="Enter your first name"
                       />
+                      {!profileData.firstName && !isEditing && (
+                        <p className="text-sm text-gray-500 mt-1">📝 Add your first name to personalize your profile</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="lastName">Last Name</Label>
@@ -450,7 +468,11 @@ const MainContent = React.memo(
                         value={profileData.lastName}
                         onChange={handleProfileChange}
                         disabled={!isEditing}
+                        placeholder="Enter your last name"
                       />
+                      {!profileData.lastName && !isEditing && (
+                        <p className="text-sm text-gray-500 mt-1">📝 Add your last name to complete your profile</p>
+                      )}
                     </div>
                   </div>
 
@@ -470,7 +492,16 @@ const MainContent = React.memo(
 
                   <div>
                     <Label htmlFor="phone">Phone</Label>
-                    <Input id="phone" value={profileData.phone} onChange={handleProfileChange} disabled={!isEditing} />
+                    <Input 
+                      id="phone" 
+                      value={profileData.phone} 
+                      onChange={handleProfileChange} 
+                      disabled={!isEditing}
+                      placeholder="Enter your phone number"
+                    />
+                    {!profileData.phone && !isEditing && (
+                      <p className="text-sm text-gray-500 mt-1">📞 Add your phone number for coaches to contact you</p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -481,7 +512,11 @@ const MainContent = React.memo(
                         value={profileData.location}
                         onChange={handleProfileChange}
                         disabled={!isEditing}
+                        placeholder="City, State (e.g., Miami, FL)"
                       />
+                      {!profileData.location && !isEditing && (
+                        <p className="text-sm text-gray-500 mt-1">📍 Add your location to help coaches find local athletes</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="school">School</Label>
@@ -490,7 +525,11 @@ const MainContent = React.memo(
                         value={profileData.school}
                         onChange={handleProfileChange}
                         disabled={!isEditing}
+                        placeholder="Enter your school name"
                       />
+                      {!profileData.school && !isEditing && (
+                        <p className="text-sm text-gray-500 mt-1">🏫 Add your school to showcase your academic background</p>
+                      )}
                     </div>
                   </div>
 
@@ -499,7 +538,7 @@ const MainContent = React.memo(
                       <Label htmlFor="sport">Primary Sport</Label>
                       <Select value={profileData.sport} onValueChange={handleSportChange} disabled={!isEditing}>
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue placeholder="Select your sport" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="Tennis">Tennis</SelectItem>
@@ -512,6 +551,9 @@ const MainContent = React.memo(
                           <SelectItem value="Volleyball">Volleyball</SelectItem>
                         </SelectContent>
                       </Select>
+                      {!profileData.sport && !isEditing && (
+                        <p className="text-sm text-gray-500 mt-1">⚽ Select your primary sport to connect with relevant coaches</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="position">Position</Label>
@@ -520,7 +562,11 @@ const MainContent = React.memo(
                         value={profileData.position}
                         onChange={handleProfileChange}
                         disabled={!isEditing}
+                        placeholder="e.g., Point Guard, Midfielder"
                       />
+                      {!profileData.position && !isEditing && (
+                        <p className="text-sm text-gray-500 mt-1">🎯 Add your position to highlight your role in the sport</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="graduationYear">Graduation Year</Label>
@@ -529,13 +575,26 @@ const MainContent = React.memo(
                         value={profileData.graduationYear}
                         onChange={handleProfileChange}
                         disabled={!isEditing}
+                        placeholder="e.g., 2025"
                       />
+                      {!profileData.graduationYear && !isEditing && (
+                        <p className="text-sm text-gray-500 mt-1">🎓 Add your graduation year for recruitment timing</p>
+                      )}
                     </div>
                   </div>
 
                   <div>
                     <Label htmlFor="gpa">GPA</Label>
-                    <Input id="gpa" value={profileData.gpa} onChange={handleProfileChange} disabled={!isEditing} />
+                    <Input 
+                      id="gpa" 
+                      value={profileData.gpa} 
+                      onChange={handleProfileChange} 
+                      disabled={!isEditing}
+                      placeholder="e.g., 3.8"
+                    />
+                    {!profileData.gpa && !isEditing && (
+                      <p className="text-sm text-gray-500 mt-1">📚 Add your GPA to showcase your academic performance</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -551,27 +610,36 @@ const MainContent = React.memo(
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {profileData.goals.map((goal: string, index: number) => (
-                      <div key={index} className="flex items-center space-x-3">
-                        {isEditing ? (
-                          <>
-                            <Input
-                              value={goal}
-                              onChange={(e) => updateGoal(index, e.target.value)}
-                              className="flex-1"
-                            />
-                            <Button variant="outline" size="sm" onClick={() => removeGoal(index)} className="p-2">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <Target className="h-4 w-4 text-prologue-electric flex-shrink-0" />
-                            <span className="text-gray-700 text-sm lg:text-base">{goal}</span>
-                          </>
-                        )}
+                    {profileData.goals.length === 0 && !isEditing ? (
+                      <div className="text-center py-8">
+                        <Target className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500 mb-2">🎯 No goals set yet</p>
+                        <p className="text-sm text-gray-400">Set specific athletic goals to track your progress and show coaches your ambition.</p>
                       </div>
-                    ))}
+                    ) : (
+                      profileData.goals.map((goal: string, index: number) => (
+                        <div key={index} className="flex items-center space-x-3">
+                          {isEditing ? (
+                            <>
+                              <Input
+                                value={goal}
+                                onChange={(e) => updateGoal(index, e.target.value)}
+                                className="flex-1"
+                                placeholder="Enter your athletic goal"
+                              />
+                              <Button variant="outline" size="sm" onClick={() => removeGoal(index)} className="p-2">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Target className="h-4 w-4 text-prologue-electric flex-shrink-0" />
+                              <span className="text-gray-700 text-sm lg:text-base">{goal}</span>
+                            </>
+                          )}
+                        </div>
+                      ))
+                    )}
                     {isEditing && (
                       <Button variant="outline" size="sm" onClick={addGoal} className="w-full bg-transparent">
                         <Plus className="h-4 w-4 mr-2" />
@@ -593,32 +661,41 @@ const MainContent = React.memo(
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {profileData.achievements.map((achievement: string, index: number) => (
-                      <div key={index} className="flex items-center space-x-3">
-                        {isEditing ? (
-                          <>
-                            <Input
-                              value={achievement}
-                              onChange={(e) => updateAchievement(index, e.target.value)}
-                              className="flex-1"
-                            />
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => removeAchievement(index)}
-                              className="p-2"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        ) : (
-                          <>
-                            <Award className="h-4 w-4 text-yellow-500 flex-shrink-0" />
-                            <span className="text-gray-700 text-sm lg:text-base">{achievement}</span>
-                          </>
-                        )}
+                    {profileData.achievements.length === 0 && !isEditing ? (
+                      <div className="text-center py-8">
+                        <Trophy className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500 mb-2">🏆 No achievements listed yet</p>
+                        <p className="text-sm text-gray-400">Showcase your athletic accomplishments, awards, and milestones to impress coaches.</p>
                       </div>
-                    ))}
+                    ) : (
+                      profileData.achievements.map((achievement: string, index: number) => (
+                        <div key={index} className="flex items-center space-x-3">
+                          {isEditing ? (
+                            <>
+                              <Input
+                                value={achievement}
+                                onChange={(e) => updateAchievement(index, e.target.value)}
+                                className="flex-1"
+                                placeholder="Enter your achievement"
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removeAchievement(index)}
+                                className="p-2"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Award className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+                              <span className="text-gray-700 text-sm lg:text-base">{achievement}</span>
+                            </>
+                          )}
+                        </div>
+                      ))
+                    )}
                     {isEditing && (
                       <Button variant="outline" size="sm" onClick={addAchievement} className="w-full bg-transparent">
                         <Plus className="h-4 w-4 mr-2" />

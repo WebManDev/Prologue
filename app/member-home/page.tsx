@@ -53,10 +53,14 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
 import { formatDistanceToNow, parseISO, isValid } from "date-fns";
 import CommentSection from "@/components/ui/comment-section"
+import { useToast } from "@/hooks/use-toast"
 
 export default function MemberHomePage() {
   // Mobile detection
   const { isMobile, isTablet } = useMobileDetection()
+
+  // Toast notifications
+  const { toast } = useToast()
 
   // Contexts
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
@@ -289,11 +293,60 @@ export default function MemberHomePage() {
     })
   }, [])
 
-  const handleShare = useCallback((postId: string) => {
-    // Mock share functionality
-    console.log("Sharing post:", postId)
-    // In a real app, this would open a share dialog
-  }, [])
+  const handleShare = useCallback(async (postId: string) => {
+    try {
+      const shareUrl = `${window.location.origin}/post/${postId}`
+      const shareData = {
+        title: 'Check out this post on Prologue',
+        text: 'Found this interesting post on Prologue!',
+        url: shareUrl,
+      }
+
+      // Check if Web Share API is supported (mainly on mobile)
+      if (navigator.share && (typeof navigator.canShare === 'undefined' || navigator.canShare(shareData))) {
+        await navigator.share(shareData)
+        toast({
+          title: "Shared successfully!",
+          description: "Post shared via your device's share menu.",
+        })
+      } else {
+        // Fallback to copying URL to clipboard
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(shareUrl)
+          toast({
+            title: "Link copied!",
+            description: "Post URL has been copied to your clipboard.",
+          })
+        } else {
+          // Final fallback for older browsers
+          const textArea = document.createElement('textarea')
+          textArea.value = shareUrl
+          textArea.style.position = 'fixed'
+          textArea.style.left = '-999999px'
+          textArea.style.top = '-999999px'
+          document.body.appendChild(textArea)
+          textArea.focus()
+          textArea.select()
+          document.execCommand('copy')
+          textArea.remove()
+          toast({
+            title: "Link copied!",
+            description: "Post URL has been copied to your clipboard.",
+          })
+        }
+      }
+    } catch (error) {
+      console.error('Error sharing:', error)
+      // If sharing is cancelled or fails, show a gentle message
+      if (error instanceof Error && error.name !== 'AbortError') {
+        toast({
+          title: "Unable to share",
+          description: "Please try again or copy the link manually.",
+          variant: "destructive",
+        })
+      }
+    }
+  }, [toast])
 
   // Search handlers
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -951,7 +1004,7 @@ export default function MemberHomePage() {
                               <MessageSquare className={`h-4 w-4 sm:h-5 sm:w-5 ${isMobile ? "" : "mr-2"}`} />
                               <span className="hidden sm:inline ml-2">Comment</span>
                             </Button>
-                            <Button variant="ghost" size="sm" className="flex-1 sm:flex-none text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10 px-2 sm:px-3">
+                            <Button variant="ghost" size="sm" className="flex-1 sm:flex-none text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10 px-2 sm:px-3" onClick={() => handleShare(item.id)}>
                               <Share className={`h-4 w-4 sm:h-5 sm:w-5 ${isMobile ? "" : "mr-2"}`} />
                               <span className="hidden sm:inline ml-2">Share</span>
                             </Button>

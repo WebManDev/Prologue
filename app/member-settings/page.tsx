@@ -719,7 +719,11 @@ export default function MemberSettingsPage() {
                           value={settings.firstName}
                           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, firstName: e.target.value })}
                           disabled={saving}
+                          placeholder="Enter your first name"
                         />
+                        {!settings.firstName && (
+                          <p className="text-sm text-gray-500 mt-1">📝 Add your first name</p>
+                        )}
                       </div>
                       <div>
                         <Label htmlFor="lastName">Last Name</Label>
@@ -728,7 +732,11 @@ export default function MemberSettingsPage() {
                           value={settings.lastName}
                           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, lastName: e.target.value })}
                           disabled={saving}
+                          placeholder="Enter your last name"
                         />
+                        {!settings.lastName && (
+                          <p className="text-sm text-gray-500 mt-1">📝 Add your last name</p>
+                        )}
                       </div>
                     </div>
 
@@ -752,7 +760,11 @@ export default function MemberSettingsPage() {
                         value={settings.phone}
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSettings({ ...settings, phone: e.target.value })}
                         disabled={saving}
+                        placeholder="Enter your phone number"
                       />
+                      {!settings.phone && (
+                        <p className="text-sm text-gray-500 mt-1">📞 Add your phone number for coaches to contact you</p>
+                      )}
                     </div>
                   </>
                 )}

@@ -4,6 +4,7 @@ import { MemberNotificationProvider } from '@/contexts/member-notification-conte
 import { MemberSubscriptionProvider } from '@/contexts/member-subscription-context'
 import { NotificationProvider } from '@/contexts/notification-context'
 import { AdvancedNotificationProvider } from '@/contexts/advanced-notification-context'
+import { Toaster } from '@/components/ui/toaster'
 
 export const metadata: Metadata = {
   title: 'v0 App',
@@ -28,6 +29,7 @@ export default function RootLayout({
             </MemberNotificationProvider>
           </AdvancedNotificationProvider>
         </NotificationProvider>
+        <Toaster />
       </body>
     </html>
   )
