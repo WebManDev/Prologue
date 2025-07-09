@@ -1028,35 +1028,35 @@ export default function MemberFeedbackPage() {
               href="/member-home"
               className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
             >
-              <Home className="h-6 w-6" />
+              <Home className="h-5 w-5" />
               <span className="text-xs font-medium">Home</span>
             </Link>
             <Link
               href="/member-training"
               className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
             >
-              <BookOpen className="h-6 w-6" />
+              <BookOpen className="h-5 w-5" />
               <span className="text-xs font-medium">Training</span>
             </Link>
             <Link
               href="/member-browse"
               className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
             >
-              <Search className="h-6 w-6" />
+              <Search className="h-5 w-5" />
               <span className="text-xs font-medium">Discover</span>
             </Link>
             <Link
               href="/member-feedback"
               className="flex flex-col items-center space-y-2 text-prologue-electric transition-colors"
             >
-              <MessageSquare className="h-6 w-6" />
+              <MessageSquare className="h-5 w-5" />
               <span className="text-xs font-medium">Feedback</span>
             </Link>
             <Link
               href="/member-messaging"
               className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors relative"
             >
-              <MessageCircle className="h-6 w-6" />
+              <MessageCircle className="h-5 w-5" />
               <span className="text-xs font-medium">Messages</span>
               {unreadMessagesCount > 0 && (
                 <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>

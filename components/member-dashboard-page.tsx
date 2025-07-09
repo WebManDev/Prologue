@@ -34,13 +34,18 @@ import {
   ChevronRight,
   Save,
   Loader2,
+  Home,
+  BookOpen,
+  Search,
+  MessageSquare,
+  MessageCircle,
 } from "lucide-react"
+import Link from "next/link"
 import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { toast } from "@/components/ui/use-toast"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutNotification } from "@/components/ui/logout-notification"
-import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
 import { auth, saveMemberProfile, getMemberProfile, uploadProfilePicture, uploadCoverPhoto } from "@/lib/firebase"
@@ -64,41 +69,13 @@ const getActivityIcon = (type: string) => {
   }
 }
 
-// Extracted DesktopHeader component
-const DesktopHeader = React.memo(
-  ({
-    onLogout,
-    unreadNotifications,
-    unreadMessages,
-    hasNewContent,
-    profileImageUrl,
-    profileData,
-  }: {
-    onLogout: () => void
-    unreadNotifications: number
-    unreadMessages: number
-    hasNewContent: boolean
-    profileImageUrl?: string | null
-    profileData?: any
-  }) => (
-    <MemberHeader
-      currentPath="/member-dashboard"
-      onLogout={onLogout}
-      showSearch={true}
-      unreadNotifications={unreadNotifications}
-      unreadMessages={unreadMessages}
-      hasNewContent={hasNewContent}
-      profileImageUrl={profileImageUrl}
-      profileData={profileData}
-    />
-  ),
-)
-DesktopHeader.displayName = "DesktopHeader"
+
 
 // Extracted MainContent component
 const MainContent = React.memo(
   ({
     isMobile,
+    isTablet,
     isEditing,
     setIsEditing,
     isLoading,
@@ -130,7 +107,7 @@ const MainContent = React.memo(
     handleProfileImageChange,
     handleCoverImageChange,
   }: any) => (
-    <main className={`${isMobile ? "px-4 py-6 pb-24" : "max-w-7xl mx-auto px-6 py-8"}`}>
+    <main className={`max-w-7xl mx-auto px-6 py-8 ${isMobile || isTablet ? "pb-20" : ""}`}>
       {/* Profile Header */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-4 lg:mb-8 overflow-hidden">
         <div className="h-24 lg:h-32 bg-gradient-to-r from-prologue-electric to-prologue-blue relative">
@@ -1151,6 +1128,7 @@ export default function MemberDashboardPage() {
 
   const mainContentProps = {
     isMobile,
+    isTablet,
     isEditing,
     setIsEditing,
     isLoading,
@@ -1183,25 +1161,13 @@ export default function MemberDashboardPage() {
     handleCoverImageChange,
   }
 
-  if (isMobile || isTablet) {
-    return (
-      <MobileLayout
-        userType="member"
-        currentPath="/member-dashboard"
-        showBottomNav={true}
-        unreadNotifications={unreadNotificationsCount}
-        unreadMessages={unreadMessagesCount}
-        hasNewContent={hasNewTrainingContent}
-      >
-        <MainContent {...mainContentProps} />
-      </MobileLayout>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
-      <DesktopHeader
+      {/* Header */}
+      <MemberHeader
+        currentPath="/member-dashboard"
         onLogout={logout}
+        showSearch={true}
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
@@ -1219,6 +1185,52 @@ export default function MemberDashboardPage() {
         onRetry={retryLogout}
         onCancel={cancelLogout}
       />
+
+      {/* Mobile Bottom Navigation */}
+      {(isMobile || isTablet) && (
+        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+          <div className="flex items-center justify-around h-20 px-6">
+            <Link
+              href="/member-dashboard"
+              className="flex flex-col items-center space-y-2 text-prologue-electric transition-colors"
+            >
+              <Home className="h-5 w-5" />
+              <span className="text-xs font-medium">Home</span>
+            </Link>
+            <Link
+              href="/member-training"
+              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <BookOpen className="h-5 w-5" />
+              <span className="text-xs font-medium">Training</span>
+            </Link>
+            <Link
+              href="/member-browse"
+              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <Search className="h-5 w-5" />
+              <span className="text-xs font-medium">Discover</span>
+            </Link>
+            <Link
+              href="/member-feedback"
+              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors"
+            >
+              <MessageSquare className="h-5 w-5" />
+              <span className="text-xs font-medium">Feedback</span>
+            </Link>
+            <Link
+              href="/member-messaging"
+              className="flex flex-col items-center space-y-2 text-gray-600 hover:text-prologue-electric transition-colors relative"
+            >
+              <MessageCircle className="h-5 w-5" />
+              <span className="text-xs font-medium">Messages</span>
+              {unreadMessagesCount > 0 && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
+              )}
+            </Link>
+          </div>
+        </nav>
+      )}
     </div>
   )
 }
