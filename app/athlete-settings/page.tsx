@@ -17,8 +17,8 @@ import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutLoadingScreen } from "@/components/ui/logout-loading-screen"
 import { AthleteNav } from "@/components/navigation/athlete-nav"
 import { getFirestore, doc, updateDoc } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
-import { app as firebaseApp } from "@/lib/firebase";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { app as firebaseApp, getAthleteProfile } from "@/lib/firebase";
 import { AthleteStripeConnect } from "@/components/athlete-stripe-connect";
 import { AthletePricingManager } from "@/components/athlete-pricing-manager";
 
@@ -33,32 +33,27 @@ const AthleteSettingsPage = () => {
     banking: false,
   })
 
-  // Account Settings State - Updated to match athlete dashboard structure
+  // Account Settings State - Will be populated with actual user data
   const [accountData, setAccountData] = useState({
-    firstName: "Sarah",
-    lastName: "Martinez",
-    email: "sarah.martinez@example.com",
-    phone: "+1 (555) 123-4567",
-    bio: "Dedicated tennis player focusing on mental performance and competitive excellence.",
-    location: "Los Angeles, CA",
-    school: "UCLA",
-    graduationYear: "2025",
-    sport: "Tennis",
-    position: "Singles Player",
-    experience: "5 years competitive experience",
-    specialties: ["Mental Performance", "Singles Strategy", "Court Movement"],
-    certifications: [
-      "USTA Tournament Player",
-      "Mental Performance Training",
-    ],
-    achievements: [
-      "Regional Tennis Championship Winner 2023",
-      "NCAA Division 1 Scholarship Recipient",
-      "State High School Tennis Champion",
-    ],
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    bio: "",
+    location: "",
+    school: "",
+    graduationYear: "",
+    sport: "",
+    position: "",
+    experience: "",
+    specialties: [] as string[],
+    certifications: [] as string[],
+    achievements: [] as string[],
     profilePhotoUrl: "",
     coverPhotoUrl: "",
   })
+  
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true)
 
   // Password State
   const [passwordData, setPasswordData] = useState({
@@ -91,7 +86,7 @@ const AthleteSettingsPage = () => {
   // Banking Information State
   const [bankingInfo, setBankingInfo] = useState({
     bankName: "",
-    accountHolderName: "Sarah Martinez",
+    accountHolderName: "",
     accountNumber: "",
     routingNumber: "",
     accountType: "checking",
@@ -102,6 +97,58 @@ const AthleteSettingsPage = () => {
   })
 
   const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
+
+  // Fetch athlete profile data on component mount
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(getAuth(), async (user) => {
+      if (user) {
+        setIsLoadingProfile(true)
+        try {
+          const profile = await getAthleteProfile(user.uid)
+          if (profile) {
+            setAccountData({
+              firstName: profile.firstName || "",
+              lastName: profile.lastName || "",
+              email: profile.email || user.email || "",
+              phone: profile.phone || "",
+              bio: profile.bio || "",
+              location: profile.location || "",
+              school: profile.school || profile.university || "",
+              graduationYear: profile.graduationYear || "",
+              sport: profile.sport || "",
+              position: profile.position || "",
+              experience: profile.experience || "",
+              specialties: profile.specialties || [],
+              certifications: profile.certifications || [],
+              achievements: profile.achievements || [],
+              profilePhotoUrl: profile.profilePhotoUrl || profile.profileImageUrl || "",
+              coverPhotoUrl: profile.coverPhotoUrl || "",
+            })
+            
+            // Set banking info with user's name
+            setBankingInfo(prev => ({
+              ...prev,
+              accountHolderName: profile.name || `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || "",
+            }))
+          }
+        } catch (error) {
+          console.error("Error fetching athlete profile:", error)
+          toast({
+            title: "Error",
+            description: "Failed to load profile data. Please refresh the page.",
+            variant: "destructive",
+            duration: 3000,
+          })
+        } finally {
+          setIsLoadingProfile(false)
+        }
+      } else {
+        setIsLoadingProfile(false)
+      }
+    })
+
+    return () => unsubscribe()
+  }, [])
 
   const handleLogout = async () => {
     console.log("🔄 Athlete logout initiated from settings")
@@ -392,6 +439,7 @@ const AthleteSettingsPage = () => {
                       id="firstName"
                       value={accountData.firstName}
                       onChange={(e) => setAccountData({ ...accountData, firstName: e.target.value })}
+                      disabled={isLoadingProfile}
                       required
                     />
                   </div>
@@ -401,6 +449,7 @@ const AthleteSettingsPage = () => {
                       id="lastName"
                       value={accountData.lastName}
                       onChange={(e) => setAccountData({ ...accountData, lastName: e.target.value })}
+                      disabled={isLoadingProfile}
                       required
                     />
                   </div>
@@ -413,6 +462,7 @@ const AthleteSettingsPage = () => {
                     type="email"
                     value={accountData.email}
                     onChange={(e) => setAccountData({ ...accountData, email: e.target.value })}
+                    disabled={isLoadingProfile}
                     required
                   />
                 </div>
@@ -643,6 +693,7 @@ const AthleteSettingsPage = () => {
                       value={bankingInfo.accountHolderName}
                       onChange={(e) => setBankingInfo({ ...bankingInfo, accountHolderName: e.target.value })}
                       placeholder="Full name on account"
+                      disabled={isLoadingProfile}
                       required
                     />
                   </div>
@@ -773,7 +824,14 @@ const AthleteSettingsPage = () => {
                 </Button>
 
                 <Separator className="my-6" />
-                <AthleteStripeConnect athleteData={accountData} />
+                {isLoadingProfile ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                    <span>Loading profile data...</span>
+                  </div>
+                ) : (
+                  <AthleteStripeConnect athleteData={accountData} />
+                )}
               </CardContent>
             </Card>
           </TabsContent>
