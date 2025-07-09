@@ -131,7 +131,7 @@ export default function MobileLayout({
 
       {/* Bottom Navigation */}
       {showBottomNav && (
-        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
+        <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-[99999]">
           <div className="flex items-center justify-around py-2">
             {navItems.map((item) => {
               const Icon = item.icon

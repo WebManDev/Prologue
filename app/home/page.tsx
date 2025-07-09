@@ -53,10 +53,14 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
 import { formatDistanceToNow, parseISO, isValid } from "date-fns";
 import CommentSection from "@/components/ui/comment-section"
+import MobileLayout from "@/components/mobile/mobile-layout"
 
 export default function MemberHomePage() {
   // Mobile detection
   const { isMobile, isTablet } = useMobileDetection()
+
+  // User type detection
+  const [userType, setUserType] = useState<"member" | "athlete" | null>(null)
 
   // Contexts
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
@@ -314,6 +318,33 @@ export default function MemberHomePage() {
   const clearSearch = useCallback(() => {
     setSearchQuery("")
     setShowSearchDropdown(false)
+  }, [])
+
+  // Detect user type
+  useEffect(() => {
+    const detectUserType = async () => {
+      if (!auth.currentUser) return
+      
+      try {
+        // Check if user is an athlete first
+        const athleteProfile = await getAthleteProfile(auth.currentUser.uid)
+        if (athleteProfile) {
+          setUserType("athlete")
+          return
+        }
+        
+        // Check if user is a member
+        const memberProfile = await getMemberProfile(auth.currentUser.uid)
+        if (memberProfile) {
+          setUserType("member")
+          return
+        }
+      } catch (error) {
+        console.error("Error detecting user type:", error)
+      }
+    }
+    
+    detectUserType()
   }, [])
 
   // Handle home visit
@@ -664,7 +695,7 @@ export default function MemberHomePage() {
     };
   }
 
-  return (
+  const mainContent = (
     <div className="min-h-screen bg-gray-50">
       <header className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6">
@@ -766,18 +797,18 @@ export default function MemberHomePage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 lg:px-6 py-8 pb-20 lg:pb-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-8 pb-24 sm:pb-20 lg:pb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8">
           {/* Main Feed */}
           <div className="lg:col-span-8">
             {/* Stories Section */}
 
             {/* Create Post Section */}
-            <Card className="bg-white border border-gray-200 mb-6">
-              <CardContent className="p-4">
+            <Card className="bg-white border border-gray-200 mb-4 sm:mb-6">
+              <CardContent className="p-3 sm:p-4">
                 <form onSubmit={handlePostSubmit}>
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
                       {(() => {
                         const profileImageUrl = profileData.profileImageUrl && profileData.profileImageUrl.trim() !== '' ? profileData.profileImageUrl : (profileData.profilePic && profileData.profilePic.trim() !== '' ? profileData.profilePic : (profileData.profilePicture && profileData.profilePicture.trim() !== '' ? profileData.profilePicture : null));
                         if (profileImageUrl) {
@@ -787,32 +818,32 @@ export default function MemberHomePage() {
                         }
                       })()}
                     </div>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <input
                         type="text"
                         placeholder="What's on your mind?"
-                        className="w-full bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
+                        className="w-full bg-gray-100 rounded-full px-3 sm:px-4 py-2.5 sm:py-2 text-sm focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
                         value={postContent}
                         onChange={e => setPostContent(e.target.value)}
                         disabled={posting}
                       />
                     </div>
                   </div>
-                  <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-                    <div className="flex items-center space-x-4">
-                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-prologue-electric">
-                        <Video className="h-4 w-4 mr-2" />
-                        Live Video
+                  <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100">
+                    <div className="flex items-center space-x-2 sm:space-x-4">
+                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-prologue-electric px-2 sm:px-3">
+                        <Video className="h-4 w-4 mr-1 sm:mr-2" />
+                        <span className="text-xs sm:text-sm">Live Video</span>
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="text-gray-600 hover:text-prologue-electric"
+                        className="text-gray-600 hover:text-prologue-electric px-2 sm:px-3"
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
                       >
-                        <Camera className="h-4 w-4 mr-2" />
-                        Photo/Video
+                        <Camera className="h-4 w-4 mr-1 sm:mr-2" />
+                        <span className="text-xs sm:text-sm">Photo/Video</span>
                       </Button>
                       <input
                         type="file"
@@ -822,18 +853,18 @@ export default function MemberHomePage() {
                         onChange={e => setPostFile(e.target.files?.[0] || null)}
                         disabled={posting}
                       />
-                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-prologue-electric">
+                      <Button variant="ghost" size="sm" className="hidden sm:flex text-gray-600 hover:text-prologue-electric">
                         <Target className="h-4 w-4 mr-2" />
                         Train
                       </Button>
                       {postFile && (
-                        <span className="text-xs text-gray-500 ml-2">{postFile.name}</span>
+                        <span className="text-xs text-gray-500 ml-2 truncate">{postFile.name}</span>
                       )}
                     </div>
-                    <div className="flex-1 flex justify-end">
+                    <div className="flex-1 flex justify-end ml-2 sm:ml-0">
                       <Button
                         type="submit"
-                        className="bg-prologue-electric hover:bg-prologue-blue text-white px-6"
+                        className="bg-prologue-electric hover:bg-prologue-blue text-white px-4 sm:px-6 text-sm"
                         disabled={posting || (!postContent.trim() && !postFile)}
                       >
                         {posting ? "Posting..." : "Post"}
@@ -845,18 +876,18 @@ export default function MemberHomePage() {
             </Card>
 
             {/* Tab Navigation */}
-            <div className="flex items-center space-x-1 mb-8 bg-white/50 backdrop-blur-sm rounded-lg p-1">
+            <div className="flex items-center space-x-1 mb-4 sm:mb-8 bg-white/50 backdrop-blur-sm rounded-lg p-1">
               <button
                 onClick={() => setActiveTab("feed")}
-                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                className={`flex-1 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
                   activeTab === "feed"
                     ? "bg-white text-prologue-electric shadow-sm"
                     : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                <div className="flex items-center justify-center space-x-2">
+                <div className="flex items-center justify-center space-x-1 sm:space-x-2">
                   <Zap className="h-4 w-4" />
-                  <span>Feed</span>
+                  <span className="text-xs sm:text-sm">Feed</span>
                 </div>
               </button>
               {/*
@@ -877,7 +908,7 @@ export default function MemberHomePage() {
             </div>
 
             {/* Content Feed */}
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Firebase posts at the top */}
               {firebasePosts.map((item) => {
                 const profile = profileCache[item.createdBy] || {}
@@ -1481,54 +1512,25 @@ export default function MemberHomePage() {
           </div>
         </div>
       )}
-      {/* Mobile Bottom Navigation */}
-      {isMobile && (
-        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 z-50 mobile-menu">
-          <div className="flex items-center justify-around h-16 px-4">
-            <Link
-              href="/member-home"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
-            >
-              <Home className="h-5 w-5" />
-              <span className="text-xs font-medium">Home</span>
-            </Link>
-            <Link
-              href="/member-training"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
-            >
-              <BookOpen className="h-5 w-5" />
-              <span className="text-xs font-medium">Training</span>
-              {hasNewTrainingContent && (
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-              )}
-            </Link>
-            <Link
-              href="/member-browse"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
-            >
-              <Search className="h-5 w-5" />
-              <span className="text-xs font-medium">Discover</span>
-            </Link>
-            <Link
-              href="/member-feedback"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
-            >
-              <MessageSquare className="h-5 w-5" />
-              <span className="text-xs font-medium">Feedback</span>
-            </Link>
-            <Link
-              href="/member-messaging"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
-            >
-              <MessageCircle className="h-5 w-5" />
-              <span className="text-xs font-medium">Messages</span>
-              {unreadMessagesCount > 0 && (
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-              )}
-            </Link>
-          </div>
-        </div>
-      )}
+
     </div>
   )
+
+  // Return with conditional mobile/desktop layout
+  if (isMobile || isTablet) {
+    return userType ? (
+      <MobileLayout
+        userType={userType}
+        currentPath="/home"
+        showBottomNav={true}
+        unreadNotifications={unreadNotificationsCount}
+        unreadMessages={unreadMessagesCount}
+        hasNewContent={hasNewTrainingContent}
+      >
+        {mainContent}
+      </MobileLayout>
+    ) : mainContent // Show content without nav while detecting user type
+  }
+
+  return mainContent
 }
