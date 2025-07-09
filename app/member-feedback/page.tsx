@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import {
   Settings,
   User,
@@ -98,6 +99,9 @@ export default function MemberFeedbackPage() {
   const [platformFeedbackTitle, setPlatformFeedbackTitle] = useState("")
   const [platformFeedbackMessage, setPlatformFeedbackMessage] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Add state for showing all feedback
+  const [showAllFeedback, setShowAllFeedback] = useState(false)
 
   // Quick search suggestions
   const quickSearches = [
@@ -233,10 +237,12 @@ export default function MemberFeedbackPage() {
   }, [])
 
   const [receivedFeedback, setReceivedFeedback] = useState<ReceivedFeedback[]>([]);
+  const [sentFeedback, setSentFeedback] = useState<any[]>([]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
+        // Fetch feedback received
         const q = query(collection(db, "feedbackGiven"), where("memberId", "==", user.uid));
         getDocs(q).then(snapshot => {
           setReceivedFeedback(snapshot.docs.map(doc => {
@@ -252,8 +258,22 @@ export default function MemberFeedbackPage() {
             };
           }));
         });
+
+        // Fetch feedback sent to athletes
+        const sentQuery = query(
+          collection(db, "feedbackToAthlete"),
+          where("memberId", "==", user.uid),
+          orderBy("createdAt", "desc")
+        );
+        getDocs(sentQuery).then(snapshot => {
+          setSentFeedback(snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          })));
+        });
       } else {
         setReceivedFeedback([]);
+        setSentFeedback([]);
       }
     });
     return () => unsubscribe();
@@ -293,6 +313,20 @@ export default function MemberFeedbackPage() {
     }
   }
 
+  const refreshSentFeedback = async () => {
+    if (!auth.currentUser) return;
+    const sentQuery = query(
+      collection(db, "feedbackToAthlete"),
+      where("memberId", "==", auth.currentUser.uid),
+      orderBy("createdAt", "desc")
+    );
+    const snapshot = await getDocs(sentQuery);
+    setSentFeedback(snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })));
+  }
+
   const handleSubmitFeedbackToAthlete = async () => {
     if (!selectedAthlete) {
       alert("Please select an athlete to send feedback to.")
@@ -318,6 +352,17 @@ export default function MemberFeedbackPage() {
     }
 
     try {
+      console.log("Attempting to submit feedback with data:", {
+        athleteId: selectedAthleteData?.id,
+        athleteName: selectedAthleteData?.name,
+        memberId,
+        memberName,
+        title: feedbackTitle,
+        message: feedbackDescription,
+        videoUrl,
+        currentUser: auth.currentUser?.uid
+      })
+
       await addDoc(collection(db, "feedbackToAthlete"), {
         athleteId: selectedAthleteData?.id,
         athleteName: selectedAthleteData?.name,
@@ -328,6 +373,10 @@ export default function MemberFeedbackPage() {
         videoUrl,
         createdAt: Timestamp.now(),
       })
+      
+      // Refresh the sent feedback data
+      await refreshSentFeedback()
+      
       // Reset form
       setFeedbackTitle("")
       setFeedbackDescription("")
@@ -335,7 +384,9 @@ export default function MemberFeedbackPage() {
       setSelectedAthlete("")
       alert(`Feedback submitted successfully to ${selectedAthleteData?.name}!` + (videoUrl ? "\nVideo uploaded." : ""))
     } catch (e) {
-      alert("Failed to submit feedback. Please try again.")
+      console.error("Feedback submission error:", e)
+      const errorMessage = e instanceof Error ? e.message : "Unknown error occurred"
+      alert(`Failed to submit feedback: ${errorMessage}. Please check the console for details.`)
     }
   }
 
@@ -411,6 +462,23 @@ export default function MemberFeedbackPage() {
       default:
         return "bg-gray-100 text-gray-700"
     }
+  }
+
+  const getTimeAgo = (timestamp: any) => {
+    if (!timestamp) return "Unknown time"
+    
+    const date = timestamp.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp)
+    const now = new Date()
+    const diffInMs = now.getTime() - date.getTime()
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24))
+    const diffInWeeks = Math.floor(diffInDays / 7)
+    
+    if (diffInDays === 0) return "Today"
+    if (diffInDays === 1) return "1 day ago"
+    if (diffInDays < 7) return `${diffInDays} days ago`
+    if (diffInWeeks === 1) return "1 week ago"
+    if (diffInWeeks < 4) return `${diffInWeeks} weeks ago`
+    return date.toLocaleDateString()
   }
 
   // Memoized search dropdown content
@@ -500,7 +568,7 @@ export default function MemberFeedbackPage() {
 
         {/* Tabs */}
         <Tabs defaultValue="athletes" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="athletes" className="flex items-center space-x-2">
               <Users className="h-4 w-4" />
               <span>Feedback to Athletes</span>
@@ -508,10 +576,6 @@ export default function MemberFeedbackPage() {
             <TabsTrigger value="platform" className="flex items-center space-x-2">
               <Plus className="h-4 w-4" />
               <span>Platform Feedback</span>
-            </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center space-x-2">
-              <Clock className="h-4 w-4" />
-              <span>Feedback History</span>
             </TabsTrigger>
           </TabsList>
 
@@ -658,59 +722,42 @@ export default function MemberFeedbackPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      <div className="p-4 bg-gray-50 rounded-lg">
-                        <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-medium text-gray-900">Excellent backhand form!</h4>
-                          <Badge variant="secondary" className="bg-green-100 text-green-700">
-                            Delivered
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-2">
-                          Great improvement on your backhand technique. Keep practicing the follow-through...
-                        </p>
-                        <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span>Sent to Alex Johnson</span>
-                          <span>2 days ago</span>
-                        </div>
+                    {sentFeedback.length === 0 ? (
+                      <div className="text-center py-8">
+                        <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <p className="text-gray-500">No feedback sent yet</p>
+                        <p className="text-sm text-gray-400 mt-1">Your sent feedback will appear here</p>
                       </div>
-
-                      <div className="p-4 bg-gray-50 rounded-lg">
-                        <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-medium text-gray-900">Serve power analysis</h4>
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                            Viewed
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-2">
-                          Your serve has improved significantly. Focus on the toss consistency...
-                        </p>
-                        <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span>Sent to Sarah Williams</span>
-                          <span>1 week ago</span>
-                        </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {sentFeedback.slice(0, 3).map((feedback) => (
+                          <div key={feedback.id} className="p-4 bg-gray-50 rounded-lg">
+                            <div className="flex items-start justify-between mb-2">
+                              <h4 className="font-medium text-gray-900">{feedback.title}</h4>
+                              <Badge variant="secondary" className="bg-green-100 text-green-700">
+                                Delivered
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-2">
+                              {feedback.message.length > 80 
+                                ? `${feedback.message.substring(0, 80)}...` 
+                                : feedback.message
+                              }
+                            </p>
+                            <div className="flex items-center justify-between text-xs text-gray-500">
+                              <span>Sent to {feedback.athleteName}</span>
+                              <span>{getTimeAgo(feedback.createdAt)}</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
+                    )}
 
-                      <div className="p-4 bg-gray-50 rounded-lg">
-                        <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-medium text-gray-900">Mental game feedback</h4>
-                          <Badge variant="secondary" className="bg-green-100 text-green-700">
-                            Delivered
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-2">
-                          Your mental toughness during pressure points has really improved...
-                        </p>
-                        <div className="flex items-center justify-between text-xs text-gray-500">
-                          <span>Sent to Michael Chen</span>
-                          <span>2 weeks ago</span>
-                        </div>
+                    {sentFeedback.length > 0 && (
+                      <div className="text-center mt-6">
+                        <Button variant="outline" onClick={() => setShowAllFeedback(true)}>View All Feedback</Button>
                       </div>
-                    </div>
-
-                    <div className="text-center mt-6">
-                      <Button variant="outline">View All Feedback</Button>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -784,132 +831,194 @@ export default function MemberFeedbackPage() {
             </Card>
           </TabsContent>
 
-          {/* Feedback History Tab */}
-          <TabsContent value="history">
-            <div className="space-y-4">
-              {/* Feedback received from athletes */}
-              {receivedFeedback.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Star className="h-5 w-5" />
-                      <span>Feedback Received from Athletes</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {receivedFeedback.map((feedback) => (
-                        <div key={feedback.id} className="p-4 bg-gray-50 rounded-lg">
-                          <div className="flex items-start justify-between mb-2">
-                            <h4 className="font-medium text-gray-900">{feedback.title}</h4>
-                            <Badge variant="secondary" className="bg-green-100 text-green-700">
-                              Received
-                            </Badge>
-                          </div>
-                          <div className="flex items-center space-x-1 mb-2">
-                            {[...Array(5)].map((_, i) => (
-                              <Star
-                                key={i}
-                                className={`h-4 w-4 ${i < feedback.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
-                              />
-                            ))}
-                            <span className="text-sm text-gray-600 ml-2">({feedback.rating}/5)</span>
-                          </div>
-                          <p className="text-gray-700 mb-1">{feedback.comment}</p>
-                          <div className="text-xs text-gray-500">{feedback.createdAt?.seconds ? new Date(feedback.createdAt.seconds * 1000).toLocaleString() : ""}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-              {loadingFeedbackHistory ? (
-                <div className="text-gray-500 text-center py-8">Loading feedback history...</div>
-              ) : platformFeedbackHistory.length === 0 ? (
-                <Card>
-                  <CardContent className="p-12 text-center">
-                    <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback submitted yet</h3>
-                    <p className="text-gray-600">Your feedback history will appear here once you submit feedback.</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                platformFeedbackHistory.map((feedback) => (
-                  <Card key={feedback.id}>
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3 mb-2">
-                            <h3 className="font-semibold text-gray-900">{feedback.title}</h3>
-                            <Badge variant="secondary" className={getStatusColor(feedback.status)}>
-                              {getStatusIcon(feedback.status)}
-                              <span className="ml-1 capitalize">{(feedback.status || "new").replace("-", " ")}</span>
-                            </Badge>
-                          </div>
-                          <p className="text-gray-600 mb-3">{feedback.message}</p>
-                          <div className="flex items-center space-x-4 text-sm text-gray-500">
-                            <span>Type: {feedback.type}</span>
-                            <span>•</span>
-                            <span>{feedback.createdAt?.seconds ? new Date(feedback.createdAt.seconds * 1000).toISOString().slice(0, 10) : ""}</span>
-                          </div>
-                        </div>
-                      </div>
 
-                      {feedback.response && (
-                        <div className="mt-4 p-4 bg-prologue-electric/5 rounded-lg border border-prologue-electric/20">
-                          <div className="flex items-start space-x-3">
-                            <div className="w-8 h-8 bg-prologue-electric rounded-full flex items-center justify-center flex-shrink-0">
-                              <User className="h-4 w-4 text-white" />
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="font-medium text-prologue-electric mb-1">PROLOGUE Team Response</h4>
-                              <p className="text-gray-800">{feedback.response}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {feedback.status === "resolved" && feedback.rating && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-sm text-gray-600">Your rating:</span>
-                            <div className="flex items-center space-x-1">
-                              {[...Array(5)].map((_, i) => (
-                                <Star
-                                  key={i}
-                                  className={`h-4 w-4 ${i < feedback.rating ? "text-yellow-400 fill-current" : "text-gray-300"}`}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {feedback.status === "resolved" && !feedback.rating && (
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-600">How satisfied are you with the resolution?</span>
-                            <div className="flex items-center space-x-2">
-                              <Button variant="outline" size="sm">
-                                <ThumbsUp className="h-4 w-4 mr-1" />
-                                Satisfied
-                              </Button>
-                              <Button variant="outline" size="sm">
-                                <ThumbsDown className="h-4 w-4 mr-1" />
-                                Not Satisfied
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-          </TabsContent>
         </Tabs>
       </main>
+
+      {/* All Feedback Dialog */}
+      <Dialog open={showAllFeedback} onOpenChange={setShowAllFeedback}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Clock className="h-5 w-5" />
+              <span>All Feedback History</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            {/* Feedback sent to athletes */}
+            {sentFeedback.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Send className="h-5 w-5" />
+                    <span>Feedback Sent to Athletes</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {sentFeedback.map((feedback) => (
+                      <div key={feedback.id} className="p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-start justify-between mb-2">
+                          <h4 className="font-medium text-gray-900">{feedback.title}</h4>
+                          <Badge variant="secondary" className="bg-green-100 text-green-700">
+                            Delivered
+                          </Badge>
+                        </div>
+                        <p className="text-gray-600 mb-2">{feedback.message}</p>
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>Sent to {feedback.athleteName}</span>
+                          <span>{getTimeAgo(feedback.createdAt)}</span>
+                        </div>
+                        {feedback.videoUrl && (
+                          <div className="mt-2">
+                            <Badge variant="outline" className="text-xs">
+                              <Video className="h-3 w-3 mr-1" />
+                              Video attached
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
+            {/* Feedback received from athletes */}
+            {receivedFeedback.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Star className="h-5 w-5" />
+                    <span>Feedback Received from Athletes</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {receivedFeedback.map((feedback) => (
+                      <div key={feedback.id} className="p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-start justify-between mb-2">
+                          <h4 className="font-medium text-gray-900">{feedback.title}</h4>
+                          <Badge variant="secondary" className="bg-green-100 text-green-700">
+                            Received
+                          </Badge>
+                        </div>
+                        <div className="flex items-center space-x-1 mb-2">
+                          {[...Array(5)].map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`h-4 w-4 ${i < feedback.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+                            />
+                          ))}
+                          <span className="text-sm text-gray-600 ml-2">({feedback.rating}/5)</span>
+                        </div>
+                        <p className="text-gray-700 mb-1">{feedback.comment}</p>
+                        <div className="text-xs text-gray-500">{feedback.createdAt?.seconds ? new Date(feedback.createdAt.seconds * 1000).toLocaleString() : ""}</div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
+            {/* Platform feedback history */}
+            {platformFeedbackHistory.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <MessageSquare className="h-5 w-5" />
+                    <span>Platform Feedback History</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {platformFeedbackHistory.map((feedback) => (
+                      <div key={feedback.id} className="p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-3 mb-2">
+                              <h3 className="font-semibold text-gray-900">{feedback.title}</h3>
+                              <Badge variant="secondary" className={getStatusColor(feedback.status)}>
+                                {getStatusIcon(feedback.status)}
+                                <span className="ml-1 capitalize">{(feedback.status || "new").replace("-", " ")}</span>
+                              </Badge>
+                            </div>
+                            <p className="text-gray-600 mb-3">{feedback.message}</p>
+                            <div className="flex items-center space-x-4 text-sm text-gray-500">
+                              <span>Type: {feedback.type}</span>
+                              <span>•</span>
+                              <span>{feedback.createdAt?.seconds ? new Date(feedback.createdAt.seconds * 1000).toISOString().slice(0, 10) : ""}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {feedback.response && (
+                          <div className="mt-4 p-4 bg-prologue-electric/5 rounded-lg border border-prologue-electric/20">
+                            <div className="flex items-start space-x-3">
+                              <div className="w-8 h-8 bg-prologue-electric rounded-full flex items-center justify-center flex-shrink-0">
+                                <User className="h-4 w-4 text-white" />
+                              </div>
+                              <div className="flex-1">
+                                <h4 className="font-medium text-prologue-electric mb-1">PROLOGUE Team Response</h4>
+                                <p className="text-gray-800">{feedback.response}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {feedback.status === "resolved" && feedback.rating && (
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm text-gray-600">Your rating:</span>
+                              <div className="flex items-center space-x-1">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={`h-4 w-4 ${i < feedback.rating ? "text-yellow-400 fill-current" : "text-gray-300"}`}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {feedback.status === "resolved" && !feedback.rating && (
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-gray-600">How satisfied are you with the resolution?</span>
+                              <div className="flex items-center space-x-2">
+                                <Button variant="outline" size="sm">
+                                  <ThumbsUp className="h-4 w-4 mr-1" />
+                                  Satisfied
+                                </Button>
+                                <Button variant="outline" size="sm">
+                                  <ThumbsDown className="h-4 w-4 mr-1" />
+                                  Not Satisfied
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
+            {/* Show empty state only if no feedback exists at all */}
+            {platformFeedbackHistory.length === 0 && receivedFeedback.length === 0 && sentFeedback.length === 0 && (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No feedback history yet</h3>
+                  <p className="text-gray-600">Your feedback history will appear here once you send or receive feedback.</p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Mobile Bottom Navigation */}
       {(isMobile || isTablet) && (

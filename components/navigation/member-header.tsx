@@ -51,8 +51,8 @@ export function MemberHeader({
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 lg:px-6">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center space-x-4 lg:space-x-8">
-            <Link href="/member-home" className="flex items-center space-x-2 lg:space-x-3 group cursor-pointer">
+          <div className="flex items-center space-x-2 sm:space-x-4 lg:space-x-8 flex-1 min-w-0">
+            <Link href="/member-home" className="flex items-center space-x-2 lg:space-x-3 group cursor-pointer flex-shrink-0">
               <div className="w-7 h-7 lg:w-8 lg:h-8 relative transition-transform group-hover:scale-110">
                 <Image
                   src="/Prologue LOGO-1.png"
@@ -69,7 +69,7 @@ export function MemberHeader({
             
             {/* Search Bar */}
             {showSearch && (
-              <div className="w-80">
+              <div className="w-32 sm:w-48 md:w-64 lg:w-80 flex-shrink min-w-0">
                 <SearchBar 
                   onSearch={(term) => console.log("Searching:", term)} 
                   placeholder="Search coaches, content..." 
@@ -79,7 +79,7 @@ export function MemberHeader({
               </div>
             )}
           </div>
-          <div className="flex items-center space-x-3 lg:space-x-6">
+          <div className="flex items-center space-x-2 lg:space-x-3 flex-shrink-0">
             {/* Navigation Items - Hidden on mobile since bottom nav exists */}
             <nav className="hidden lg:flex items-center space-x-6">
               <Link
