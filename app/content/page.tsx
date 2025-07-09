@@ -19,17 +19,8 @@ import {
   Star,
   Play,
   Eye,
-  ChevronDown,
   TrendingUp,
-  Settings,
-  User,
-  LogOut,
   X,
-  Home,
-  MessageCircle,
-  Bell,
-  LayoutDashboard,
-  MessageSquare,
   ImageIcon,
   Save,
   Trash2,
@@ -42,6 +33,7 @@ import { useState, useMemo, useRef, useEffect } from "react"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { AdvancedNotificationProvider } from "@/contexts/advanced-notification-context"
+import { AthleteHeader } from "@/components/navigation/athlete-header"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { db } from "@/lib/firebase"
 import { getAuth } from "firebase/auth"
@@ -824,6 +816,13 @@ function ContentPageContent() {
   const auth = typeof window !== "undefined" ? getAuth() : null;
   const [currentAthleteId, setCurrentAthleteId] = useState<string | null>(null);
 
+  // Header state for AthleteHeader
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
+  const [profileData, setProfileData] = useState<any>(null)
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0)
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0)
+  const [hasNewTrainingContent, setHasNewTrainingContent] = useState(false)
+
   // Fetch content from Firestore
   const fetchContent = async () => {
     setLoadingContent(true)
@@ -855,6 +854,25 @@ function ContentPageContent() {
       }
     };
     fetchAthleteId();
+  }, [auth?.currentUser?.uid]);
+
+  // Fetch profile data for header
+  useEffect(() => {
+    const fetchProfileData = async () => {
+      if (!auth?.currentUser?.uid) return;
+      
+      try {
+        const athleteProfile = await getAthleteProfile(auth.currentUser.uid);
+        if (athleteProfile) {
+          setProfileData(athleteProfile);
+          setProfileImageUrl(athleteProfile.profileImageUrl || athleteProfile.profilePicture || null);
+        }
+      } catch (error) {
+        console.error("Error fetching profile data:", error);
+      }
+    };
+    
+    fetchProfileData();
   }, [auth?.currentUser?.uid]);
 
   // Combine all content for "All" tab
@@ -1305,133 +1323,16 @@ function ContentPageContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Desktop Header */}
-      <header className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
-                <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
-                  <Image
-                    src="/prologue-logo.png"
-                    alt="PROLOGUE"
-                    width={32}
-                    height={32}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
-                  PROLOGUE
-                </span>
-              </Link>
-
-              <div className="flex items-center space-x-1 relative" ref={searchRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search athletes, content..."
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    onFocus={handleSearchFocus}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={clearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-
-                {showSearchDropdown && searchDropdownContent}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-6">
-              <nav className="flex items-center space-x-6">
-                <Link
-                  href="/home"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
-                >
-                  <Home className="h-5 w-5" />
-                  <span className="text-xs font-medium">Home</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/content"
-                  className="flex flex-col items-center space-y-1 text-blue-500 transition-colors group relative"
-                >
-                  <FileText className="h-5 w-5" />
-                  <span className="text-xs font-medium">Content</span>
-                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full"></div>
-                </Link>
-                <Link
-                  href="/feedback"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
-                >
-                  <MessageSquare className="h-5 w-5" />
-                  <span className="text-xs font-medium">Feedback</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/messaging"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  <span className="text-xs font-medium">Messages</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/notifications"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group"
-                >
-                  <Bell className="h-5 w-5" />
-                  <span className="text-xs font-medium">Notifications</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-              </nav>
-
-              <div className="flex items-center space-x-3">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center space-x-2 p-2">
-                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                        <User className="w-full h-full text-gray-500 p-1" />
-                      </div>
-                      <ChevronDown className="h-4 w-4 text-gray-500" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem asChild>
-                      <Link href="/dashboard" className="flex items-center w-full cursor-pointer">
-                        <LayoutDashboard className="h-4 w-4 mr-2" />
-                        Profile
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/promote" className="flex items-center w-full cursor-pointer">
-                        <TrendingUp className="h-4 w-4 mr-2" />
-                        Promote
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Settings className="h-4 w-4 mr-2" />
-                      Settings
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleLogout}>
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Logout
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AthleteHeader
+        currentPath="/content"
+        onLogout={handleLogout}
+        showSearch={true}
+        unreadNotifications={unreadNotificationsCount}
+        unreadMessages={unreadMessagesCount}
+        hasNewContent={hasNewTrainingContent}
+        profileImageUrl={profileImageUrl}
+        profileData={profileData}
+      />
       <div className="max-w-7xl mx-auto px-6 py-4">{MainContent}</div>
       <EditModal />
       <DeleteModal />
