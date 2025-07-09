@@ -3,7 +3,31 @@
 import type React from "react"
 import { createContext, useContext, useState, useEffect } from "react"
 import { doc, onSnapshot, collection, query, where } from "firebase/firestore"
-import { db, auth } from "@/lib/firebase"
+
+// Safe Firebase imports with error handling
+let db: any = null
+let auth: any = null
+let firebaseFollowCreator: any = null
+let firebaseUnfollowCreator: any = null
+let getMemberFollowing: any = null
+
+// Initialize Firebase services safely
+const initializeFirebaseServices = async () => {
+  if (typeof window === 'undefined') return false
+  
+  try {
+    const firebase = await import("@/lib/firebase")
+    db = firebase.db
+    auth = firebase.auth
+    firebaseFollowCreator = firebase.followCreator
+    firebaseUnfollowCreator = firebase.unfollowCreator
+    getMemberFollowing = firebase.getMemberFollowing
+    return true
+  } catch (error) {
+    console.error("Error importing Firebase services:", error)
+    return false
+  }
+}
 
 interface Creator {
   id: string
@@ -61,67 +85,132 @@ export function MemberSubscriptionProvider({ children }: { children: React.React
   const [subscribedCreators, setSubscribedCreators] = useState<string[]>([])
   const [hasNewContent, setHasNewContent] = useState(false)
   const [hasNewSubscribedContent, setHasNewSubscribedContent] = useState(false)
+  const [firebaseInitialized, setFirebaseInitialized] = useState(false)
 
-  // Load data from localStorage on mount
+  // Initialize Firebase services on mount
   useEffect(() => {
-    const savedFollowing = localStorage.getItem("member-following-creators")
-    const savedSubscribed = localStorage.getItem("member-subscribed-creators")
-    
-    if (savedFollowing) {
-      try {
-        setFollowingCreators(JSON.parse(savedFollowing))
-      } catch (error) {
-        console.error("Error parsing saved following creators:", error)
-      }
+    const init = async () => {
+      const initialized = await initializeFirebaseServices()
+      setFirebaseInitialized(initialized)
     }
-    
-    if (savedSubscribed) {
-      try {
-        setSubscribedCreators(JSON.parse(savedSubscribed))
-      } catch (error) {
-        console.error("Error parsing saved subscribed creators:", error)
-      }
-    }
+    init()
   }, [])
 
-  // Real-time listeners for subscription updates
+  // Load data from Firebase and localStorage on mount
   useEffect(() => {
-    if (!auth || !auth.currentUser) return;
-
-    // Listen for member subscription changes
-    const memberRef = doc(db, "members", auth.currentUser.uid);
-    const unsubscribeMember = onSnapshot(memberRef, (doc) => {
-      if (doc.exists()) {
-        const memberData = doc.data();
-        const memberSubscriptions = memberData.subscriptions || {};
-        const subscriptionIds = Object.keys(memberSubscriptions).filter(
-          key => memberSubscriptions[key]?.status === "active"
-        );
-        setSubscribedCreators(subscriptionIds);
+    if (!firebaseInitialized) return
+    
+    const loadInitialData = async () => {
+      if (auth?.currentUser) {
+        try {
+          // Load following data from Firebase
+          const following = await getMemberFollowing(auth.currentUser.uid);
+          setFollowingCreators(following);
+        } catch (error) {
+          console.error("Error loading following data from Firebase:", error);
+          // Fallback to localStorage
+          const savedFollowing = localStorage.getItem("member-following-creators");
+          if (savedFollowing) {
+            try {
+              setFollowingCreators(JSON.parse(savedFollowing));
+            } catch (parseError) {
+              console.error("Error parsing saved following creators:", parseError);
+            }
+          }
+        }
+      } else {
+        // If not authenticated, load from localStorage
+        const savedFollowing = localStorage.getItem("member-following-creators");
+        const savedSubscribed = localStorage.getItem("member-subscribed-creators");
         
-        // Update localStorage
-        localStorage.setItem("member-subscribed-creators", JSON.stringify(subscriptionIds));
+        if (savedFollowing) {
+          try {
+            setFollowingCreators(JSON.parse(savedFollowing));
+          } catch (error) {
+            console.error("Error parsing saved following creators:", error);
+          }
+        }
+        
+        if (savedSubscribed) {
+          try {
+            setSubscribedCreators(JSON.parse(savedSubscribed));
+          } catch (error) {
+            console.error("Error parsing saved subscribed creators:", error);
+          }
+        }
       }
-    });
+    };
 
-    // Listen for user document changes (fallback)
-    const userRef = doc(db, "users", auth.currentUser.uid);
-    const unsubscribeUser = onSnapshot(userRef, (doc) => {
-      if (doc.exists()) {
-        const userData = doc.data();
-        const userSubscriptions = userData.subscriptions || [];
-        setSubscribedCreators(userSubscriptions);
-        
-        // Update localStorage
-        localStorage.setItem("member-subscribed-creators", JSON.stringify(userSubscriptions));
+    loadInitialData();
+  }, [firebaseInitialized])
+
+  // Real-time listeners for subscription and following updates
+  useEffect(() => {
+    if (!firebaseInitialized || !auth || !db) return
+    
+    let unsubscribeMember: (() => void) | undefined;
+    let unsubscribeUser: (() => void) | undefined;
+
+    const setupListeners = () => {
+      if (!auth.currentUser) return;
+
+      // Listen for member subscription and following changes
+      const memberRef = doc(db, "members", auth.currentUser.uid);
+      unsubscribeMember = onSnapshot(memberRef, (doc) => {
+        if (doc.exists()) {
+          const memberData = doc.data();
+          
+          // Handle subscriptions
+          const memberSubscriptions = memberData.subscriptions || {};
+          const subscriptionIds = Object.keys(memberSubscriptions).filter(
+            key => memberSubscriptions[key]?.status === "active"
+          );
+          setSubscribedCreators(subscriptionIds);
+          
+          // Handle following
+          const memberFollowing = memberData.following || {};
+          const followingIds = Object.keys(memberFollowing).filter(
+            key => memberFollowing[key]?.status === "active"
+          );
+          setFollowingCreators(followingIds);
+          
+          // Update localStorage as backup
+          localStorage.setItem("member-subscribed-creators", JSON.stringify(subscriptionIds));
+          localStorage.setItem("member-following-creators", JSON.stringify(followingIds));
+        }
+      });
+
+      // Listen for user document changes (fallback)
+      const userRef = doc(db, "users", auth.currentUser.uid);
+      unsubscribeUser = onSnapshot(userRef, (doc) => {
+        if (doc.exists()) {
+          const userData = doc.data();
+          const userSubscriptions = userData.subscriptions || [];
+          setSubscribedCreators(userSubscriptions);
+          
+          // Update localStorage
+          localStorage.setItem("member-subscribed-creators", JSON.stringify(userSubscriptions));
+        }
+      });
+    };
+
+    // Set up auth state listener to handle login/logout
+    const unsubscribeAuth = auth.onAuthStateChanged((user: any) => {
+      if (user) {
+        setupListeners();
+      } else {
+        // User logged out, clear listeners
+        if (unsubscribeMember) unsubscribeMember();
+        if (unsubscribeUser) unsubscribeUser();
       }
     });
 
     return () => {
-      unsubscribeMember();
-      unsubscribeUser();
+      unsubscribeAuth();
+      if (unsubscribeMember) unsubscribeMember();
+      if (unsubscribeUser) unsubscribeUser();
     };
-  }, [auth?.currentUser]);
+  }, [firebaseInitialized]);
 
   // Save to localStorage whenever state changes (for following)
   useEffect(() => {
@@ -132,23 +221,49 @@ export function MemberSubscriptionProvider({ children }: { children: React.React
     return followingCreators.includes(creatorId)
   }
 
-  const followCreator = (creator: Creator) => {
-    setFollowingCreators((prev: string[]) => {
-      if (!prev.includes(creator.id)) {
-        return [...prev, creator.id]
-      }
-      return prev
-    })
-    
-    // Simulate API call
-    console.log(`Following creator: ${creator.name} (${creator.id})`)
+  const followCreator = async (creator: Creator) => {
+    if (!firebaseInitialized || !auth?.currentUser) {
+      console.error("Firebase not initialized or user not authenticated");
+      return;
+    }
+
+    try {
+      // Update local state immediately for responsive UI
+      setFollowingCreators((prev: string[]) => {
+        if (!prev.includes(creator.id)) {
+          return [...prev, creator.id];
+        }
+        return prev;
+      });
+
+      // Update Firebase
+      await firebaseFollowCreator(auth.currentUser.uid, creator.id);
+      console.log(`Successfully followed creator: ${creator.name} (${creator.id})`);
+    } catch (error) {
+      console.error("Error following creator:", error);
+      // Revert local state if Firebase update fails
+      setFollowingCreators((prev: string[]) => prev.filter((id: string) => id !== creator.id));
+    }
   }
 
-  const unfollowCreator = (creatorId: string) => {
-    setFollowingCreators((prev: string[]) => prev.filter((id: string) => id !== creatorId))
-    
-    // Simulate API call
-    console.log(`Unfollowing creator: ${creatorId}`)
+  const unfollowCreator = async (creatorId: string) => {
+    if (!firebaseInitialized || !auth?.currentUser) {
+      console.error("Firebase not initialized or user not authenticated");
+      return;
+    }
+
+    try {
+      // Update local state immediately for responsive UI
+      setFollowingCreators((prev: string[]) => prev.filter((id: string) => id !== creatorId));
+
+      // Update Firebase
+      await firebaseUnfollowCreator(auth.currentUser.uid, creatorId);
+      console.log(`Successfully unfollowed creator: ${creatorId}`);
+    } catch (error) {
+      console.error("Error unfollowing creator:", error);
+      // Revert local state if Firebase update fails
+      setFollowingCreators((prev: string[]) => [...prev, creatorId]);
+    }
   }
 
   const isSubscribed = (creatorId: string): boolean => {
@@ -234,9 +349,25 @@ export function MemberSubscriptionProvider({ children }: { children: React.React
     setHasNewSubscribedContent(false)
   }
 
-  const clearAllFollowing = () => {
-    setFollowingCreators([])
-    console.log("Cleared all following")
+  const clearAllFollowing = async () => {
+    if (!firebaseInitialized || !auth?.currentUser) {
+      console.error("Firebase not initialized or user not authenticated");
+      return;
+    }
+
+    try {
+      // Unfollow all creators one by one
+      const promises = followingCreators.map(creatorId => 
+        firebaseUnfollowCreator(auth.currentUser!.uid, creatorId)
+      );
+      await Promise.all(promises);
+      console.log("Cleared all following from Firebase");
+    } catch (error) {
+      console.error("Error clearing all following:", error);
+      // Fallback to local state update
+      setFollowingCreators([]);
+      console.log("Cleared all following (local fallback)");
+    }
   }
 
   const clearAllSubscriptions = () => {

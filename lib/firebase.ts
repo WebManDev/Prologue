@@ -655,6 +655,193 @@ export const getSubscribersForAthlete = async (athleteId: string) => {
     );
 };
 
+// Utility function to ensure athlete document exists in Firebase
+export const ensureAthleteDocumentExists = async (athleteId: string, athleteData?: any) => {
+  try {
+    const athleteRef = doc(db, "athletes", athleteId);
+    const athleteSnap = await getDoc(athleteRef);
+    
+    if (!athleteSnap.exists()) {
+      // Create the document with default values
+      await setDoc(athleteRef, {
+        ...athleteData,
+        followers: 0,
+        subscribers: 0,
+        posts: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+    }
+  } catch (error) {
+    console.error("Error ensuring athlete document exists:", error);
+  }
+};
+
+// Follow/Unfollow functionality
+export const followCreator = async (memberId: string, creatorId: string) => {
+  try {
+    if (!auth?.currentUser || auth.currentUser.uid !== memberId) {
+      throw new Error("User not authenticated");
+    }
+
+    // Ensure athlete document exists
+    await ensureAthleteDocumentExists(creatorId);
+
+    const batch = writeBatch(db);
+    
+    // Add to member's following list
+    const memberRef = doc(db, "members", memberId);
+    batch.update(memberRef, {
+      [`following.${creatorId}`]: {
+        followedAt: serverTimestamp(),
+        status: "active"
+      }
+    });
+    
+    // Increment athlete's followers count
+    const athleteRef = doc(db, "athletes", creatorId);
+    batch.update(athleteRef, {
+      followers: increment(1)
+    });
+    
+    await batch.commit();
+    console.log(`Successfully followed creator: ${creatorId}`);
+
+    // Get member profile for notification
+    try {
+      const memberProfile = await getMemberProfile(memberId);
+      const athleteProfile = await getAthleteProfile(creatorId);
+      
+      if (memberProfile && athleteProfile) {
+        const followerName = `${memberProfile.firstName || ""} ${memberProfile.lastName || ""}`.trim() || memberProfile.name || "Someone";
+        
+        // Create notification for the athlete
+        await createNotification({
+          type: "social",
+          title: "New Follower",
+          message: `${followerName} started following you!`,
+          recipientId: creatorId,
+          senderId: memberId,
+          senderName: followerName,
+          priority: "low",
+          category: "New Follower",
+          actionType: "view_profile",
+          actionUrl: `/member/${memberId}`,
+          metadata: {
+            followerId: memberId,
+            followerName: followerName
+          }
+        });
+      }
+    } catch (notificationError) {
+      // Don't fail the follow if notification fails
+      console.log("Could not send follow notification:", notificationError);
+    }
+  } catch (error) {
+    console.error("Error following creator:", error);
+    throw error;
+  }
+};
+
+export const unfollowCreator = async (memberId: string, creatorId: string) => {
+  try {
+    if (!auth?.currentUser || auth.currentUser.uid !== memberId) {
+      throw new Error("User not authenticated");
+    }
+
+    // Ensure athlete document exists
+    await ensureAthleteDocumentExists(creatorId);
+
+    const batch = writeBatch(db);
+    
+    // Remove from member's following list
+    const memberRef = doc(db, "members", memberId);
+    batch.update(memberRef, {
+      [`following.${creatorId}`]: null
+    });
+    
+    // Decrement athlete's followers count (ensure it doesn't go below 0)
+    const athleteRef = doc(db, "athletes", creatorId);
+    const athleteSnap = await getDoc(athleteRef);
+    const currentFollowers = athleteSnap.data()?.followers || 0;
+    
+    batch.update(athleteRef, {
+      followers: Math.max(0, currentFollowers - 1)
+    });
+    
+    await batch.commit();
+    console.log(`Successfully unfollowed creator: ${creatorId}`);
+  } catch (error) {
+    console.error("Error unfollowing creator:", error);
+    throw error;
+  }
+};
+
+export const getMemberFollowing = async (memberId: string) => {
+  try {
+    const memberRef = doc(db, "members", memberId);
+    const memberSnap = await getDoc(memberRef);
+    
+    if (memberSnap.exists()) {
+      const memberData = memberSnap.data();
+      const following = memberData.following || {};
+      
+      // Return array of creator IDs that user is following
+      return Object.keys(following).filter(creatorId => 
+        following[creatorId] && following[creatorId].status === "active"
+      );
+    }
+    
+    return [];
+  } catch (error) {
+    console.error("Error getting member following:", error);
+    return [];
+  }
+};
+
+export const isFollowing = async (memberId: string, creatorId: string) => {
+  try {
+    const memberRef = doc(db, "members", memberId);
+    const memberSnap = await getDoc(memberRef);
+    
+    if (memberSnap.exists()) {
+      const memberData = memberSnap.data();
+      const following = memberData.following || {};
+      return !!(following[creatorId] && following[creatorId].status === "active");
+    }
+    
+    return false;
+  } catch (error) {
+    console.error("Error checking if following:", error);
+    return false;
+  }
+};
+
+export const getFollowersForCreator = async (creatorId: string) => {
+  try {
+    const memberDocs = await getDocs(collection(db, "members"));
+    const followers = [];
+    
+    for (const memberDoc of memberDocs.docs) {
+      const memberData = memberDoc.data();
+      const following = memberData.following || {};
+      
+      if (following[creatorId] && following[creatorId].status === "active") {
+        followers.push({
+          id: memberDoc.id,
+          ...memberData,
+          followedAt: following[creatorId].followedAt
+        });
+      }
+    }
+    
+    return followers;
+  } catch (error) {
+    console.error("Error getting followers for creator:", error);
+    return [];
+  }
+};
+
 // Function to update athlete post
 const updateAthletePost = async (
   postId: string,
@@ -1110,37 +1297,37 @@ const notifySubscribersOfNewPost = async (
  }
  
  // Export everything in a single statement
- export {
-   auth,
-   signInWithEmailAndPassword,
-   createUserWithEmailAndPassword,
-   signOut,
-   saveAthleteProfile,
-   getAthleteProfile,
-   saveMemberProfile,
-   getMemberProfile,
-   uploadProfilePicture,
-   saveAthletePost,
-   getAllAthletes,
-   addSubscriptionForMember,
-   getAthletesByIds,
-   rateAthlete,
-   updateAthletePost,
-   deleteAthletePost,
-   GoogleAuthProvider,
-   smartSignIn,
-   handleRedirectResult,
-   initializeFirebase,
-   db,
-   createMemberNotification,
-   getMemberNotifications,
-   markNotificationAsRead,
-   markAllNotificationsAsRead,
-   notifySubscribersOfNewPost,
-   notifyMemberOfFeedback,
-   app,
-   getComprehensiveAthleteProfile,
-   getComprehensiveAthletesByIds,
-   getAllComprehensiveAthletes,
-   getAthleteAnalytics
- };
+export {
+  auth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  saveAthleteProfile,
+  getAthleteProfile,
+  saveMemberProfile,
+  getMemberProfile,
+  uploadProfilePicture,
+  saveAthletePost,
+  getAllAthletes,
+  addSubscriptionForMember,
+  getAthletesByIds,
+  rateAthlete,
+  updateAthletePost,
+  deleteAthletePost,
+  GoogleAuthProvider,
+  smartSignIn,
+  handleRedirectResult,
+  initializeFirebase,
+  db,
+  createMemberNotification,
+  getMemberNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  notifySubscribersOfNewPost,
+  notifyMemberOfFeedback,
+  app,
+  getComprehensiveAthleteProfile,
+  getComprehensiveAthletesByIds,
+  getAllComprehensiveAthletes,
+  getAthleteAnalytics
+};

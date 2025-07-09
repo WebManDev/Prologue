@@ -33,11 +33,10 @@ import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
-import { doc, getDoc, collection, getDocs } from "firebase/firestore"
-import { db, auth } from "@/lib/firebase"
+import { doc, getDoc, collection, getDocs, onSnapshot, setDoc } from "firebase/firestore"
+import { db, auth, ensureAthleteDocumentExists } from "@/lib/firebase"
 import { CREATORS } from "@/lib/creators"
 import StarRating from "@/components/star-rating"
-import { setDoc } from "firebase/firestore"
 
 export default function AthleteProfilePage() {
   const params = useParams() || {}
@@ -52,6 +51,7 @@ export default function AthleteProfilePage() {
   const [userRating, setUserRating] = useState<number>(0)
   const [avgRating, setAvgRating] = useState<number | null>(null)
   const [ratingsCount, setRatingsCount] = useState<number>(0)
+  const [followerCount, setFollowerCount] = useState<number>(0)
 
   useEffect(() => {
     async function fetchAthlete() {
@@ -59,6 +59,14 @@ export default function AthleteProfilePage() {
       const staticAthlete = CREATORS.find((a) => a.id === athleteId)
       if (staticAthlete) {
         setAthlete(staticAthlete)
+        
+        // Ensure Firebase document exists for static athlete
+        try {
+          await ensureAthleteDocumentExists(athleteId, staticAthlete)
+        } catch (error) {
+          console.error("Error ensuring athlete document exists:", error)
+        }
+        
         setLoading(false)
       } else {
         // Otherwise, fetch from Firebase
@@ -106,6 +114,21 @@ export default function AthleteProfilePage() {
       setLoading(true)
       fetchAthlete()
     }
+  }, [athleteId])
+
+  // Real-time listener for follower count
+  useEffect(() => {
+    if (!athleteId) return;
+
+    const athleteRef = doc(db, "athletes", athleteId);
+    const unsubscribe = onSnapshot(athleteRef, (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        setFollowerCount(data.followers || 0);
+      }
+    });
+
+    return () => unsubscribe();
   }, [athleteId])
 
   // Save user rating to Firestore
@@ -162,11 +185,15 @@ export default function AthleteProfilePage() {
     )
   }
 
-  const handleFollowToggle = () => {
-    if (isFollowing(athlete.id)) {
-      unfollowCreator(athlete.id)
-    } else {
-      followCreator(athlete)
+  const handleFollowToggle = async () => {
+    try {
+      if (isFollowing(athlete.id)) {
+        await unfollowCreator(athlete.id)
+      } else {
+        await followCreator(athlete)
+      }
+    } catch (error) {
+      console.error("Error toggling follow status:", error)
     }
   }
 
@@ -309,7 +336,7 @@ export default function AthleteProfilePage() {
                   </div>
                   <div className="flex items-center space-x-1">
                     <Users className="h-5 w-5 text-gray-400" />
-                    <span className="text-gray-600">{athlete.followers} followers</span>
+                    <span className="text-gray-600">{followerCount} followers</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <MapPin className="h-4 w-4 text-gray-400" />
