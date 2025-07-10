@@ -22,22 +22,25 @@ import { auth, getMemberProfile } from "@/lib/firebase"
 import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
 import Link from 'next/link'
 import { Home, BookOpen, Search, MessageSquare, MessageCircle } from 'lucide-react'
+import { db } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
 
 // Define interfaces at the top level
 interface ProfileData {
-  name: string
-  email: string
-  phone: string
-  location: string
-  sport: string
-  position: string
-  experience: string
-  bio: string
-  avatar: string
-  coverImage: string
-  achievements: string[]
-  trainingPrograms: string[]
-  areasOfFocus: string[]
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  location: string;
+  sport: string;
+  position: string;
+  experience: string;
+  bio: string;
+  avatar: string;
+  coverImage: string;
+  achievements: string[];
+  trainingPrograms: string[];
+  areasOfFocus: string[];
 }
 
 interface Achievement {
@@ -153,14 +156,23 @@ const EditProfileForm = memo(
     return (
       <div className="space-y-4">
             <div>
-          <Label htmlFor="name">Name</Label>
+          <Label htmlFor="firstName">First Name</Label>
                               <Input
-            id="name"
-            value={editData.name}
-            onChange={(e) => handleInputChange("name", e.target.value)}
-            placeholder="Enter your full name"
+            id="firstName"
+            value={editData.firstName || ""}
+            onChange={(e) => handleInputChange("firstName", e.target.value)}
+            placeholder="Enter your first name"
           />
                             </div>
+                  <div>
+                    <Label htmlFor="lastName">Last Name</Label>
+                    <Input
+                      id="lastName"
+                      value={editData.lastName || ""}
+                      onChange={(e) => handleInputChange("lastName", e.target.value)}
+                      placeholder="Enter your last name"
+                    />
+                  </div>
                   <div>
                     <Label htmlFor="email">Email</Label>
                     <Input
@@ -322,13 +334,19 @@ const EditProfileForm = memo(
 )
 EditProfileForm.displayName = "EditProfileForm"
 
+// Add or update the saveMemberProfile function to save to the 'members' collection in Firestore
+async function saveMemberProfile(uid: string, profileData: any) {
+  await setDoc(doc(db, 'members', uid), profileData, { merge: true });
+}
+
 export default function MemberDashboardPage() {
   const { isMobile, isTablet } = useMobileDetection()
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
 
   // Profile state
   const [profile, setProfile] = useState<ProfileData>({
-    name: "Alex Johnson",
+    firstName: "Alex",
+    lastName: "Johnson",
     email: "alex.johnson@email.com",
     phone: "+1 (555) 123-4567",
     location: "Los Angeles, CA",
@@ -371,7 +389,8 @@ export default function MemberDashboardPage() {
       const firebaseProfile = await getMemberProfile(auth.currentUser.uid)
       if (firebaseProfile) {
         setProfile((prev) => ({
-          name: firebaseProfile.name || [firebaseProfile.firstName, firebaseProfile.lastName].filter(Boolean).join(" ") || prev.name,
+          firstName: firebaseProfile.firstName || prev.firstName,
+          lastName: firebaseProfile.lastName || prev.lastName,
           email: firebaseProfile.email || prev.email,
           phone: firebaseProfile.phone || prev.phone,
           location: firebaseProfile.location || prev.location,
@@ -770,73 +789,41 @@ export default function MemberDashboardPage() {
           description: "There was an issue logging you out. Please try again.",
           variant: "destructive",
           duration: 3000,
-        })
+        });
       },
     })
   }, [logout])
 
-  const handleSaveProfile = useCallback(async () => {
+  const handleSaveProfile = useCallback(async (data: Omit<ProfileData, "avatar" | "coverImage">) => {
     if (!auth.currentUser) {
       toast({
         title: "Error",
         description: "You must be logged in to save your profile.",
         variant: "destructive",
         duration: 3000,
-      })
-      return
+      });
+      return;
     }
-
-    // Check if email changed (though it shouldn't be editable)
-    const currentAuthEmail = auth.currentUser.email || ""
-    const emailChanged = profileData.email !== currentAuthEmail
-
-    if (emailChanged) {
-      toast({
-        title: "Email Change Required",
-        description: "To change your email, please visit Settings → Security → Change Email for secure authentication.",
-        variant: "destructive",
-        duration: 4000,
-      })
-      return
-    }
-    
-    setIsLoading(true)
     try {
-      console.log("Saving profile to Firebase:", profileData)
-      
-      const profileDataForFirebase = {
-        ...profileData,
-        name: profileData.firstName + ' ' + profileData.lastName,
-        // Use the Firebase Auth email, not the form email
-        email: currentAuthEmail,
-        sport: profileData.sport,
-        role: 'member',
-        onboardingCompleted: true,
-        profileImageUrl: profileImageUrl,
-        coverImageUrl: coverImageUrl,
-        updatedAt: new Date().toISOString(),
-      }
-      
-      // await saveMemberProfile(auth.currentUser.uid, profileDataForFirebase)
-      
+      const updatedProfile = { ...profile, ...data };
+      console.log("Saving profile to Firebase:", updatedProfile);
+      await saveMemberProfile(auth.currentUser.uid, updatedProfile);
+      setProfile(updatedProfile);
+      setIsEditing(false);
       toast({
         title: "Profile Updated",
-        description: "Your profile has been saved successfully to Firebase.",
-        duration: 3000,
-      })
-      setIsEditing(false)
+        description: "Your profile has been successfully updated.",
+      });
     } catch (error) {
-      console.error("Error saving profile to Firebase:", error)
+      console.error("Error saving profile to Firebase:", error);
       toast({
         title: "Save Failed",
         description: "Failed to save profile to Firebase. Please try again.",
         variant: "destructive",
         duration: 3000,
-      })
-    } finally {
-      setIsLoading(false)
+      });
     }
-  }, [profileData, profileImageUrl, coverImageUrl])
+  }, [profile, toast]);
 
   // Handler for profile image upload
   const handleProfileImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -968,18 +955,15 @@ export default function MemberDashboardPage() {
             <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-6">
               <div className="relative self-center lg:self-auto">
                 <Avatar className="w-20 h-20 lg:w-24 lg:h-24 border-4 border-white shadow-lg">
-                  <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={profile.name} />
+                  <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={`${profile.firstName} ${profile.lastName}`} />
                   <AvatarFallback className="text-xl font-bold bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-                    {profile.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
+                    {[profile.firstName, profile.lastName].filter(Boolean).map((n) => n[0]).join("")}
                   </AvatarFallback>
                 </Avatar>
               </div>
               <div className="pt-4 lg:pt-16 text-center lg:text-left flex-1">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-3 mb-2">
-                  <h1 className="text-xl lg:text-3xl font-bold text-gray-900">{profile.name}</h1>
+                  <h1 className="text-xl lg:text-3xl font-bold text-gray-900">{profile.firstName} {profile.lastName}</h1>
                 </div>
                 <p className="text-gray-600 mb-2 text-sm lg:text-base">
                   {profile.sport} • {profile.position} • {profile.experience} Experience
