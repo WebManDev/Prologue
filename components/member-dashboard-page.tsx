@@ -1,774 +1,396 @@
 "use client"
 
-import React from "react"
+import type React from "react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  User,
-  ChevronDown,
-  Edit3,
-  Plus,
-  Trash2,
-  Trophy,
-  Target,
-  Calendar,
-  TrendingUp,
-  Star,
-  Award,
-  MapPin,
-  School,
-  Camera,
-  Upload,
-  Clock,
-  Activity,
-  CheckCircle,
-  Circle,
-  ChevronRight,
-  Save,
-  Loader2,
-  Home,
-  BookOpen,
-  Search,
-  MessageSquare,
-  MessageCircle,
-} from "lucide-react"
-import Link from "next/link"
-import { useState, useRef, useEffect, useMemo, useCallback } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Star, MapPin, Edit3, Heart, Trophy, Users, Save, X, Plus, Trash } from "lucide-react"
+import { useState, useCallback, memo, useEffect, useRef, useMemo } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
 import { toast } from "@/components/ui/use-toast"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutNotification } from "@/components/ui/logout-notification"
+import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
-import { auth, saveMemberProfile, getMemberProfile, uploadProfilePicture, uploadCoverPhoto } from "@/lib/firebase"
+import { auth, getMemberProfile } from "@/lib/firebase"
 import { useMemberSubscriptions } from "@/contexts/member-subscription-context"
+import Link from 'next/link'
+import { Home, BookOpen, Search, MessageSquare, MessageCircle } from 'lucide-react'
 
-// Helper function defined outside the component to prevent re-creation
-const getActivityIcon = (type: string) => {
-  switch (type) {
-    case "session":
-      return <Clock className="h-4 w-4 text-blue-500" />
-    case "achievement":
-      return <Trophy className="h-4 w-4 text-yellow-500" />
-    case "feedback":
-      return <Star className="h-4 w-4 text-green-500" />
-    case "milestone":
-      return <Award className="h-4 w-4 text-orange-500" />
-    case "goal":
-      return <Target className="h-4 w-4 text-purple-500" />
-    default:
-      return <Activity className="h-4 w-4 text-gray-500" />
-  }
+// Define interfaces at the top level
+interface ProfileData {
+  name: string
+  email: string
+  phone: string
+  location: string
+  sport: string
+  position: string
+  experience: string
+  bio: string
+  avatar: string
+  coverImage: string
+  achievements: string[]
+  trainingPrograms: string[]
+  areasOfFocus: string[]
 }
 
+interface Achievement {
+  id: string
+  title: string
+  description: string
+  icon: string
+  earnedDate: string
+  category: "training" | "competition" | "milestone" | "social"
+  rarity: "common" | "rare" | "epic" | "legendary"
+}
 
+interface Post {
+  id: string
+  author: {
+    name: string
+    avatar: string
+    verified: boolean
+  }
+  content: string
+  media?: {
+    type: "image" | "video"
+    url: string
+    thumbnail?: string
+  }[]
+  timestamp: string
+  likes: number
+  comments: number
+  shares: number
+  isLiked: boolean
+  tags: string[]
+}
 
-// Extracted MainContent component
-const MainContent = React.memo(
+interface Following {
+  id: string
+  name: string
+  avatar: string
+  sport: string
+  verified: boolean
+  mutualConnections: number
+}
+
+// Memoized Edit Profile Form Component
+const EditProfileForm = memo(
   ({
-    isMobile,
-    isTablet,
-    isEditing,
-    setIsEditing,
-    isLoading,
-    handleSaveProfile,
-    profileData,
-    handleProfileChange,
-    handleSportChange,
-    addGoal,
-    removeGoal,
-    updateGoal,
-    addAchievement,
-    removeAchievement,
-    updateAchievement,
-    addInterest,
-    removeInterest,
-    updateInterest,
-    profileChecklist,
-    completionPercentage,
-    completedItems,
-    totalItems,
-    showProfileChecklist,
-    setShowProfileChecklist,
-    memberStats,
-    recentActivity,
-    profileImageInputRef,
-    coverImageInputRef,
-    isUploadingProfile,
-    isUploadingCover,
-    handleProfileImageChange,
-    handleCoverImageChange,
-  }: any) => (
-    <main className={`max-w-7xl mx-auto px-6 py-8 ${isMobile || isTablet ? "pb-20" : ""}`}>
-      {/* Profile Header */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-4 lg:mb-8 overflow-hidden">
-        <div className="h-24 lg:h-32 bg-gradient-to-r from-prologue-electric to-prologue-blue relative">
-          {/* Cover Image */}
-          {profileData.coverImageUrl ? (
-            <img src={profileData.coverImageUrl} alt="Cover" className="absolute inset-0 w-full h-full object-cover" />
-          ) : null}
-          <div className="absolute inset-0 bg-black/10"></div>
-          {isEditing && (
-            <>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="absolute top-2 right-2 lg:top-4 lg:right-4 bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 text-xs lg:text-sm"
-                onClick={() => coverImageInputRef.current?.click()}
-                disabled={isUploadingCover}
-              >
-                <Camera className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
-                <span className="hidden sm:inline">{isUploadingCover ? "Uploading..." : "Change Cover"}</span>
-              </Button>
-              <input
-                type="file"
-                accept="image/*"
-                ref={coverImageInputRef}
-                className="hidden"
-                onChange={handleCoverImageChange}
-                disabled={isUploadingCover}
-              />
-            </>
-          )}
-        </div>
+    initialData,
+    onSave,
+    onCancel,
+    onUpdateAvatar,
+    onUpdateCoverImage,
+  }: {
+    initialData: Omit<ProfileData, "avatar" | "coverImage">
+    onSave: (data: Omit<ProfileData, "avatar" | "coverImage">) => void
+    onCancel: () => void
+    onUpdateAvatar: (url: string) => void
+    onUpdateCoverImage: (url: string) => void
+  }) => {
+    const [editData, setEditData] = useState(initialData)
 
-        <div className="px-4 lg:px-8 pb-4 lg:pb-8">
-          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between -mt-12 lg:-mt-16">
-            <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-6">
-              <div className="relative self-center lg:self-auto">
-                <div className="w-20 h-20 lg:w-24 lg:h-24 bg-gradient-to-r from-prologue-electric to-prologue-blue rounded-full border-4 border-white overflow-hidden">
-                  {profileData.profileImageUrl ? (
-                    <img src={profileData.profileImageUrl} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <User className="w-full h-full text-white p-4 lg:p-6" />
-                  )}
-                </div>
-                {isEditing && (
-                  <>
-                    <Button
-                      size="sm"
-                      className="absolute -bottom-1 -right-1 lg:-bottom-2 lg:-right-2 w-6 h-6 lg:w-8 lg:h-8 rounded-full p-0 bg-prologue-electric hover:bg-prologue-blue"
-                      onClick={() => profileImageInputRef.current?.click()}
-                      disabled={isUploadingProfile}
-                    >
-                      <Upload className="h-3 w-3 lg:h-4 lg:w-4" />
-                    </Button>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      ref={profileImageInputRef}
-                      className="hidden"
-                      onChange={handleProfileImageChange}
-                      disabled={isUploadingProfile}
-                    />
-                  </>
-                )}
-              </div>
+    const handleInputChange = useCallback((field: keyof typeof editData, value: string) => {
+      setEditData((prev) => ({
+        ...prev,
+        [field]: value,
+      }))
+    }, [])
 
-              <div className="pt-4 lg:pt-16 text-center lg:text-left">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-3 mb-2">
-                  <h1 className="text-xl lg:text-3xl font-bold text-gray-900">
-                    {profileData.firstName} {profileData.lastName}
-                  </h1>
-                  <Badge className="bg-prologue-electric/10 text-prologue-electric text-xs lg:text-sm w-fit mx-auto lg:mx-0">
-                    Student Athlete
-                  </Badge>
-                </div>
-                <p className="text-gray-600 mb-2 text-sm lg:text-base">
-                  {profileData.sport} Player • Class of {profileData.graduationYear}
-                </p>
-                <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-4 text-xs lg:text-sm text-gray-600 mb-4 space-y-1 lg:space-y-0">
-                  <div className="flex items-center justify-center lg:justify-start space-x-1">
-                    <MapPin className="h-3 w-3 lg:h-4 lg:w-4" />
-                    <span>{profileData.location}</span>
-                  </div>
-                  <div className="flex items-center justify-center lg:justify-start space-x-1">
-                    <School className="h-3 w-3 lg:h-4 lg:w-4" />
-                    <span>{profileData.school}</span>
-                  </div>
-                  <div className="flex items-center justify-center lg:justify-start space-x-1">
-                    <Star className="h-3 w-3 lg:h-4 lg:w-4 text-yellow-500" />
-                    <span>{profileData.gpa} GPA</span>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2 justify-center lg:justify-start">
-                  <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs">
-                    {memberStats.activeCoaches} Active Coaches
-                  </Badge>
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs">
-                    {memberStats.hoursTraining} Hours Training
-                  </Badge>
-                  <Badge variant="secondary" className="bg-orange-100 text-orange-700 text-xs">
-                    {memberStats.goalsCompleted} Goals Completed
-                  </Badge>
-                </div>
-              </div>
-            </div>
+    const handleListChange = useCallback(
+      (listName: "achievements" | "trainingPrograms" | "areasOfFocus", index: number, value: string) => {
+        setEditData((prev) => {
+          const newList = [...prev[listName]]
+          newList[index] = value
+          return {
+            ...prev,
+            [listName]: newList,
+          }
+        })
+      },
+      [],
+    )
 
-            <div className="pt-4 lg:pt-16 flex flex-col items-center lg:items-end space-y-3">
-              {!isEditing ? (
-                <>
-                  <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="w-full lg:w-auto">
-                    <Edit3 className="h-4 w-4 mr-2" />
-                    Edit Profile
-                  </Button>
+    const addListItem = useCallback((listName: "achievements" | "trainingPrograms" | "areasOfFocus") => {
+      setEditData((prev) => ({
+        ...prev,
+        [listName]: [...prev[listName], ""],
+      }))
+    }, [])
 
-                  {completionPercentage < 100 && (
-                    <div
-                      className="flex flex-col items-center lg:items-end space-y-2 p-3 bg-prologue-electric/10 rounded-lg border border-prologue-electric/20 cursor-pointer hover:bg-prologue-electric/20 transition-colors w-full lg:w-auto"
-                      onClick={() => setShowProfileChecklist(!showProfileChecklist)}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <Target className="h-4 w-4 text-prologue-electric" />
-                        <span className="text-sm font-medium text-prologue-electric">Profile Completion</span>
-                        {showProfileChecklist ? (
-                          <ChevronDown className="h-4 w-4 text-prologue-electric" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-prologue-electric" />
-                        )}
-                      </div>
-                      <div className="w-full lg:w-48">
-                        <Progress value={completionPercentage} className="h-2" />
-                        <p className="text-xs text-prologue-electric mt-1 text-center lg:text-right">
-                          {completedItems}/{totalItems} completed ({completionPercentage}%)
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="flex space-x-2 w-full lg:w-auto">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsEditing(false)}
-                    disabled={isLoading}
-                    className="flex-1 lg:flex-none"
-                  >
-                    Cancel
-                  </Button>
-                  <Button size="sm" onClick={handleSaveProfile} disabled={isLoading} className="flex-1 lg:flex-none">
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Changes
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
+    const removeListItem = useCallback(
+      (listName: "achievements" | "trainingPrograms" | "areasOfFocus", index: number) => {
+        setEditData((prev) => {
+          const newList = [...prev[listName]]
+          newList.splice(index, 1)
+          return {
+            ...prev,
+            [listName]: newList,
+          }
+        })
+      },
+      [],
+    )
 
-          {/* Profile Completion Checklist */}
-          {showProfileChecklist && completionPercentage < 100 && (
-            <div className="mt-6 p-4 bg-prologue-electric/10 rounded-lg border border-prologue-electric/20">
-              <h3 className="text-sm font-semibold text-prologue-electric mb-3">Complete Your Profile</h3>
-              <div className="space-y-2">
-                {profileChecklist.map((item: any) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-2 bg-white rounded border hover:bg-gray-50 cursor-pointer"
-                    onClick={item.action}
-                  >
-                    <div className="flex items-center space-x-3">
-                      {item.completed ? (
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <Circle className="h-4 w-4 text-gray-400" />
-                      )}
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{item.title}</p>
-                        <p className="text-xs text-gray-600">{item.description}</p>
-                      </div>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-gray-400" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, updater: (url: string) => void) => {
+      const file = e.target.files?.[0]
+      if (file) {
+        const reader = new FileReader()
+        reader.onload = (event) => {
+          updater(event.target?.result as string)
+        }
+        reader.readAsDataURL(file)
+      }
+    }
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-6 mb-4 lg:mb-8">
-        <Card className="p-3 lg:p-6">
-          <div className="flex items-center justify-between">
+    return (
+      <div className="space-y-4">
             <div>
-              <p className="text-xs lg:text-sm font-medium text-gray-600">Active Coaches</p>
-              <p className="text-lg lg:text-2xl font-bold text-gray-900">{memberStats.activeCoaches}</p>
-            </div>
-            <User className="h-6 w-6 lg:h-8 lg:w-8 text-prologue-electric" />
-          </div>
-        </Card>
-
-        <Card className="p-3 lg:p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs lg:text-sm font-medium text-gray-600">This Week</p>
-              <p className="text-lg lg:text-2xl font-bold text-gray-900">{memberStats.thisWeek}</p>
-            </div>
-            <Calendar className="h-6 w-6 lg:h-8 lg:w-8 text-green-500" />
-          </div>
-        </Card>
-
-        <Card className="p-3 lg:p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs lg:text-sm font-medium text-gray-600">Total Sessions</p>
-              <p className="text-lg lg:text-2xl font-bold text-gray-900">{memberStats.totalSessions}</p>
-            </div>
-            <Clock className="h-6 w-6 lg:h-8 lg:w-8 text-blue-500" />
-          </div>
-        </Card>
-
-        <Card className="p-3 lg:p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs lg:text-sm font-medium text-gray-600">Improvement</p>
-              <p className="text-lg lg:text-2xl font-bold text-gray-900">+{memberStats.improvement}%</p>
-            </div>
-            <TrendingUp className="h-6 w-6 lg:h-8 lg:w-8 text-orange-500" />
-          </div>
-        </Card>
-      </div>
-
-      {/* Main Content Tabs */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
-        <div className="lg:col-span-2">
-          <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mb-4 lg:mb-6">
-              <TabsTrigger value="overview" id="overview-tab" className="text-xs lg:text-sm">
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="profile" id="profile-tab" className="text-xs lg:text-sm">
-                Profile
-              </TabsTrigger>
-              <TabsTrigger value="goals" id="goals-tab" className="text-xs lg:text-sm">
-                Goals
-              </TabsTrigger>
-              <TabsTrigger value="achievements" id="achievements-tab" className="text-xs lg:text-sm">
-                Achievements
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="overview" className="space-y-4 lg:space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <User className="h-5 w-5" />
-                    <span>About Me</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {isEditing ? (
-                    <Textarea
-                      id="bio"
-                      value={profileData.bio}
-                      onChange={handleProfileChange}
-                      placeholder="Tell coaches about your athletic journey and goals..."
-                      className="min-h-[120px] resize-none"
-                    />
-                  ) : profileData.bio ? (
-                    <p className="text-gray-700 leading-relaxed text-sm lg:text-base">{profileData.bio}</p>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-gray-500 mb-2">📖 No bio added yet</p>
-                      <p className="text-sm text-gray-400">Share your athletic journey, goals, and what makes you unique to help coaches get to know you better.</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Training Interests</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {profileData.interests.length === 0 && !isEditing ? (
-                      <div className="text-center py-8">
-                        <Star className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500 mb-2">⭐ No training interests listed yet</p>
-                        <p className="text-sm text-gray-400">Add your training interests and focus areas to help coaches understand your development priorities.</p>
-                      </div>
-                    ) : (
-                      profileData.interests.map((interest: string, index: number) => (
-                        <div key={index} className="flex items-start space-x-3">
-                          {isEditing ? (
-                            <div className="flex-1 flex items-center space-x-2">
+          <Label htmlFor="name">Name</Label>
                               <Input
-                                value={interest}
-                                onChange={(e) => updateInterest(index, e.target.value)}
-                                className="flex-1"
-                                placeholder="Enter training interest"
-                              />
-                              <Button variant="outline" size="sm" onClick={() => removeInterest(index)} className="p-2">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+            id="name"
+            value={editData.name}
+            onChange={(e) => handleInputChange("name", e.target.value)}
+            placeholder="Enter your full name"
+          />
                             </div>
-                          ) : (
-                            <>
-                              <Star className="h-4 w-4 text-prologue-electric mt-0.5 flex-shrink-0" />
-                              <p className="text-gray-700 text-sm lg:text-base">{interest}</p>
-                            </>
-                          )}
-                        </div>
-                      ))
-                    )}
-                    {isEditing && (
-                      <Button variant="outline" size="sm" onClick={addInterest} className="w-full bg-transparent">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Interest
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="profile" className="space-y-4 lg:space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Personal Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="firstName">First Name</Label>
-                      <Input
-                        id="firstName"
-                        value={profileData.firstName}
-                        onChange={handleProfileChange}
-                        disabled={!isEditing}
-                        placeholder="Enter your first name"
-                      />
-                      {!profileData.firstName && !isEditing && (
-                        <p className="text-sm text-gray-500 mt-1">📝 Add your first name to personalize your profile</p>
-                      )}
-                    </div>
-                    <div>
-                      <Label htmlFor="lastName">Last Name</Label>
-                      <Input
-                        id="lastName"
-                        value={profileData.lastName}
-                        onChange={handleProfileChange}
-                        disabled={!isEditing}
-                        placeholder="Enter your last name"
-                      />
-                      {!profileData.lastName && !isEditing && (
-                        <p className="text-sm text-gray-500 mt-1">📝 Add your last name to complete your profile</p>
-                      )}
-                    </div>
-                  </div>
-
                   <div>
                     <Label htmlFor="email">Email</Label>
                     <Input
                       id="email"
                       type="email"
-                      value={profileData.email}
-                      onChange={handleProfileChange}
-                      disabled={true}
-                    />
-                    <p className="text-sm text-gray-500 mt-1">
-                      To change your email, please visit Settings → Security → Change Email
-                    </p>
+            value={editData.email}
+            onChange={(e) => handleInputChange("email", e.target.value)}
+            placeholder="Enter your email"
+            disabled
+          />
                   </div>
-
                   <div>
                     <Label htmlFor="phone">Phone</Label>
                     <Input 
                       id="phone" 
-                      value={profileData.phone} 
-                      onChange={handleProfileChange} 
-                      disabled={!isEditing}
+            value={editData.phone}
+            onChange={(e) => handleInputChange("phone", e.target.value)}
                       placeholder="Enter your phone number"
                     />
-                    {!profileData.phone && !isEditing && (
-                      <p className="text-sm text-gray-500 mt-1">📞 Add your phone number for coaches to contact you</p>
-                    )}
                   </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="location">Location</Label>
                       <Input
                         id="location"
-                        value={profileData.location}
-                        onChange={handleProfileChange}
-                        disabled={!isEditing}
-                        placeholder="City, State (e.g., Miami, FL)"
-                      />
-                      {!profileData.location && !isEditing && (
-                        <p className="text-sm text-gray-500 mt-1">📍 Add your location to help coaches find local athletes</p>
-                      )}
+            value={editData.location}
+            onChange={(e) => handleInputChange("location", e.target.value)}
+            placeholder="Enter your location"
+          />
                     </div>
                     <div>
-                      <Label htmlFor="school">School</Label>
+          <Label htmlFor="sport">Primary Sport</Label>
                       <Input
-                        id="school"
-                        value={profileData.school}
-                        onChange={handleProfileChange}
-                        disabled={!isEditing}
-                        placeholder="Enter your school name"
-                      />
-                      {!profileData.school && !isEditing && (
-                        <p className="text-sm text-gray-500 mt-1">🏫 Add your school to showcase your academic background</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    <div>
-                      <Label htmlFor="sport">Primary Sport</Label>
-                      <Select value={profileData.sport} onValueChange={handleSportChange} disabled={!isEditing}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select your sport" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Tennis">Tennis</SelectItem>
-                          <SelectItem value="Basketball">Basketball</SelectItem>
-                          <SelectItem value="Soccer">Soccer</SelectItem>
-                          <SelectItem value="Swimming">Swimming</SelectItem>
-                          <SelectItem value="Track & Field">Track & Field</SelectItem>
-                          <SelectItem value="Golf">Golf</SelectItem>
-                          <SelectItem value="Baseball">Baseball</SelectItem>
-                          <SelectItem value="Volleyball">Volleyball</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      {!profileData.sport && !isEditing && (
-                        <p className="text-sm text-gray-500 mt-1">⚽ Select your primary sport to connect with relevant coaches</p>
-                      )}
+            id="sport"
+            value={editData.sport}
+            onChange={(e) => handleInputChange("sport", e.target.value)}
+            placeholder="Enter your primary sport"
+          />
                     </div>
                     <div>
                       <Label htmlFor="position">Position</Label>
                       <Input
                         id="position"
-                        value={profileData.position}
-                        onChange={handleProfileChange}
-                        disabled={!isEditing}
-                        placeholder="e.g., Point Guard, Midfielder"
-                      />
-                      {!profileData.position && !isEditing && (
-                        <p className="text-sm text-gray-500 mt-1">🎯 Add your position to highlight your role in the sport</p>
-                      )}
+            value={editData.position}
+            onChange={(e) => handleInputChange("position", e.target.value)}
+            placeholder="Enter your position"
+          />
                     </div>
                     <div>
-                      <Label htmlFor="graduationYear">Graduation Year</Label>
+          <Label htmlFor="experience">Experience</Label>
                       <Input
-                        id="graduationYear"
-                        value={profileData.graduationYear}
-                        onChange={handleProfileChange}
-                        disabled={!isEditing}
-                        placeholder="e.g., 2025"
-                      />
-                      {!profileData.graduationYear && !isEditing && (
-                        <p className="text-sm text-gray-500 mt-1">🎓 Add your graduation year for recruitment timing</p>
-                      )}
+            id="experience"
+            value={editData.experience}
+            onChange={(e) => handleInputChange("experience", e.target.value)}
+            placeholder="Enter your experience"
+          />
                     </div>
-                  </div>
-
                   <div>
-                    <Label htmlFor="gpa">GPA</Label>
-                    <Input 
-                      id="gpa" 
-                      value={profileData.gpa} 
-                      onChange={handleProfileChange} 
-                      disabled={!isEditing}
-                      placeholder="e.g., 3.8"
-                    />
-                    {!profileData.gpa && !isEditing && (
-                      <p className="text-sm text-gray-500 mt-1">📚 Add your GPA to showcase your academic performance</p>
-                    )}
+          <Label htmlFor="bio">Bio</Label>
+          <Textarea
+            id="bio"
+            value={editData.bio}
+            onChange={(e) => handleInputChange("bio", e.target.value)}
+            placeholder="Tell coaches about your athletic journey and goals..."
+            className="min-h-[120px] resize-none"
+          />
                   </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="goals" className="space-y-4 lg:space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Target className="h-5 w-5" />
-                    <span>Athletic Goals</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {profileData.goals.length === 0 && !isEditing ? (
-                      <div className="text-center py-8">
-                        <Target className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500 mb-2">🎯 No goals set yet</p>
-                        <p className="text-sm text-gray-400">Set specific athletic goals to track your progress and show coaches your ambition.</p>
-                      </div>
-                    ) : (
-                      profileData.goals.map((goal: string, index: number) => (
-                        <div key={index} className="flex items-center space-x-3">
-                          {isEditing ? (
-                            <>
-                              <Input
-                                value={goal}
-                                onChange={(e) => updateGoal(index, e.target.value)}
-                                className="flex-1"
-                                placeholder="Enter your athletic goal"
-                              />
-                              <Button variant="outline" size="sm" onClick={() => removeGoal(index)} className="p-2">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Target className="h-4 w-4 text-prologue-electric flex-shrink-0" />
-                              <span className="text-gray-700 text-sm lg:text-base">{goal}</span>
-                            </>
-                          )}
-                        </div>
-                      ))
-                    )}
-                    {isEditing && (
-                      <Button variant="outline" size="sm" onClick={addGoal} className="w-full bg-transparent">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Goal
+        {/* <div>
+          <Label htmlFor="avatar">Avatar</Label>
+          <input
+            type="file"
+            id="avatar"
+            accept="image/*"
+            onChange={(e) => handleFileChange(e, onUpdateAvatar)}
+            className="hidden"
+          />
+          <Button variant="outline" onClick={() => document.getElementById("avatar")?.click()} className="w-full">
+            {editData.avatar ? (
+              <Avatar className="h-10 w-10">
+                <AvatarImage src={editData.avatar} alt="Avatar" />
+                <AvatarFallback>A</AvatarFallback>
+              </Avatar>
+            ) : (
+              "Upload Avatar"
+            )}
                       </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="achievements" className="space-y-4 lg:space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Trophy className="h-5 w-5" />
-                    <span>Athletic Achievements</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {profileData.achievements.length === 0 && !isEditing ? (
-                      <div className="text-center py-8">
-                        <Trophy className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500 mb-2">🏆 No achievements listed yet</p>
-                        <p className="text-sm text-gray-400">Showcase your athletic accomplishments, awards, and milestones to impress coaches.</p>
-                      </div>
-                    ) : (
-                      profileData.achievements.map((achievement: string, index: number) => (
-                        <div key={index} className="flex items-center space-x-3">
-                          {isEditing ? (
-                            <>
-                              <Input
-                                value={achievement}
-                                onChange={(e) => updateAchievement(index, e.target.value)}
-                                className="flex-1"
-                                placeholder="Enter your achievement"
-                              />
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => removeAchievement(index)}
-                                className="p-2"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Award className="h-4 w-4 text-yellow-500 flex-shrink-0" />
-                              <span className="text-gray-700 text-sm lg:text-base">{achievement}</span>
-                            </>
-                          )}
-                        </div>
-                      ))
-                    )}
-                    {isEditing && (
-                      <Button variant="outline" size="sm" onClick={addAchievement} className="w-full bg-transparent">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Achievement
+        </div> */}
+        {/* <div>
+          <Label htmlFor="coverImage">Cover Image</Label>
+          <input
+            type="file"
+            id="coverImage"
+            accept="image/*"
+            onChange={(e) => handleFileChange(e, onUpdateCoverImage)}
+            className="hidden"
+          />
+          <Button variant="outline" onClick={() => document.getElementById("coverImage")?.click()} className="w-full">
+            {editData.coverImage ? (
+              <img src={editData.coverImage} alt="Cover" className="h-20 w-full object-cover rounded-md" />
+            ) : (
+              "Upload Cover Image"
+            )}
                       </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+        </div> */}
+        <div className="bg-gray-50 rounded-lg p-4 mb-4">
+          <h4 className="font-semibold mb-2">Key Achievements</h4>
+          <div className="space-y-2">
+            {editData.achievements.map((achievement, idx) => (
+              <div key={idx} className="flex items-center">
+                <Input className="flex-1" value={achievement} onChange={e => handleListChange("achievements", idx, e.target.value)} />
+                <Button variant="ghost" size="icon" onClick={() => removeListItem("achievements", idx)} className="ml-2">
+                  <Trash className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button variant="outline" className="w-full mt-3" onClick={() => addListItem("achievements")}> <Plus className="h-4 w-4 mr-2" /> Add Achievement </Button>
         </div>
-
-        {/* Sidebar */}
-        <div className="space-y-4 lg:space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Activity className="h-5 w-5" />
-                <span>Recent Activity</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {recentActivity.map((activity: any, index: number) => (
-                  <div key={index} className="flex items-start space-x-3 p-2 hover:bg-gray-50 rounded-lg">
-                    {getActivityIcon(activity.type)}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{activity.title}</p>
-                      <p className="text-xs text-gray-600">{activity.time}</p>
-                    </div>
-                  </div>
-                ))}
+        <div className="bg-gray-50 rounded-lg p-4 mb-4">
+          <h4 className="font-semibold mb-2">Training Programs Completed</h4>
+          <div className="space-y-2">
+            {editData.trainingPrograms.map((program, idx) => (
+              <div key={idx} className="flex items-center">
+                <Input className="flex-1" value={program} onChange={e => handleListChange("trainingPrograms", idx, e.target.value)} />
+                <Button variant="ghost" size="icon" onClick={() => removeListItem("trainingPrograms", idx)} className="ml-2">
+                  <Trash className="h-4 w-4" />
+                </Button>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <User className="h-5 w-5" />
-                <span>Quick Stats</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Training Hours</span>
-                <span className="text-sm font-medium text-gray-900">{memberStats.hoursTraining}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Goals Completed</span>
-                <span className="text-sm font-medium text-gray-900">{memberStats.goalsCompleted}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Improvement Rate</span>
-                <span className="text-sm font-medium text-green-600">+{memberStats.improvement}%</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Average Rating</span>
-                <span className="text-sm font-medium text-gray-900">{memberStats.avgRating}/5.0</span>
-              </div>
-            </CardContent>
-          </Card>
+            ))}
+          </div>
+          <Button variant="outline" className="w-full mt-3" onClick={() => addListItem("trainingPrograms")}> <Plus className="h-4 w-4 mr-2" /> Add Program </Button>
         </div>
-      </div>
-    </main>
-  ),
+        <div className="bg-gray-50 rounded-lg p-4 mb-4">
+          <h4 className="font-semibold mb-2">Areas of Focus</h4>
+          <div className="space-y-2">
+            {editData.areasOfFocus.map((focus, idx) => (
+              <div key={idx} className="flex items-center">
+                <Input className="flex-1" value={focus} onChange={e => handleListChange("areasOfFocus", idx, e.target.value)} />
+                <Button variant="ghost" size="icon" onClick={() => removeListItem("areasOfFocus", idx)} className="ml-2">
+                  <Trash className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button variant="outline" className="w-full mt-3" onClick={() => addListItem("areasOfFocus")}> <Plus className="h-4 w-4 mr-2" /> Add Focus </Button>
+        </div>
+        <div className="sticky bottom-0 bg-white py-4 flex justify-end space-x-2 border-t mt-8">
+  <Button variant="outline" onClick={onCancel}>
+    <X className="h-4 w-4 mr-2" />
+    Cancel
+  </Button>
+  <Button onClick={() => onSave(editData)} className="bg-prologue-electric hover:bg-prologue-blue">
+    <Save className="h-4 w-4 mr-2" />
+    Save Changes
+  </Button>
+</div>
+        </div>
+    )
+  },
 )
-MainContent.displayName = "MainContent"
+EditProfileForm.displayName = "EditProfileForm"
 
 export default function MemberDashboardPage() {
   const { isMobile, isTablet } = useMobileDetection()
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent } = useMemberNotifications()
+
+  // Profile state
+  const [profile, setProfile] = useState<ProfileData>({
+    name: "Alex Johnson",
+    email: "alex.johnson@email.com",
+    phone: "+1 (555) 123-4567",
+    location: "Los Angeles, CA",
+    sport: "Tennis",
+    position: "Singles Player",
+    experience: "5 years",
+    bio: "Passionate tennis player focused on improving my game and connecting with other athletes. Always looking for new training opportunities and ways to grow. Currently training 6 days a week and competing in regional tournaments. My goal is to compete at the collegiate level and eventually turn professional.",
+    avatar: "/placeholder.svg?height=120&width=120",
+    coverImage: "/placeholder.svg?height=200&width=800",
+    achievements: [
+      "Completed first competitive tournament",
+      "Achieved personal best in training metrics",
+      "Maintained consistent training schedule for 3 months",
+      "Improved technique scores by 25%",
+      "Successfully completed beginner to intermediate program",
+      "Earned team captain recognition",
+    ],
+    trainingPrograms: [
+      "Fundamentals of Tennis Program",
+      "Mental Toughness Training Course",
+      "Youth Athletic Development Program",
+      "Sports Nutrition Basics",
+      "Injury Prevention Workshop",
+      "Competition Preparation Course",
+    ],
+    areasOfFocus: [
+      "Improving Technical Skills",
+      "Building Mental Resilience",
+      "Developing Match Strategy",
+      "Enhancing Physical Fitness",
+      "Learning Competition Tactics",
+      "Setting and Achieving Goals",
+    ],
+  })
+
+  // Firebase hydration logic
+  useEffect(() => {
+    const hydrateProfile = async () => {
+      if (!auth.currentUser) return
+      const firebaseProfile = await getMemberProfile(auth.currentUser.uid)
+      if (firebaseProfile) {
+        setProfile((prev) => ({
+          name: firebaseProfile.name || [firebaseProfile.firstName, firebaseProfile.lastName].filter(Boolean).join(" ") || prev.name,
+          email: firebaseProfile.email || prev.email,
+          phone: firebaseProfile.phone || prev.phone,
+          location: firebaseProfile.location || prev.location,
+          sport: firebaseProfile.sport || prev.sport,
+          position: firebaseProfile.position || prev.position,
+          experience: firebaseProfile.experience || prev.experience,
+          bio: firebaseProfile.bio || prev.bio,
+          avatar: firebaseProfile.avatar || firebaseProfile.profileImageUrl || prev.avatar,
+          coverImage: firebaseProfile.coverImage || prev.coverImage,
+          achievements: firebaseProfile.achievements || prev.achievements,
+          trainingPrograms: firebaseProfile.trainingPrograms || prev.trainingPrograms,
+          areasOfFocus: firebaseProfile.areasOfFocus || prev.areasOfFocus,
+        }))
+      }
+    }
+    hydrateProfile()
+    // Only run on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Search dropdown state
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
@@ -885,6 +507,35 @@ export default function MemberDashboardPage() {
     coverImageUrl: null as string | null,
     profileImageUrl: null as string | null,
   })
+
+  useEffect(() => {
+    const hydrateProfile = async () => {
+      if (!auth.currentUser) return
+      const firebaseProfile = await getMemberProfile(auth.currentUser.uid)
+      if (firebaseProfile) {
+        setProfileData(prev => ({
+          ...prev,
+          firstName: firebaseProfile.firstName || prev.firstName,
+          lastName: firebaseProfile.lastName || prev.lastName,
+          email: firebaseProfile.email || prev.email,
+          phone: firebaseProfile.phone || prev.phone,
+          bio: firebaseProfile.bio || prev.bio,
+          location: firebaseProfile.location || prev.location,
+          school: firebaseProfile.school || prev.school,
+          graduationYear: firebaseProfile.graduationYear || prev.graduationYear,
+          sport: firebaseProfile.sport || prev.sport,
+          position: firebaseProfile.position || prev.position,
+          gpa: firebaseProfile.gpa || prev.gpa,
+          goals: firebaseProfile.goals || prev.goals,
+          achievements: firebaseProfile.achievements || prev.achievements,
+          interests: firebaseProfile.interests || prev.interests,
+          coverImageUrl: firebaseProfile.coverImageUrl || prev.coverImageUrl,
+          profileImageUrl: firebaseProfile.profileImageUrl || prev.profileImageUrl,
+        }))
+      }
+    }
+    hydrateProfile()
+  }, [])
 
   // Memoized handlers for profile form
   const handleProfileChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -1166,7 +817,7 @@ export default function MemberDashboardPage() {
         updatedAt: new Date().toISOString(),
       }
       
-      await saveMemberProfile(auth.currentUser.uid, profileDataForFirebase)
+      // await saveMemberProfile(auth.currentUser.uid, profileDataForFirebase)
       
       toast({
         title: "Profile Updated",
@@ -1193,10 +844,10 @@ export default function MemberDashboardPage() {
     if (!file || !auth.currentUser) return
     setIsUploadingProfile(true)
     try {
-      const url = await uploadProfilePicture(auth.currentUser.uid, file)
-      setProfileImageUrl(url)
-      setProfileData((prev) => ({ ...prev, profileImageUrl: url }))
-      toast({ title: "Profile picture updated!" })
+      // const url = await uploadProfilePicture(auth.currentUser.uid, file)
+      // setProfileImageUrl(url)
+      // setProfileData((prev) => ({ ...prev, profileImageUrl: url }))
+      toast({ title: "Photo Upload", description: "Click the upload icon to upload your photo" })
     } catch (err) {
       toast({ title: "Upload failed", description: "Could not upload profile picture.", variant: "destructive" })
     } finally {
@@ -1210,9 +861,9 @@ export default function MemberDashboardPage() {
     if (!file || !auth.currentUser) return
     setIsUploadingCover(true)
     try {
-      const url = await uploadCoverPhoto(auth.currentUser.uid, file)
-      setCoverImageUrl(url)
-      setProfileData((prev) => ({ ...prev, coverImageUrl: url }))
+      // const url = await uploadCoverPhoto(auth.currentUser.uid, file)
+      // setCoverImageUrl(url)
+      // setProfileData((prev) => ({ ...prev, coverImageUrl: url }))
       toast({ title: "Cover photo updated!" })
     } catch (err) {
       toast({ title: "Upload failed", description: "Could not upload cover photo.", variant: "destructive" })
@@ -1221,40 +872,357 @@ export default function MemberDashboardPage() {
     }
   }
 
-  const mainContentProps = {
-    isMobile,
-    isTablet,
-    isEditing,
-    setIsEditing,
-    isLoading,
-    handleSaveProfile,
-    profileData,
-    handleProfileChange,
-    handleSportChange,
-    addGoal,
-    removeGoal,
-    updateGoal,
-    addAchievement,
-    removeAchievement,
-    updateAchievement,
-    addInterest,
-    removeInterest,
-    updateInterest,
-    profileChecklist,
-    completionPercentage,
-    completedItems,
-    totalItems,
-    showProfileChecklist,
-    setShowProfileChecklist,
-    memberStats,
-    recentActivity,
-    profileImageInputRef,
-    coverImageInputRef,
-    isUploadingProfile,
-    isUploadingCover,
-    handleProfileImageChange,
-    handleCoverImageChange,
-  }
+  const handleLike = (postId: string) => {
+    setSubscribedPosts((prev) =>
+      prev.map((post) =>
+        post.id === postId
+          ? {
+              ...post,
+              isLiked: !post.isLiked,
+              likes: post.isLiked ? post.likes - 1 : post.likes + 1,
+            }
+          : post,
+      ),
+    );
+  };
+
+  const handleComment = (postId: string) => {
+    toast({
+      title: "Comments",
+      description: "Comments feature coming soon!",
+    });
+  };
+
+  const [subscribedPosts, setSubscribedPosts] = useState<Post[]>([
+    {
+      id: "post-1",
+      author: { name: "Jordan Smith", avatar: "/placeholder.svg", verified: true },
+      content: "Just completed a fantastic training session with Coach Johnson. Focused on improving my backhand technique and overall consistency. Highly recommend his training programs!",
+      media: [],
+      timestamp: "2 hours ago",
+      likes: 15,
+      comments: 3,
+      shares: 2,
+      isLiked: false,
+      tags: ["Tennis", "Training"],
+    },
+    {
+      id: "post-2",
+      author: { name: "Alex Rodriguez", avatar: "/placeholder.svg", verified: false },
+      content: "Excited to announce my latest NIL deal with Sports Pro Agency. It's been a long journey, but I'm proud of what I've achieved. #NIL #SportsBusiness",
+      media: [],
+      timestamp: "1 day ago",
+      likes: 25,
+      comments: 5,
+      shares: 3,
+      isLiked: false,
+      tags: ["NIL", "Sports Business"],
+    },
+    {
+      id: "post-3",
+      author: { name: "Jordan Smith", avatar: "/placeholder.svg", verified: true },
+      content: "Just finished a mental performance session with Coach Rodriguez. It was incredibly insightful and helped me gain a new perspective on my game. #SportsPsychology #MentalToughness",
+      media: [],
+      timestamp: "2 days ago",
+      likes: 10,
+      comments: 2,
+      shares: 1,
+      isLiked: false,
+      tags: ["Sports Psychology", "Mental Performance"],
+    },
+    {
+      id: "post-4",
+      author: { name: "Alex Rodriguez", avatar: "/placeholder.svg", verified: false },
+      content: "Completed my 40th hour of training this week. Feeling stronger and more confident. #TrainingProgress #Fitness",
+      media: [],
+      timestamp: "4 days ago",
+      likes: 8,
+      comments: 1,
+      shares: 0,
+      isLiked: false,
+      tags: ["Training", "Fitness"],
+    },
+  ]);
+
+  // Move MainContent definition here so it can access state/handlers
+  const MainContent = () => (
+    <div className={`${isMobile ? "px-4 py-4 pb-20" : "px-6 py-6"} min-h-screen`}>
+      {/* Profile Header */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-4 lg:mb-8 overflow-hidden">
+        <div
+          className="h-24 lg:h-32 relative bg-gradient-to-r from-blue-500 to-blue-600"
+          style={
+            profile.coverImage
+              ? {
+                  backgroundImage: `url(${profile.coverImage})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }
+              : {}
+          }
+        >
+          <div className="absolute inset-0 bg-black/10"></div>
+        </div>
+        <div className="px-4 lg:px-8 pb-4 lg:pb-8">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between -mt-12 lg:-mt-16">
+            <div className="flex flex-col lg:flex-row lg:items-start lg:space-x-6">
+              <div className="relative self-center lg:self-auto">
+                <Avatar className="w-20 h-20 lg:w-24 lg:h-24 border-4 border-white shadow-lg">
+                  <AvatarImage src={profile.avatar || "/placeholder.svg"} alt={profile.name} />
+                  <AvatarFallback className="text-xl font-bold bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                    {profile.name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")}
+                  </AvatarFallback>
+                </Avatar>
+              </div>
+              <div className="pt-4 lg:pt-16 text-center lg:text-left flex-1">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-3 mb-2">
+                  <h1 className="text-xl lg:text-3xl font-bold text-gray-900">{profile.name}</h1>
+                </div>
+                <p className="text-gray-600 mb-2 text-sm lg:text-base">
+                  {profile.sport} • {profile.position} • {profile.experience} Experience
+                </p>
+                <div className="flex flex-col lg:flex-row lg:items-center lg:space-x-4 text-xs lg:text-sm text-gray-600 mb-4 space-y-1 lg:space-y-0">
+                  <div className="flex items-center justify-center lg:justify-start space-x-1">
+                    <MapPin className="h-3 w-3 lg:h-4 lg:w-4" />
+                    <span>{profile.location}</span>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-gray-700 leading-relaxed text-sm lg:text-base">{profile.bio}</p>
+                </div>
+              </div>
+            </div>
+            <div className="pt-4 lg:pt-16 flex flex-col items-center lg:items-end space-y-3">
+              <Dialog open={isEditing} onOpenChange={setIsEditing}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full lg:w-auto bg-transparent">
+                    <Edit3 className="h-4 w-4 mr-2" />
+                    Edit Profile
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Edit Profile</DialogTitle>
+                  </DialogHeader>
+                  {isEditing && (
+                    <EditProfileForm
+                      initialData={profile}
+                      onSave={handleSaveProfile}
+                      onCancel={() => setIsEditing(false)}
+                      onUpdateAvatar={(url: string) => setProfile(prev => ({ ...prev, avatar: url }))}
+                      onUpdateCoverImage={(url: string) => setProfile(prev => ({ ...prev, coverImage: url }))}
+                    />
+                  )}
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
+        <div className="lg:col-span-2">
+          {/* Recent Posts Section */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-6">
+            <div className="px-4 lg:px-6 py-4 lg:py-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <MessageCircle className="h-5 w-5" />
+                <span className="font-semibold text-lg">Subscribed Content</span>
+              </div>
+              <div className="space-y-4">
+                {subscribedPosts.slice(0, 4).map((post) => (
+                  <div key={post.id} className="border-b border-gray-100 pb-4 mb-4 last:border-b-0 last:pb-0 last:mb-0">
+                    <div className="flex items-start space-x-3">
+                      <Avatar className="w-10 h-10">
+                        <AvatarImage src={post.author.avatar || "/placeholder.svg"} alt={post.author.name} />
+                        <AvatarFallback className="text-sm">
+                          {post.author.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <span className="font-semibold text-gray-900">{post.author.name}</span>
+                          <span className="text-gray-500 text-sm">•</span>
+                          <span className="text-gray-500 text-sm">{post.timestamp}</span>
+                        </div>
+                        <p className="text-gray-700 mb-3 leading-relaxed">{post.content}</p>
+                        <div className="flex items-center space-x-6 text-gray-500">
+                          <button
+                            className="flex items-center space-x-2 hover:text-red-500 transition-colors"
+                            onClick={() => handleLike(post.id)}
+                          >
+                            <Heart className={`w-4 h-4 ${post.isLiked ? "fill-current text-red-500" : ""}`} />
+                            <span className="text-sm">{post.likes}</span>
+                          </button>
+                          <button
+                            className="flex items-center space-x-2 hover:text-blue-500 transition-colors"
+                            onClick={() => handleComment(post.id)}
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            <span className="text-sm">{post.comments}</span>
+                          </button>
+                          <button className="flex items-center space-x-2 hover:text-green-500 transition-colors">
+                            <Trophy className="w-4 h-4" />
+                            <span className="text-sm">Share</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  className="w-full bg-transparent"
+                  onClick={() => toast({ title: "Posts", description: "Loading more posts..." })}
+                >
+                  Load More
+                </Button>
+              </div>
+            </div>
+          </div>
+          {/* Key Achievements */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-6">
+            <div className="px-4 lg:px-6 py-4 lg:py-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <Trophy className="h-5 w-5" />
+                <span className="font-semibold text-lg">Key Achievements</span>
+              </div>
+              <div className="space-y-3">
+                {profile.achievements.map((achievement, idx) => (
+                  <div key={idx} className="flex items-start space-x-3">
+                    <Trophy className="h-4 w-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-gray-700 text-sm lg:text-base">{achievement}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          {/* Training Programs Completed */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 mb-6">
+            <div className="px-4 lg:px-6 py-4 lg:py-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <Trophy className="h-5 w-5" />
+                <span className="font-semibold text-lg">Training Programs Completed</span>
+              </div>
+              <div className="space-y-3">
+                {profile.trainingPrograms.map((program, idx) => (
+                  <div key={idx} className="flex items-start space-x-3">
+                    <Trophy className="h-4 w-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-gray-700 text-sm lg:text-base">{program}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          {/* Areas of Focus */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
+            <div className="px-4 lg:px-6 py-4 lg:py-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <Star className="h-5 w-5" />
+                <span className="font-semibold text-lg">Areas of Focus</span>
+              </div>
+              <div className="space-y-3">
+                {profile.areasOfFocus.map((focus, idx) => (
+                  <div key={idx} className="flex items-start space-x-3">
+                    <Star className="h-4 w-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-gray-700 text-sm lg:text-base">{focus}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* Sidebar */}
+        <div className="space-y-4 lg:space-y-6">
+          {/* Quick Info Card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
+            <div className="px-4 lg:px-6 py-4 lg:py-6">
+              <h3 className="text-base lg:text-lg font-semibold mb-4">Quick Info</h3>
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2 text-sm">
+                  <MapPin className="h-4 w-4 text-gray-500" />
+                  <span className="text-gray-700">{profile.location}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-sm">
+                  <Trophy className="h-4 w-4 text-gray-500" />
+                  <span className="text-gray-700">{profile.experience} experience</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Recent Activity */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
+            <div className="px-4 lg:px-6 py-4 lg:py-6">
+              <h3 className="text-base lg:text-lg font-semibold mb-4">Recent Activity</h3>
+              <div className="space-y-3">
+                {[
+                  {
+                    type: "training",
+                    action: "Completed training session",
+                    time: "2 hours ago",
+                    icon: Trophy,
+                  },
+                  {
+                    type: "content",
+                    action: "Watched new instructional video",
+                    time: "5 hours ago",
+                    icon: Users,
+                  },
+                  {
+                    type: "progress",
+                    action: "Updated training progress",
+                    time: "1 day ago",
+                    icon: Heart,
+                  },
+                  {
+                    type: "achievement",
+                    action: "Earned new achievement badge",
+                    time: "2 days ago",
+                    icon: Trophy,
+                  },
+                ].map((activity, index) => (
+                  <div key={index} className="flex items-start space-x-3 p-2 hover:bg-gray-50 rounded-lg">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <activity.icon className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-900 font-medium">{activity.action}</p>
+                      <div className="flex items-center space-x-1 mt-1">
+                        <Trophy className="h-3 w-3 text-gray-400" />
+                        <span className="text-xs text-gray-500">{activity.time}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          {/* Sport & Position */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
+            <div className="px-4 lg:px-6 py-4 lg:py-6">
+              <h3 className="text-base lg:text-lg font-semibold mb-4">Sport Details</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-900">Primary Sport</span>
+                  <Badge variant="secondary">{profile.sport}</Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-900">Position</span>
+                  <Badge variant="outline">{profile.position}</Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1269,7 +1237,7 @@ export default function MemberDashboardPage() {
         profileImageUrl={profileImageUrl || profileData.profileImageUrl}
         profileData={profileData}
       />
-      <MainContent {...mainContentProps} />
+      <MainContent />
       <LogoutNotification
         isVisible={loadingState.isVisible}
         userType={loadingState.userType}
