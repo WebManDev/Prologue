@@ -124,16 +124,15 @@ export default function MobileLayout({
       {/* Bottom Navigation */}
       {showBottomNav && (
         <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-[99999]">
-          <div className="flex items-center justify-around py-2">
+          <div className="flex items-center justify-around h-16 px-4">
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = currentPath === item.href
-              
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex flex-col items-center space-y-1 p-2 rounded-lg transition-colors ${
+                  className={`flex flex-col items-center space-y-1 rounded-lg transition-colors ${
                     isActive
                       ? "text-prologue-electric bg-prologue-electric/10"
                       : "text-gray-600 hover:text-prologue-electric"

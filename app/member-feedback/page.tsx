@@ -1,7 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -911,16 +911,28 @@ export default function MemberFeedbackPage() {
 
   if (isMobile || isTablet) {
     return (
-      <MobileLayout
-        userType="member"
-        currentPath="/member-feedback"
-        showBottomNav={true}
-        unreadNotifications={unreadNotificationsCount}
-        unreadMessages={unreadMessagesCount}
-        hasNewContent={hasNewTrainingContent}
-      >
-        <MainContent />
-      </MobileLayout>
+      <div className="min-h-screen bg-gray-50">
+        <MemberHeader
+          currentPath="/member-feedback"
+          onLogout={logout}
+          showSearch={true}
+          unreadNotifications={unreadNotificationsCount}
+          unreadMessages={unreadMessagesCount}
+          hasNewContent={hasNewTrainingContent}
+          profileImageUrl={profileImageUrl}
+          profileData={profileData}
+        />
+        <MobileLayout
+          userType="member"
+          currentPath="/member-feedback"
+          showBottomNav={true}
+          unreadNotifications={unreadNotificationsCount}
+          unreadMessages={unreadMessagesCount}
+          hasNewContent={hasNewTrainingContent}
+        >
+          <MainContent />
+        </MobileLayout>
+      </div>
     )
   }
 
@@ -928,7 +940,7 @@ export default function MemberFeedbackPage() {
     <div className="min-h-screen bg-gray-50">
       <MemberHeader
         currentPath="/member-feedback"
-        onLogout={handleLogout}
+        onLogout={logout}
         showSearch={true}
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
@@ -937,7 +949,6 @@ export default function MemberFeedbackPage() {
         profileData={profileData}
       />
       <MainContent />
-
       {/* Logout Notification */}
       <LogoutNotification
         isVisible={loadingState.isVisible}

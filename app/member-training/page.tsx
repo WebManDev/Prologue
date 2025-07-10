@@ -1,68 +1,115 @@
 "use client"
 
 import type React from "react"
+import { Video } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Progress } from "@/components/ui/progress"
 import {
-  Search,
-  Video,
-  FileText,
-  BookOpen,
-  Clock,
-  Users,
-  Star,
-  Play,
-  Eye,
+  User,
   ChevronDown,
-  TrendingUp,
-  X,
-  Home,
-  MessageCircle,
+  Star,
   MessageSquare,
   Filter,
-  Grid3X3,
-  List,
-  Compass,
-  Lock,
-  MoreHorizontal,
+  Clock,
+  Target,
+  CheckCircle,
+  Plus,
+  Trophy,
+  Calendar,
+  Play,
+  BookOpen,
+  Award,
+  Activity,
+  Users,
+  Heart,
+  Edit3,
 } from "lucide-react"
-import Link from "next/link"
-import { useState, useMemo, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
+import { toast } from "@/components/ui/use-toast"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
+import { LogoutNotification } from "@/components/ui/logout-notification"
+import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Save } from "lucide-react"
+import Image from "next/image"
+import Link from "next/link"
 import { auth, getMemberProfile } from "@/lib/firebase"
 import { collection, query, where, getDocs, onSnapshot, orderBy } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import Image from "next/image"
 import { doc, getDoc } from "firebase/firestore"
 
+interface WeeklyGoal {
+  id: string
+  title: string
+  description: string
+  points: number
+  category: "content" | "engagement" | "learning" | "community" | "progress"
+  target: number
+  current: number
+  completed: boolean
+  icon: React.ComponentType<{ className?: string }>
+}
+
+const trainingPrograms = [
+  {
+    id: "1",
+    title: "Basic Strength Program",
+    category: "strength",
+    sessions: 10,
+    completed: 5,
+    difficulty: "Basic",
+    thumbnail: "/placeholder.svg",
+    coach: "John Doe",
+    coachAvatar: "/placeholder.svg",
+    rating: 4.5,
+    students: 100,
+    description: "A comprehensive strength training program designed for athletes looking to build foundational power and muscle.",
+    duration: "8 weeks",
+  },
+  {
+    id: "2",
+    title: "Advanced Cardio Plan",
+    category: "cardio",
+    sessions: 8,
+    completed: 8,
+    difficulty: "Advanced",
+    thumbnail: "/placeholder.svg",
+    coach: "Jane Smith",
+    coachAvatar: "/placeholder.svg",
+    rating: 4.8,
+    students: 150,
+    description: "High-intensity cardiovascular training to improve endurance and athletic performance.",
+    duration: "6 weeks",
+  },
+]
+
 export default function MemberTrainingPage() {
-  console.log("[DEBUG] MemberTrainingPage mounted")
-  
-  // Mobile detection
   const { isMobile, isTablet } = useMobileDetection()
+  const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent, markTrainingAsVisited } = useMemberNotifications()
 
-  // Unified logout hook
-  const { logout } = useUnifiedLogout()
-
-  // Contexts
-  const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent, markTrainingAsVisited } =
-    useMemberNotifications()
-
-  // State management
-  const [activeTab, setActiveTab] = useState("all")
-  const [selectedFilter, setSelectedFilter] = useState("all")
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const [searchQuery, setSearchQuery] = useState("")
+  // Search dropdown state
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
   const searchRef = useRef<HTMLDivElement>(null)
+
+  // Filter state
+  const [selectedFilter, setSelectedFilter] = useState("all")
+  const [selectedCoach, setSelectedCoach] = useState("all")
+
+  // Goals state
+  const [showGoalSelector, setShowGoalSelector] = useState(false)
+  const [selectedGoals, setSelectedGoals] = useState<WeeklyGoal[]>([])
+  const [availableGoals, setAvailableGoals] = useState<WeeklyGoal[]>([])
+  const [weekExpiration, setWeekExpiration] = useState<Date>(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
+  const [totalPoints, setTotalPoints] = useState(150)
 
   // Firebase state
   const [articles, setArticles] = useState<any[]>([])
@@ -82,30 +129,216 @@ export default function MemberTrainingPage() {
   }, [hasNewTrainingContent, markTrainingAsVisited])
 
   // Quick search suggestions
-  const quickSearches = [
-    "Basketball Training",
-    "Mental Performance",
-    "Nutrition",
-    "Injury Prevention",
-    "Strength Training",
-    "Sports Psychology",
-    "Elite Fundamentals",
-    "Competition Prep",
-  ]
+  const quickSearches = useMemo(
+    () => [
+      { label: "Navigate Recruitment" },
+      { label: "Nutrition" },
+      { label: "NIL" },
+      { label: "Training Programs" },
+      { label: "Mental Performance" },
+      { label: "Injury Prevention" },
+      { label: "Sports Psychology" },
+      { label: "Athletic Scholarships" },
+    ],
+    [],
+  )
+
+  // Mock search results based on query
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return []
+
+    const mockResults = [
+      {
+        type: "coach",
+        name: "Jordan Smith",
+        sport: "Tennis",
+        rating: 4.9,
+        experience: "8+ years",
+        location: "Los Angeles, CA",
+      },
+      {
+        type: "coach",
+        name: "Alex Rodriguez",
+        sport: "Basketball",
+        rating: 4.8,
+        experience: "12+ years",
+        location: "Miami, FL",
+      },
+      {
+        type: "content",
+        title: "College Recruitment Guide",
+        creator: "PROLOGUE Team",
+        views: "45K",
+        duration: "12 min",
+      },
+      {
+        type: "content",
+        title: "NIL Deal Strategies",
+        creator: "Sports Business Pro",
+        views: "32K",
+        duration: "18 min",
+      },
+    ].filter(
+      (result) =>
+        result.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        result.sport?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        result.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        result.creator?.toLowerCase().includes(searchQuery.toLowerCase()),
+    )
+
+    return mockResults
+  }, [searchQuery])
+
+  // Mock training sessions data
+  const [trainingSessions, setTrainingSessions] = useState([])
+
+  // Mock achievements data
+  const [achievements, setAchievements] = useState([])
+
+  // Training stats
+  const trainingStats = {
+    totalSessions: 0,
+    completedSessions: 0,
+    scheduledSessions: 0,
+    totalPoints: 0,
+    weeklyGoal: 5,
+    currentStreak: 3,
+  }
+
+  // Initialize available goals
+  useEffect(() => {
+    const goals: WeeklyGoal[] = [
+      {
+        id: "1",
+        title: "Watch 5 Training Videos",
+        description: "Complete 5 educational training videos this week",
+        points: 50,
+        category: "content",
+        target: 5,
+        current: 2,
+        completed: false,
+        icon: Video,
+      },
+      {
+        id: "2",
+        title: "Message 3 Coaches",
+        description: "Connect with 3 different coaches for guidance",
+        points: 40,
+        category: "engagement",
+        target: 3,
+        current: 1,
+        completed: false,
+        icon: MessageSquare,
+      },
+      {
+        id: "3",
+        title: "Complete 2 Courses",
+        description: "Finish 2 complete training courses",
+        points: 75,
+        category: "learning",
+        target: 2,
+        current: 0,
+        completed: false,
+        icon: BookOpen,
+      },
+      {
+        id: "4",
+        title: "Subscribe to 2 Creators",
+        description: "Follow 2 new creators for their content",
+        points: 30,
+        category: "community",
+        target: 2,
+        current: 1,
+        completed: false,
+        icon: Users,
+      },
+      {
+        id: "5",
+        title: "Browse Coaches 10 Times",
+        description: "Explore coach profiles to find the right fit",
+        points: 25,
+        category: "engagement",
+        target: 10,
+        current: 4,
+        completed: false,
+        icon: Target,
+      },
+      {
+        id: "6",
+        title: "Like 15 Posts",
+        description: "Engage with community content",
+        points: 20,
+        category: "community",
+        target: 15,
+        current: 8,
+        completed: false,
+        icon: Heart,
+      },
+      {
+        id: "7",
+        title: "Complete Profile Setup",
+        description: "Finish setting up your member profile",
+        points: 60,
+        category: "progress",
+        target: 1,
+        current: 0,
+        completed: false,
+        icon: Award,
+      },
+      {
+        id: "8",
+        title: "Schedule 3 Sessions",
+        description: "Book 3 training sessions with coaches",
+        points: 80,
+        category: "engagement",
+        target: 3,
+        current: 1,
+        completed: false,
+        icon: Calendar,
+      },
+    ]
+
+    setAvailableGoals(goals)
+
+    // Set initial selected goals (first 4)
+    if (selectedGoals.length === 0) {
+      setSelectedGoals(goals.slice(0, 4))
+    }
+  }, [selectedGoals.length])
+
+  // Calculate days remaining
+  const daysRemaining = useMemo(() => {
+    const now = new Date()
+    const diff = weekExpiration.getTime() - now.getTime()
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)))
+  }, [weekExpiration])
 
   // Search handlers
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value)
-  }
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setSearchQuery(value)
+  }, [])
 
-  const handleSearchFocus = () => {
+  const handleSearchFocus = useCallback(() => {
     setShowSearchDropdown(true)
-  }
+  }, [])
 
-  const clearSearch = () => {
+  const handleSearchSelect = useCallback((search: { name?: string; title?: string; label?: string }) => {
+    if (search.label) {
+      setSearchQuery(search.label)
+      setShowSearchDropdown(false)
+      console.log("Member training searching for:", search.label)
+    } else if (search.name || search.title) {
+      setSearchQuery(search.name || search.title || "")
+      setShowSearchDropdown(false)
+      console.log("Member training searching for:", search.name || search.title)
+    }
+  }, [])
+
+  const clearSearch = useCallback(() => {
     setSearchQuery("")
     setShowSearchDropdown(false)
-  }
+  }, [])
 
   // Handle clicks outside search dropdown
   useEffect(() => {
@@ -121,28 +354,46 @@ export default function MemberTrainingPage() {
     }
   }, [])
 
-  // Search dropdown content
-  const searchDropdownContent = (
-    <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-      <div className="p-3 border-b border-gray-100">
-        <h4 className="text-sm font-semibold text-gray-700 mb-2">Quick Searches</h4>
-        <div className="space-y-1">
-          {quickSearches.map((search, index) => (
-            <button
-              key={index}
-              className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-prologue-electric rounded transition-colors"
-              onClick={() => {
-                setSearchQuery(search)
-                setShowSearchDropdown(false)
-              }}
-            >
-              {search}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
+  const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
+
+  const handleLogout = useCallback(async () => {
+    console.log("🔄 Member logout initiated from training page")
+
+    try {
+      const success = await logout({
+        customMessage: "Securing your member account and logging out...",
+        onComplete: () => {
+          console.log("✅ Member logout completed successfully from training page")
+          toast({
+            title: "Logged Out Successfully",
+            description: "You have been securely logged out. Redirecting to login page...",
+            duration: 2000,
+          })
+        },
+        onError: (error) => {
+          console.error("❌ Member logout failed from training page:", error)
+          toast({
+            title: "Logout Failed",
+            description: "There was an issue logging you out. Please try again.",
+            variant: "destructive",
+            duration: 3000,
+          })
+        },
+      })
+
+      if (!success) {
+        console.warn("⚠️ Member logout was not successful, attempting emergency logout")
+        setTimeout(() => {
+          window.location.href = "/login"
+        }, 3000)
+      }
+    } catch (error) {
+      console.error("Logout error:", error)
+      setTimeout(() => {
+        window.location.href = "/login"
+      }, 1000)
+    }
+  }, [logout])
 
   // Firebase functionality
   useEffect(() => {
@@ -199,778 +450,604 @@ export default function MemberTrainingPage() {
       setArticles([])
       setVideos([])
       setCourses([])
-      setCreators({})
       setLoading(false)
       return
     }
+
     setLoading(true)
-    const unsubscribes: (() => void)[] = []
+    setError(null)
 
     function listenToBatch(
       ids: string[],
       collectionName: "articles" | "videos" | "courses",
       setter: React.Dispatch<any[]>
     ) {
-      // Fetch all documents in the collection, no filter
-      const q = query(collection(db, collectionName))
-      const unsub = onSnapshot(q, (snap) => {
-        setter(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-        setLoading(false)
-      }, (err) => {
-        console.error("Listen error:", err)
+      const q = query(
+        collection(db, collectionName),
+        where("createdBy", "in", ids),
+        orderBy("createdAt", "desc")
+      )
+
+      return onSnapshot(q, (snapshot) => {
+        const content = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          type: collectionName.slice(0, -1) // Remove 's' from end
+        }))
+        setter(content)
+      }, (error) => {
+        console.error(`Error listening to ${collectionName}:`, error)
         setError(`Failed to load ${collectionName}`)
-        setLoading(false)
       })
-      unsubscribes.push(unsub)
     }
 
-    for (let i = 0; i < athleteIds.length; i += 10) {
-      const batch = athleteIds.slice(i, i + 10)
-      listenToBatch(batch, "articles", setArticles)
-      listenToBatch(batch, "videos", setVideos)
-      listenToBatch(batch, "courses", setCourses)
-    }
-
-    // Fetch creator profiles from 'athletes' collection
     async function fetchCreators() {
       try {
-        const newCreators: {[key: string]: any} = {}
-        await Promise.all(
-          athleteIds.map(async (id: string) => {
-            const docRef = doc(db, "athletes", id)
-            const docSnap = await getDoc(docRef)
-            if (docSnap.exists()) {
-              newCreators[id] = { id, ...docSnap.data() }
-            }
-          })
-        )
-        setCreators(newCreators)
-      } catch (err) {
-        console.error("Error fetching creator profiles:", err)
-        setError("Failed to load creator profiles")
-      }
-    }
-    fetchCreators()
-
-    return () => {
-      unsubscribes.forEach(u => u())
-    }
-  }, [athleteIds])
-
-  // Fetch only content from subscribed creators (authorId in athleteIds)
-  useEffect(() => {
-    if (!athleteIds.length) {
-      setArticles([])
-      setVideos([])
-      setCourses([])
-      setLoading(false)
-      return
-    }
-    setLoading(true)
-    async function fetchContent() {
-      try {
-        // Firestore 'in' queries support up to 10 values, so batch if needed
-        let allVideos: any[] = []
-        let allArticles: any[] = []
-        let allCourses: any[] = []
-        for (let i = 0; i < athleteIds.length; i += 10) {
-          const batch = athleteIds.slice(i, i + 10)
-          const videosSnap = await getDocs(query(collection(db, "videos"), where("authorId", "in", batch), orderBy("createdAt", "desc")))
-          const articlesSnap = await getDocs(query(collection(db, "articles"), where("authorId", "in", batch), orderBy("createdAt", "desc")))
-          const coursesSnap = await getDocs(query(collection(db, "courses"), where("authorId", "in", batch), orderBy("createdAt", "desc")))
-          allVideos = allVideos.concat(videosSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), type: "video" })))
-          allArticles = allArticles.concat(articlesSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), type: "article" })))
-          allCourses = allCourses.concat(coursesSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), type: "course" })))
+        const creatorsData: {[key: string]: any} = {}
+        
+        for (const athleteId of athleteIds) {
+          const athleteDoc = await getDoc(doc(db, "athletes", athleteId))
+          if (athleteDoc.exists()) {
+            creatorsData[athleteId] = athleteDoc.data()
+          }
         }
-        setVideos(allVideos)
-        setArticles(allArticles)
-        setCourses(allCourses)
-      } catch (err) {
-        console.error("Error fetching content:", err)
-        setError("Failed to load content")
+        
+        setCreators(creatorsData)
+      } catch (error) {
+        console.error("Error fetching creators:", error)
       }
-      setLoading(false)
     }
+
+    async function fetchContent() {
+      try {
+        const unsubscribeArticles = listenToBatch(athleteIds, "articles", setArticles)
+        const unsubscribeVideos = listenToBatch(athleteIds, "videos", setVideos)
+        const unsubscribeCourses = listenToBatch(athleteIds, "courses", setCourses)
+
+        await fetchCreators()
+
+        setLoading(false)
+
+        return () => {
+          unsubscribeArticles()
+          unsubscribeVideos()
+          unsubscribeCourses()
+        }
+      } catch (error) {
+        console.error("Error fetching content:", error)
+        setError("Failed to load content")
+        setLoading(false)
+      }
+    }
+
     fetchContent()
   }, [athleteIds])
 
-  // Fetch all content from Firestore (like content page)
-  useEffect(() => {
-    setLoading(true)
-    async function fetchContent() {
-      try {
-        const videosSnap = await getDocs(query(collection(db, "videos"), orderBy("createdAt", "desc")))
-        const articlesSnap = await getDocs(query(collection(db, "articles"), orderBy("createdAt", "desc")))
-        const coursesSnap = await getDocs(query(collection(db, "courses"), orderBy("createdAt", "desc")))
-        setVideos(videosSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), type: "video" })))
-        setArticles(articlesSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), type: "article" })))
-        setCourses(coursesSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), type: "course" })))
-      } catch (err) {
-        console.error("Error fetching content:", err)
-        setError("Failed to load content")
-      }
-      setLoading(false)
-    }
-    fetchContent()
-  }, [])
-
-  // Author profile cache (like content page)
-  const [authorProfiles, setAuthorProfiles] = useState<{ [uid: string]: { firstName?: string; lastName?: string } }>({});
   const fetchAuthorProfile = async (uid: string) => {
-    if (!uid || authorProfiles[uid]) return;
-    const docRef = doc(db, "athletes", uid);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      setAuthorProfiles(prev => ({ ...prev, [uid]: { firstName: data.firstName || "", lastName: data.lastName || "" } }));
-    } else {
-      setAuthorProfiles(prev => ({ ...prev, [uid]: { firstName: "Unknown", lastName: "" } }));
+    try {
+      const docRef = doc(db, "athletes", uid)
+      const docSnap = await getDoc(docRef)
+      return docSnap.exists() ? docSnap.data() : null
+    } catch (error) {
+      console.error("Error fetching author profile:", error)
+      return null
     }
-  };
+  }
 
-  // Helper function to get creator info
   const getCreatorInfo = (creatorId: string) => {
     return creators[creatorId] || { firstName: "Unknown", lastName: "Creator" }
   }
 
-  // Helper function to format dates
   const formatDate = (date: any) => {
-    if (!date) return "Recently"
-    const d = date instanceof Date ? date : date?.toDate ? date.toDate() : new Date(date)
-    const now = new Date()
-    const diffInHours = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60))
-    
-    if (diffInHours < 1) return "Just now"
-    if (diffInHours < 24) return `${diffInHours}h ago`
-    if (diffInHours < 48) return "1 day ago"
-    return `${Math.floor(diffInHours / 24)} days ago`
+    if (!date) return "Unknown date"
+    const d = date.toDate ? date.toDate() : new Date(date)
+    return d.toLocaleDateString()
   }
 
-  // Handle content click
   const handleContentClick = (type: string, id: string, creatorId: string) => {
-    // Navigate to the appropriate content page
+    if (!hasContentAccess(creatorId, 'training')) {
+      toast({
+        title: "Subscription Required",
+        description: "You need an active subscription to access this content.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Navigate to content
     window.location.href = `/${type}/${id}`
   }
 
-  // All combined content for display
-  const allContent = useMemo(() => [...articles, ...videos, ...courses], [articles, videos, courses])
-
-  // Filter content based on active tab and search
-  const filteredContent = useMemo(() => {
-    let content =
-      activeTab === "all"
-        ? allContent
-        : activeTab === "videos"
-          ? videos.map((item) => ({ ...item, type: "video" }))
-          : activeTab === "articles"
-            ? articles.map((item) => ({ ...item, type: "article" }))
-            : courses.map((item) => ({ ...item, type: "course" }))
-
-    // Only show content from creators with active subscriptions
-    content = content.filter((item) => {
-      if (!item.authorId) return false
-      return hasContentAccess(item.authorId, 'training')
-    })
-
-    if (selectedFilter !== "all") {
-      if (selectedFilter === "enrolled" && activeTab === "courses") {
-        content = content.filter((item: any) => item.isEnrolled)
-      } else if (selectedFilter === "completed" && activeTab === "courses") {
-        content = content.filter((item: any) => item.progress === 100)
-      } else if (selectedFilter === "in-progress" && activeTab === "courses") {
-        content = content.filter((item: any) => item.progress > 0 && item.progress < 100)
-      }
-    }
-
-    if (searchQuery) {
-      content = content.filter(
-        (item) =>
-          item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase())),
-      )
-    }
-
-    return content
-  }, [activeTab, selectedFilter, searchQuery, allContent, hasContentAccess])
-
-  // Helper function to sanitize and convert HTML to plain text
   function sanitizeDescription(html: string) {
-    if (!html) return "No description."
-    // Remove HTML tags and decode entities
-    const div = document.createElement('div')
-    div.innerHTML = html
-    return div.textContent || div.innerText || "No description."
+    if (!html) return "No description available."
+    return html.replace(/<[^>]*>/g, "").substring(0, 150) + "..."
   }
 
-  const ContentCard = ({ item }: { item: any }) => {
-    // Fetch author profile on mount
-    useEffect(() => {
-      if (item.authorId) fetchAuthorProfile(item.authorId);
-    }, [item.authorId]);
-    const author = item.authorId && authorProfiles[item.authorId]
-      ? `${authorProfiles[item.authorId].firstName || ""} ${authorProfiles[item.authorId].lastName || ""}`.trim()
-      : "";
+  // Filter programs based on selected filter
+  const filteredPrograms = useMemo(() => {
+    if (selectedFilter === "all") return trainingPrograms
+    if (selectedFilter === "in-progress") return trainingPrograms.filter((p) => p.completed < p.sessions)
+    if (selectedFilter === "completed") return trainingPrograms.filter((p) => p.completed === p.sessions)
+    return trainingPrograms.filter((p) => p.category.toLowerCase() === selectedFilter)
+  }, [selectedFilter])
 
-    const getContentLink = () => {
-      switch (item.type) {
-        case "video":
-          return `/video/${item.id}`
-        case "article":
-          return `/article/${item.id}`
-        case "course":
-          return `/course/${item.id}`
-        default:
-          return "#"
-      }
+  // Filter training sessions based on selected filters
+  const filteredSessions = useMemo(() => {
+    return []
+  }, [])
+
+  // Get unique coaches for filter
+  const coaches = useMemo(() => {
+    return []
+  }, [])
+
+  const handleTrainingSubmit = () => {}
+
+  const getTypeColor = (type: string) => {
+    return ""
+  }
+
+  const getStatusColor = (status: string) => {
+    return ""
+  }
+
+  const getStatusIcon = (status: string) => {
+    return <Clock className="h-4 w-4" />
+  }
+
+  const getTypeIcon = (type: string) => {
+    return <Activity className="h-5 w-5" />
+  }
+
+  // Goal management functions
+  const handleGoalSelection = (goalIds: string[]) => {
+    if (goalIds.length > 4) {
+      toast({
+        title: "Maximum Goals Reached",
+        description: "You can only select up to 4 goals per week.",
+        variant: "destructive",
+      })
+      return
     }
 
-    const getContentIcon = () => {
-      switch (item.type) {
-        case "video":
-          return <Video className="h-4 w-4" />
-        case "article":
-          return <FileText className="h-4 w-4" />
-        case "course":
-          return <BookOpen className="h-4 w-4" />
-        default:
-          return null
-      }
-    }
+    const newSelectedGoals = availableGoals.filter((goal) => goalIds.includes(goal.id))
+    setSelectedGoals(newSelectedGoals)
+  }
 
-    const getActionButton = () => {
-      if (item.type === "course") {
-        if (item.isEnrolled) {
-          if (item.progress === 100) {
-            return (
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-green-500 text-green-600 hover:bg-green-50 bg-transparent"
-              >
-                Completed
-              </Button>
-            )
-          } else if (item.progress > 0) {
-            return (
-              <Button size="sm" className="bg-prologue-electric hover:bg-prologue-blue text-white">
-                Continue
-              </Button>
-            )
-          } else {
-            return (
-              <Button size="sm" className="bg-prologue-electric hover:bg-prologue-blue text-white">
-                Start
-              </Button>
-            )
-          }
-        } else {
-          return (
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-prologue-electric text-prologue-electric hover:bg-prologue-electric hover:text-white bg-transparent"
-            >
-              Enroll
-            </Button>
-          )
+  const completeGoal = (goalId: string) => {
+    setSelectedGoals((prev) =>
+      prev.map((goal) => {
+        if (goal.id === goalId && !goal.completed) {
+          const updatedGoal = { ...goal, completed: true, current: goal.target }
+
+          // Add points to profile
+          setTotalPoints((prevPoints) => prevPoints + goal.points)
+
+          toast({
+            title: "Goal Completed! 🎉",
+            description: `You earned ${goal.points} points! Total: ${totalPoints + goal.points}`,
+            duration: 4000,
+          })
+
+          return updatedGoal
         }
-      }
-      return (
-        <Button size="sm" className="bg-prologue-electric hover:bg-prologue-blue text-white">
-          View
-        </Button>
-      )
-    }
+        return goal
+      }),
+    )
+  }
 
-    const creator = getCreatorInfo(item.createdBy)
+  const resetWeeklyGoals = () => {
+    setSelectedGoals([])
+    setWeekExpiration(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
+    setShowGoalSelector(true)
+
+    toast({
+      title: "New Week Started",
+      description: "Select your 4 goals for this week!",
+      duration: 3000,
+    })
+  }
+
+  // Auto-reset when week expires
+  useEffect(() => {
+    if (daysRemaining === 0) {
+      resetWeeklyGoals()
+    }
+  }, [daysRemaining])
+
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case "content":
+        return "bg-blue-100 text-blue-700 border-blue-200"
+      case "engagement":
+        return "bg-green-100 text-green-700 border-green-200"
+      case "learning":
+        return "bg-purple-100 text-purple-700 border-purple-200"
+      case "community":
+        return "bg-orange-100 text-orange-700 border-orange-200"
+      case "progress":
+        return "bg-yellow-100 text-yellow-700 border-yellow-200"
+      default:
+        return "bg-gray-100 text-gray-700 border-gray-200"
+    }
+  }
+
+  // Memoized search dropdown content
+  const searchDropdownContent = useMemo(() => {
+    const displayItems = searchQuery ? searchResults : quickSearches.slice(0, 8)
+    const isShowingResults = searchQuery && searchResults.length > 0
+    const isShowingQuickSearches = !searchQuery
 
     return (
-      <Card className={`hover:shadow-lg transition-shadow`}>
-        <CardContent className="p-0">
-          <div className="relative">
-            <div className="aspect-video bg-gray-200 rounded-t-lg overflow-hidden">
-              {item.type === "article" ? (
-                <div className="w-full h-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center">
-                  <FileText className="h-12 w-12 text-white" />
+      <div
+        className={`${isMobile || isTablet ? "mt-2" : "absolute top-full left-0 mt-1 w-80"} bg-white border border-gray-200 rounded-lg shadow-lg z-50`}
+      >
+        <div className="p-3 border-b border-gray-100">
+          <h4 className="text-sm font-semibold text-gray-700 mb-2">
+            {isShowingResults ? `Results for "${searchQuery}"` : "Quick Searches"}
+          </h4>
+          <div className="space-y-1">
+            {isShowingQuickSearches &&
+              displayItems.map((search, index) => (
+                <button
+                  key={index}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-prologue-electric rounded transition-colors"
+                  onClick={() => handleSearchSelect(search)}
+                >
+                  {('label' in search) ? search.label : ''}
+                </button>
+              ))}
+
+            {isShowingResults &&
+              displayItems.map((result, index) => (
+                <div
+                  key={index}
+                  className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                  onClick={() => handleSearchSelect(result)}
+                >
+                  <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                    <User className="h-4 w-4 text-gray-500" />
+                  </div>
+                  <div className="flex-1">
+                    <h5 className="text-sm font-medium text-gray-900">{('name' in result && result.name) ? result.name : ('title' in result && result.title) ? result.title : ''}</h5>
+                    <p className="text-xs text-gray-600">
+                      {('type' in result && result.type === "coach")
+                        ? `${'sport' in result ? result.sport : ''} • ${'experience' in result ? result.experience : ''} • ${'rating' in result ? result.rating : ''}/5.0`
+                        : ('creator' in result && 'views' in result)
+                          ? `${result.creator} • ${result.views} views`
+                          : ''}
+                    </p>
+                  </div>
                 </div>
-              ) : item.type === "video" && item.videoUrl ? (
-                <video src={item.videoUrl} className="w-full h-full object-cover" />
-              ) : item.type === "course" && item.coverImage ? (
-                <Image 
-                  src={item.coverImage} 
-                  alt={item.title} 
-                  width={300} 
-                  height={200} 
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                  <Play className="h-12 w-12 text-gray-600" />
-                </div>
-              )}
-              
-            </div>
-            <Badge className="absolute top-3 left-3 flex items-center space-x-1 bg-prologue-electric text-white">
-              {getContentIcon()}
-              <span className="capitalize">{item.type}</span>
-            </Badge>
-            {item.type === "video" && (
-              <div className="absolute bottom-3 right-3 bg-black/70 text-white px-2 py-1 rounded text-xs">
-                {item.duration || "10:30"}
-              </div>
-            )}
-            {item.type === "course" && item.isEnrolled && (
-              <div className="absolute top-3 right-3 bg-green-600 text-white px-2 py-1 rounded text-xs">Enrolled</div>
+              ))}
+
+            {searchQuery && searchResults.length === 0 && (
+              <div className="px-3 py-2 text-sm text-gray-500">No results found for "{searchQuery}"</div>
             )}
           </div>
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 rounded-full bg-prologue-electric flex items-center justify-center">
-                  <span className="text-white text-xs font-semibold">
-                    {creator.firstName ? creator.firstName.charAt(0) : "U"}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {creator.firstName} {creator.lastName}
-                  </p>
-                  <p className="text-xs text-gray-500">{author || "Creator"}</p>
-                </div>
+        </div>
+      </div>
+    )
+  }, [searchQuery, searchResults, quickSearches, handleSearchSelect, isMobile, isTablet])
+
+  const MainContent = () => (
+    <main className={`${isMobile ? "px-4 py-6 pb-24" : "max-w-7xl mx-auto px-6 py-8"}`}>
+      {/* Weekly Goals Section */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-4">
+            <h2 className="text-2xl font-bold text-gray-900">Weekly Goals</h2>
+            <Badge className="bg-prologue-electric/10 text-prologue-electric">
+              {daysRemaining} {daysRemaining === 1 ? "day" : "days"} remaining
+            </Badge>
+            <Badge className="bg-yellow-100 text-yellow-700">{totalPoints} points</Badge>
+          </div>
+
+          <Dialog open={showGoalSelector} onOpenChange={setShowGoalSelector}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="flex items-center space-x-2 bg-transparent">
+                <Edit3 className="h-4 w-4" />
+                <span>Edit Goals</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Select Your Weekly Goals (Choose 4)</DialogTitle>
+              </DialogHeader>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto">
+                {availableGoals.map((goal) => {
+                  const IconComponent = goal.icon
+                  const isSelected = selectedGoals.some((g) => g.id === goal.id)
+
+                  return (
+                    <div
+                      key={goal.id}
+                      className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                        isSelected
+                          ? "border-prologue-electric bg-prologue-electric/10"
+                          : "border-gray-200 hover:border-gray-300"
+                      }`}
+                      onClick={() => {
+                        const currentIds = selectedGoals.map((g) => g.id)
+                        if (isSelected) {
+                          handleGoalSelection(currentIds.filter((id) => id !== goal.id))
+                        } else if (currentIds.length < 4) {
+                          handleGoalSelection([...currentIds, goal.id])
+                        }
+                      }}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <Checkbox checked={isSelected} />
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <IconComponent className="h-4 w-4" />
+                            <h3 className="font-semibold text-sm">{goal.title}</h3>
+                          </div>
+                          <p className="text-xs text-gray-600 mb-2">{goal.description}</p>
+                          <div className="flex items-center justify-between">
+                            <Badge className={`text-xs ${getCategoryColor(goal.category)}`}>{goal.category}</Badge>
+                            <Badge className="text-sm font-bold bg-yellow-100 text-yellow-800 border border-yellow-300">
+                              +{goal.points} pts
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-              <Link href={getContentLink()}>
-                <Button size="sm" variant="ghost" className="p-1">
-                  <MoreHorizontal className="h-4 w-4" />
+              <div className="flex justify-between items-center pt-4 border-t">
+                <span className="text-sm text-gray-600">{selectedGoals.length}/4 goals selected</span>
+                <Button
+                  onClick={() => setShowGoalSelector(false)}
+                  disabled={selectedGoals.length !== 4}
+                  className="bg-prologue-electric hover:bg-prologue-blue"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Goals
                 </Button>
-              </Link>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Selected Goals Display */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {selectedGoals.length === 0 ? (
+            <div className="col-span-full">
+              <Card className="p-8 text-center border-dashed border-2 border-gray-300">
+                <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-600 mb-2">No Goals Selected</h3>
+                <p className="text-gray-500 mb-4">Choose 4 goals to start your weekly challenge</p>
+                <Button
+                  onClick={() => setShowGoalSelector(true)}
+                  className="bg-prologue-electric hover:bg-prologue-blue"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Select Goals
+                </Button>
+              </Card>
             </div>
-            
-            <Link href={getContentLink()}>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2 hover:text-prologue-electric transition-colors">
-                {item.title}
-              </h3>
-            </Link>
-            
-            <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-              {item.description ? sanitizeDescription(item.description) : "No description available."}
-            </p>
-            
-            {/* Content metadata */}
-            <div className="flex items-center space-x-4 text-xs text-gray-500 mb-4">
-              {item.type === "video" && (
-                <>
-                  <div className="flex items-center space-x-1">
-                    <Clock className="h-4 w-4" />
-                    <span>{item.duration || "10:30"}</span>
+          ) : (
+            selectedGoals.map((goal) => {
+              const IconComponent = goal.icon
+              const progressPercentage = (goal.current / goal.target) * 100
+              const cardBg = (isMobile || isTablet) ? getCategoryColor(goal.category) : ''
+              const border = (isMobile || isTablet) ? 'border-white' : 'border'
+              return (
+                <Card key={goal.id} className={`p-4 ${cardBg} ${border}`}>
+                  <div className={`flex items-start justify-between mb-3 ${isMobile || isTablet ? 'gap-2' : ''}`}>
+                    <div className="flex items-center space-x-2">
+                      <IconComponent className={`h-5 w-5 ${isMobile || isTablet ? 'text-gray-700' : ''}`} />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge className="text-sm font-bold bg-yellow-100 text-yellow-800 border border-yellow-300 px-2 py-1">
+                        +{goal.points} pts
+                      </Badge>
+                      {goal.completed && <CheckCircle className="h-5 w-5 text-green-600" />}
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-1">
-                    <Users className="h-4 w-4" />
-                    <span>{item.views || 0} views</span>
+                  <h3 className={`font-semibold mb-2 ${isMobile || isTablet ? 'text-base' : 'text-sm'}`}>{goal.title}</h3>
+                  <p className={`opacity-80 mb-3 ${isMobile || isTablet ? 'text-sm' : 'text-xs'}`}>{goal.description}</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                      <span>Progress</span>
+                      <span>{goal.current}/{goal.target}</span>
+                    </div>
+                    <Progress value={progressPercentage} className={`h-2 ${isMobile || isTablet ? 'bg-gray-200' : ''}`} />
                   </div>
-                </>
-              )}
-              {item.type === "article" && (
-                <>
-                  <div className="flex items-center space-x-1">
-                    <Clock className="h-4 w-4" />
-                    <span>{item.readTime || "5 min read"}</span>
+                  {!goal.completed && goal.current >= goal.target && (
+                    <Button
+                      size="sm"
+                      className={`w-full mt-3 bg-green-600 hover:bg-green-700 ${isMobile || isTablet ? 'text-base py-2' : ''}`}
+                      onClick={() => completeGoal(goal.id)}
+                    >
+                      <Trophy className="h-3 w-3 mr-1" />
+                      Complete Goal
+                    </Button>
+                  )}
+                </Card>
+              )
+            })
+          )}
+        </div>
+
+        {daysRemaining === 0 && (
+          <Card className="mt-4 p-4 bg-red-50 border-red-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Clock className="h-5 w-5 text-red-600" />
+                <span className="font-semibold text-red-800">Week Expired</span>
+              </div>
+              <Button onClick={resetWeeklyGoals} className="bg-red-600 hover:bg-red-700">
+                Start New Week
+              </Button>
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {/* Main Content Area */}
+      <div className="w-full">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Training Programs</h2>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="flex items-center space-x-2 bg-transparent">
+                <Filter className="h-4 w-4" />
+                <span className="capitalize">
+                  {selectedFilter === "all" ? "All" : selectedFilter.replace("-", " ")}
+                </span>
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setSelectedFilter("all")}>All Programs</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSelectedFilter("in-progress")}>In Progress</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSelectedFilter("completed")}>Completed</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSelectedFilter("technical")}>Technical</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSelectedFilter("mental")}>Mental</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSelectedFilter("fitness")}>Fitness</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="space-y-6">
+          {filteredPrograms.map((program) => (
+            <Card key={program.id} className={`overflow-hidden transition-shadow ${isMobile || isTablet ? 'bg-white/80 border border-gray-200' : 'hover:shadow-lg'}`}>
+              <div className={`flex ${isMobile || isTablet ? 'flex-col' : ''}`}>
+                <div className={`${isMobile || isTablet ? 'w-full h-40' : 'w-48 h-32'} bg-gray-100 overflow-hidden flex-shrink-0`}>
+                  <Image
+                    src={program.thumbnail || "/placeholder.svg"}
+                    alt={program.title}
+                    width={isMobile || isTablet ? 320 : 192}
+                    height={isMobile || isTablet ? 160 : 128}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className={`flex-1 ${isMobile || isTablet ? 'p-4' : 'p-6'}`}>
+                  <div className={`flex items-start justify-between mb-3 ${isMobile || isTablet ? 'gap-2' : ''}`}>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Badge
+                          variant={program.difficulty === "Advanced" ? "default" : "secondary"}
+                          className={`text-xs ${isMobile || isTablet ? 'px-2 py-1' : ''}`}
+                        >
+                          {program.difficulty}
+                        </Badge>
+                        <Badge variant="outline" className={`text-xs ${isMobile || isTablet ? 'px-2 py-1' : ''}`}>
+                          {program.category}
+                        </Badge>
+                      </div>
+                      <h3 className={`font-semibold mb-2 ${isMobile || isTablet ? 'text-lg' : 'text-xl'} text-gray-900`}>{program.title}</h3>
+                      <p className={`mb-3 ${isMobile || isTablet ? 'text-sm' : 'text-gray-600'}`}>{program.description}</p>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-1">
-                    <Users className="h-4 w-4" />
-                    <span>{item.reads || 0} reads</span>
-                  </div>
-                </>
-              )}
-              {item.type === "course" && (
-                <>
-                  <div className="flex items-center space-x-1">
-                    <BookOpen className="h-4 w-4" />
-                    <span>{item.lessons?.length || item.sessions || 0} lessons</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Users className="h-4 w-4" />
-                    <span>{item.participants || 0} enrolled</span>
-                  </div>
-                  {item.isEnrolled && item.progress > 0 && (
+                  <div className={`flex items-center space-x-4 mb-4 ${isMobile || isTablet ? 'flex-wrap gap-2' : ''}`}>
+                    <div className="flex items-center space-x-2">
+                      <Image
+                        src={program.coachAvatar || "/placeholder.svg"}
+                        alt={program.coach}
+                        width={24}
+                        height={24}
+                        className="w-6 h-6 rounded-full"
+                      />
+                      <span className={`text-sm ${isMobile || isTablet ? 'font-medium' : 'text-gray-600'}`}>{program.coach}</span>
+                    </div>
                     <div className="flex items-center space-x-1">
-                      <span className="text-prologue-electric font-medium">
-                        {item.progress || 0}% complete
+                      <Star className="h-4 w-4 text-yellow-500" />
+                      <span className="text-sm text-gray-600">{program.rating}</span>
+                    </div>
+                    <span className="text-sm text-gray-600">{program.students} students</span>
+                  </div>
+                  <div className={`flex items-center justify-between mb-4 ${isMobile || isTablet ? 'flex-wrap gap-2' : ''}`}>
+                    <div className="flex items-center space-x-4 text-sm text-gray-600">
+                      <div className="flex items-center space-x-1">
+                        <Clock className="h-4 w-4" />
+                        <span>{program.duration}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <BookOpen className="h-4 w-4" />
+                        <span>{program.sessions} sessions</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-700">Progress</span>
+                      <span className="text-sm text-gray-600">
+                        {program.completed}/{program.sessions} completed
                       </span>
                     </div>
-                  )}
-                </>
-              )}
-            </div>
-            
-            {/* Action button */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-1">
-                <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                <span className="text-sm text-gray-600">{item.rating || "4.5"}</span>
-                <Badge variant="outline" className="ml-2 text-xs border-prologue-electric text-prologue-electric">
-                  {item.category || "Training"}
-                </Badge>
+                    <Progress value={(program.completed / program.sessions) * 100} className={`${isMobile || isTablet ? 'h-2 bg-gray-200' : ''}`} />
+                  </div>
+                  <div className={`flex space-x-3 ${isMobile || isTablet ? 'gap-2' : ''}`}>
+                    <Button className={`bg-prologue-electric hover:bg-prologue-blue ${isMobile || isTablet ? 'text-base py-2' : ''}`}>
+                      <Play className="h-4 w-4 mr-2" />
+                      Continue Training
+                    </Button>
+                    <Button variant="outline" className={isMobile || isTablet ? 'text-base py-2' : ''}>View Details</Button>
+                  </div>
+                </div>
               </div>
-              {getActionButton()}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </main>
+  )
+
+  if (isMobile || isTablet) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <MemberHeader
+          currentPath="/member-training"
+          onLogout={logout}
+          showSearch={true}
+          unreadNotifications={unreadNotificationsCount}
+          unreadMessages={unreadMessagesCount}
+          hasNewContent={hasNewTrainingContent}
+          profileImageUrl={profileImageUrl}
+          profileData={profileData}
+        />
+        <MobileLayout
+          userType="member"
+          currentPath="/member-training"
+          showBottomNav={true}
+          unreadNotifications={unreadNotificationsCount}
+          unreadMessages={unreadMessagesCount}
+          hasNewContent={hasNewTrainingContent}
+        >
+          <MainContent />
+        </MobileLayout>
+      </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <MemberHeader
         currentPath="/member-training"
+        onLogout={handleLogout}
+        showSearch={true}
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
-        onLogout={logout}
-        profileImageUrl={profileImageUrl}
-        profileData={profileData}
       />
+      <MainContent />
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 lg:px-6 py-8 pb-20 lg:pb-8">
-        {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Training Content</h1>
-          <p className="text-gray-600">Explore videos, articles, and courses to enhance your athletic performance</p>
-        </div>
-
-        {/* Filters and Search */}
-        <div className={`flex items-center justify-between mb-8 ${isMobile ? "flex-col space-y-4" : ""}`}>
-          <div className={`${isMobile ? "w-full" : "flex-1"} flex justify-center`}>
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="bg-white">
-                <TabsTrigger value="all" className="flex items-center space-x-2">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>All</span>
-                </TabsTrigger>
-                <TabsTrigger value="videos" className="flex items-center space-x-2">
-                  <Video className="h-4 w-4" />
-                  <span>Videos</span>
-                </TabsTrigger>
-                <TabsTrigger value="articles" className="flex items-center space-x-2">
-                  <FileText className="h-4 w-4" />
-                  <span>Articles</span>
-                </TabsTrigger>
-                <TabsTrigger value="courses" className="flex items-center space-x-2">
-                  <BookOpen className="h-4 w-4" />
-                  <span>Courses</span>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-
-          <div className={`flex items-center space-x-3 ${isMobile ? "w-full" : ""}`}>
-            <div className="flex items-center space-x-1 bg-white rounded-lg p-1">
-              <Button
-                variant={viewMode === "grid" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("grid")}
-                className="h-8 w-8 p-0"
-              >
-                <Grid3X3 className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === "list" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setViewMode("list")}
-                className="h-8 w-8 p-0"
-              >
-                <List className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {activeTab === "courses" && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex items-center space-x-2 bg-white">
-                    <Filter className="h-4 w-4" />
-                    <span className="capitalize">
-                      {selectedFilter === "all" ? "All" : selectedFilter.replace("-", " ")}
-                    </span>
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setSelectedFilter("all")}>All Courses</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSelectedFilter("enrolled")}>Enrolled</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSelectedFilter("in-progress")}>In Progress</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSelectedFilter("completed")}>Completed</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-
-            <div className={`relative ${isMobile ? "flex-1" : ""}`} ref={searchRef}>
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Search content..."
-                value={searchQuery}
-                onChange={handleSearchChange}
-                onFocus={handleSearchFocus}
-                className={`pl-10 ${isMobile ? "w-full" : "w-64"} bg-white`}
-              />
-              {searchQuery && (
-                <button
-                  onClick={clearSearch}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-              {showSearchDropdown && searchDropdownContent}
-            </div>
-
-            <Link href="/member-browse">
-              <Button className="bg-prologue-electric hover:bg-prologue-blue text-white">
-                <Compass className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Discover</span>
-              </Button>
-            </Link>
-          </div>
-        </div>
-
-        {/* Content Grid */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-prologue-electric mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading training content...</p>
-            </div>
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="text-red-500 mb-4">
-              <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Error loading content</h3>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <Button onClick={() => window.location.reload()}>Try Again</Button>
-          </div>
-        ) : filteredContent.length > 0 ? (
-          viewMode === "grid" ? (
-            <div
-              className={`grid ${isMobile ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"} gap-6`}
-            >
-              {filteredContent.map((item) => (
-                <ContentCard key={`${item.type}-${item.id}`} item={item} />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredContent.map((item) => (
-                <Card key={`${item.type}-${item.id}`} className="hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex items-center space-x-6">
-                      <div className="w-24 h-16 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
-                        {item.type === "article" ? (
-                          <div className="w-full h-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center">
-                            <FileText className="h-6 w-6 text-white" />
-                          </div>
-                        ) : item.type === "video" && item.videoUrl ? (
-                          <video src={item.videoUrl} className="w-full h-full object-cover" />
-                        ) : item.type === "course" && item.coverImage ? (
-                          <Image 
-                            src={item.coverImage} 
-                            alt={item.title} 
-                            width={96} 
-                            height={64} 
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                            <Play className="h-6 w-6 text-gray-600" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <div className="flex items-center space-x-2 mb-1">
-                              <Badge className="bg-prologue-electric text-white text-xs flex items-center space-x-1">
-                                {item.type === "video" && <Video className="h-3 w-3" />}
-                                {item.type === "article" && <FileText className="h-3 w-3" />}
-                                {item.type === "course" && <BookOpen className="h-3 w-3" />}
-                                <span className="capitalize">{item.type}</span>
-                              </Badge>
-                              <Badge
-                                variant="outline"
-                                className="text-xs border-prologue-electric text-prologue-electric"
-                              >
-                                {item.category || "Training"}
-                              </Badge>
-                            </div>
-                            <Link href={`/${item.type}/${item.id}`}>
-                              <h3 className="font-semibold text-gray-900 mb-1 hover:text-prologue-electric transition-colors">
-                                {item.title}
-                              </h3>
-                            </Link>
-                            <p className="text-sm text-gray-600">{getCreatorInfo(item.createdBy).firstName} {getCreatorInfo(item.createdBy).lastName}</p>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                            <span className="text-sm text-gray-600">{item.rating || "4.5"}</span>
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-700 mb-3 line-clamp-1">{item.description}</p>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-4 text-sm text-gray-600">
-                            {item.type === "video" && (
-                              <>
-                                <div className="flex items-center space-x-1">
-                                  <Clock className="h-4 w-4" />
-                                  <span>{item.duration || "10:30"}</span>
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                  <Eye className="h-4 w-4" />
-                                  <span>{item.views || 0}</span>
-                                </div>
-                              </>
-                            )}
-                            {item.type === "article" && (
-                              <>
-                                <div className="flex items-center space-x-1">
-                                  <Clock className="h-4 w-4" />
-                                  <span>{item.readTime || "5 min read"}</span>
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                  <Eye className="h-4 w-4" />
-                                  <span>{item.views || 0}</span>
-                                </div>
-                              </>
-                            )}
-                            {item.type === "course" && (
-                              <>
-                                <div className="flex items-center space-x-1">
-                                  <BookOpen className="h-4 w-4" />
-                                  <span>{item.lessons?.length || item.sessions || 0} lessons</span>
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                  <Users className="h-4 w-4" />
-                                  <span>{item.participants || 0}</span>
-                                </div>
-                                {item.isEnrolled && item.progress > 0 && (
-                                  <div className="flex items-center space-x-1">
-                                    <span className="text-prologue-electric font-medium">
-                                      {item.progress || 0}% complete
-                                    </span>
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Link href={`/${item.type}/${item.id}`}>
-                              <Button size="sm" className="bg-prologue-electric hover:bg-prologue-blue text-white">
-                                {item.type === "course" && item.isEnrolled
-                                  ? item.progress === 100
-                                    ? "Review"
-                                    : item.progress > 0
-                                      ? "Continue"
-                                      : "Start"
-                                  : item.type === "course"
-                                    ? "Enroll"
-                                    : "View"}
-                              </Button>
-                            </Link>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )
-        ) : (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-              {athleteIds.length === 0 ? (
-                <BookOpen className="h-10 w-10 text-gray-400" />
-              ) : (
-                <Search className="h-10 w-10 text-gray-400" />
-              )}
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-3">
-              {athleteIds.length === 0 ? "No Training Content Available" : "No content found"}
-            </h3>
-            <p className="text-gray-600 mb-6 max-w-md">
-              {athleteIds.length === 0 
-                ? "You don't have any active subscriptions. Subscribe to creators to access their training content, courses, and exclusive materials."
-                : searchQuery 
-                  ? `No content matches "${searchQuery}". Try a different search term.`
-                  : "No content available for the selected filters."
-              }
-            </p>
-            {athleteIds.length === 0 ? (
-              <Link href="/member-browse">
-                <Button className="bg-prologue-electric hover:bg-prologue-blue text-white">
-                  Browse Creators
-                </Button>
-              </Link>
-            ) : searchQuery ? (
-              <Button onClick={clearSearch} variant="outline">
-                Clear Search
-              </Button>
-            ) : (
-              <Button onClick={() => setSelectedFilter("all")} variant="outline">
-                Clear Filters
-              </Button>
-            )}
-          </div>
-        )}
-      </main>
-
-      {/* Mobile Bottom Navigation */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50">
-        <div className="flex items-center justify-around h-16 px-4">
-          <Link
-            href="/member-home"
-            className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
-          >
-            <Home className="h-5 w-5" />
-            <span className="text-xs font-medium">Home</span>
-          </Link>
-          <Link
-            href="/member-training"
-            className="flex flex-col items-center space-y-1 text-prologue-electric transition-colors"
-          >
-            <BookOpen className="h-5 w-5" />
-            <span className="text-xs font-medium">Training</span>
-          </Link>
-          <Link
-            href="/member-browse"
-            className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
-          >
-            <Search className="h-5 w-5" />
-            <span className="text-xs font-medium">Discover</span>
-          </Link>
-          <Link
-            href="/member-feedback"
-            className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors"
-          >
-            <MessageSquare className="h-5 w-5" />
-            <span className="text-xs font-medium">Feedback</span>
-          </Link>
-          <Link
-            href="/member-messaging"
-            className="flex flex-col items-center space-y-1 text-gray-600 hover:text-prologue-electric transition-colors relative"
-          >
-            <MessageCircle className="h-5 w-5" />
-            <span className="text-xs font-medium">Messages</span>
-            {unreadMessagesCount > 0 && (
-              <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-            )}
-          </Link>
-        </div>
-      </nav>
+      {/* Logout Notification */}
+      <LogoutNotification
+        isVisible={loadingState.isVisible}
+        userType={loadingState.userType}
+        stage={loadingState.stage}
+        message={loadingState.message}
+        error={loadingState.error}
+        canRetry={loadingState.canRetry}
+        onRetry={retryLogout}
+        onCancel={cancelLogout}
+      />
     </div>
   )
 }
