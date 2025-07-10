@@ -17,8 +17,13 @@ import {
   LogOut,
   LayoutDashboard,
   Compass,
+  Search,
+  X,
 } from "lucide-react"
 import SearchBar from "@/components/SearchBar"
+import { useMobileDetection } from "@/hooks/use-mobile-detection";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 interface MemberHeaderProps {
   currentPath: string
@@ -47,6 +52,8 @@ export function MemberHeader({
   profileImageUrl,
   profileData,
 }: MemberHeaderProps) {
+  const { isMobile } = useMobileDetection();
+  const [searchOpen, setSearchOpen] = useState(false);
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 lg:px-6">
@@ -66,17 +73,18 @@ export function MemberHeader({
                 PROLOGUE
               </span>
             </Link>
-            
-            {/* Search Bar */}
+            {/* Search Bar or Icon */}
             {showSearch && (
-              <div className="w-32 sm:w-48 md:w-64 lg:w-80 flex-shrink min-w-0">
-                <SearchBar 
-                  onSearch={(term) => console.log("Searching:", term)} 
-                  placeholder="Search coaches, content..." 
-                  delay={1000} 
-                  initialValue="" 
-                />
-              </div>
+              !isMobile ? (
+                <div className="w-32 sm:w-48 md:w-64 lg:w-80 flex-shrink min-w-0">
+                  <SearchBar
+                    onSearch={(term) => console.log("Searching:", term)}
+                    placeholder="Search coaches, content..."
+                    delay={1000}
+                    initialValue=""
+                  />
+                </div>
+              ) : null
             )}
           </div>
           <div className="flex items-center space-x-2 lg:space-x-3 flex-shrink-0">

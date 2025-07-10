@@ -24,6 +24,7 @@ import Link from 'next/link'
 import { Home, BookOpen, Search, MessageSquare, MessageCircle } from 'lucide-react'
 import { db } from '@/lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 // Define interfaces at the top level
 interface ProfileData {
@@ -92,13 +93,19 @@ const EditProfileForm = memo(
     onUpdateAvatar,
     onUpdateCoverImage,
   }: {
-    initialData: Omit<ProfileData, "avatar" | "coverImage">
-    onSave: (data: Omit<ProfileData, "avatar" | "coverImage">) => void
-    onCancel: () => void
-    onUpdateAvatar: (url: string) => void
-    onUpdateCoverImage: (url: string) => void
+    initialData: ProfileData;
+    onSave: (data: ProfileData) => void;
+    onCancel: () => void;
+    onUpdateAvatar: (url: string) => void;
+    onUpdateCoverImage: (url: string) => void;
   }) => {
-    const [editData, setEditData] = useState(initialData)
+    const [editData, setEditData] = useState<ProfileData>(initialData);
+    const [avatarPreview, setAvatarPreview] = useState(initialData.avatar || "");
+    const [coverPreview, setCoverPreview] = useState(initialData.coverImage || "");
+    const [avatarFile, setAvatarFile] = useState<File | null>(null);
+    const [coverFile, setCoverFile] = useState<File | null>(null);
+    const [avatarFileName, setAvatarFileName] = useState<string>("");
+    const [coverFileName, setCoverFileName] = useState<string>("");
 
     const handleInputChange = useCallback((field: keyof typeof editData, value: string) => {
       setEditData((prev) => ({
@@ -153,83 +160,143 @@ const EditProfileForm = memo(
       }
     }
 
+    // Handler for file input changes
+    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        setAvatarFile(file);
+        setAvatarFileName(file.name);
+      } else {
+        setAvatarFile(null);
+        setAvatarFileName("");
+      }
+    };
+    const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        setCoverFile(file);
+        setCoverFileName(file.name);
+      } else {
+        setCoverFile(null);
+        setCoverFileName("");
+      }
+    };
+
+    const handleSave = async () => {
+      let avatarUrl = editData.avatar;
+      let coverUrl = editData.coverImage;
+      if (avatarFile) {
+        const storage = getStorage();
+        const storageRef = ref(storage, `avatars/${editData.email}-${Date.now()}`);
+        await uploadBytes(storageRef, avatarFile);
+        avatarUrl = await getDownloadURL(storageRef);
+      }
+      if (coverFile) {
+        const storage = getStorage();
+        const storageRef = ref(storage, `covers/${editData.email}-${Date.now()}`);
+        await uploadBytes(storageRef, coverFile);
+        coverUrl = await getDownloadURL(storageRef);
+      }
+      onSave({ ...editData, avatar: avatarUrl, coverImage: coverUrl });
+    };
+
     return (
       <div className="space-y-4">
-            <div>
+        <div>
+          <Label htmlFor="profile-picture">Profile Picture</Label>
+          <Input
+            id="profile-picture"
+            type="file"
+            accept="image/*"
+            onChange={handleAvatarChange}
+          />
+          {avatarFileName && <span className="text-xs text-gray-500 ml-2">{avatarFileName}</span>}
+        </div>
+        <div>
+          <Label htmlFor="banner-image">Banner Image</Label>
+          <Input
+            id="banner-image"
+            type="file"
+            accept="image/*"
+            onChange={handleCoverChange}
+          />
+          {coverFileName && <span className="text-xs text-gray-500 ml-2">{coverFileName}</span>}
+        </div>
+        <div>
           <Label htmlFor="firstName">First Name</Label>
-                              <Input
+          <Input
             id="firstName"
             value={editData.firstName || ""}
             onChange={(e) => handleInputChange("firstName", e.target.value)}
             placeholder="Enter your first name"
           />
-                            </div>
-                  <div>
-                    <Label htmlFor="lastName">Last Name</Label>
-                    <Input
-                      id="lastName"
-                      value={editData.lastName || ""}
-                      onChange={(e) => handleInputChange("lastName", e.target.value)}
-                      placeholder="Enter your last name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
+        </div>
+        <div>
+          <Label htmlFor="lastName">Last Name</Label>
+          <Input
+            id="lastName"
+            value={editData.lastName || ""}
+            onChange={(e) => handleInputChange("lastName", e.target.value)}
+            placeholder="Enter your last name"
+          />
+        </div>
+        <div>
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
             value={editData.email}
             onChange={(e) => handleInputChange("email", e.target.value)}
             placeholder="Enter your email"
             disabled
           />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone">Phone</Label>
-                    <Input 
-                      id="phone" 
+        </div>
+        <div>
+          <Label htmlFor="phone">Phone</Label>
+          <Input
+            id="phone"
             value={editData.phone}
             onChange={(e) => handleInputChange("phone", e.target.value)}
-                      placeholder="Enter your phone number"
-                    />
-                  </div>
-                    <div>
-                      <Label htmlFor="location">Location</Label>
-                      <Input
-                        id="location"
+            placeholder="Enter your phone number"
+          />
+        </div>
+        <div>
+          <Label htmlFor="location">Location</Label>
+          <Input
+            id="location"
             value={editData.location}
             onChange={(e) => handleInputChange("location", e.target.value)}
             placeholder="Enter your location"
           />
-                    </div>
-                    <div>
+        </div>
+        <div>
           <Label htmlFor="sport">Primary Sport</Label>
-                      <Input
+          <Input
             id="sport"
             value={editData.sport}
             onChange={(e) => handleInputChange("sport", e.target.value)}
             placeholder="Enter your primary sport"
           />
-                    </div>
-                    <div>
-                      <Label htmlFor="position">Position</Label>
-                      <Input
-                        id="position"
+        </div>
+        <div>
+          <Label htmlFor="position">Position</Label>
+          <Input
+            id="position"
             value={editData.position}
             onChange={(e) => handleInputChange("position", e.target.value)}
             placeholder="Enter your position"
           />
-                    </div>
-                    <div>
+        </div>
+        <div>
           <Label htmlFor="experience">Experience</Label>
-                      <Input
+          <Input
             id="experience"
             value={editData.experience}
             onChange={(e) => handleInputChange("experience", e.target.value)}
             placeholder="Enter your experience"
           />
-                    </div>
-                  <div>
+        </div>
+        <div>
           <Label htmlFor="bio">Bio</Label>
           <Textarea
             id="bio"
@@ -238,44 +305,7 @@ const EditProfileForm = memo(
             placeholder="Tell coaches about your athletic journey and goals..."
             className="min-h-[120px] resize-none"
           />
-                  </div>
-        {/* <div>
-          <Label htmlFor="avatar">Avatar</Label>
-          <input
-            type="file"
-            id="avatar"
-            accept="image/*"
-            onChange={(e) => handleFileChange(e, onUpdateAvatar)}
-            className="hidden"
-          />
-          <Button variant="outline" onClick={() => document.getElementById("avatar")?.click()} className="w-full">
-            {editData.avatar ? (
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={editData.avatar} alt="Avatar" />
-                <AvatarFallback>A</AvatarFallback>
-              </Avatar>
-            ) : (
-              "Upload Avatar"
-            )}
-                      </Button>
-        </div> */}
-        {/* <div>
-          <Label htmlFor="coverImage">Cover Image</Label>
-          <input
-            type="file"
-            id="coverImage"
-            accept="image/*"
-            onChange={(e) => handleFileChange(e, onUpdateCoverImage)}
-            className="hidden"
-          />
-          <Button variant="outline" onClick={() => document.getElementById("coverImage")?.click()} className="w-full">
-            {editData.coverImage ? (
-              <img src={editData.coverImage} alt="Cover" className="h-20 w-full object-cover rounded-md" />
-            ) : (
-              "Upload Cover Image"
-            )}
-                      </Button>
-        </div> */}
+        </div>
         <div className="bg-gray-50 rounded-lg p-4 mb-4">
           <h4 className="font-semibold mb-2">Key Achievements</h4>
           <div className="space-y-2">
@@ -323,12 +353,12 @@ const EditProfileForm = memo(
     <X className="h-4 w-4 mr-2" />
     Cancel
   </Button>
-  <Button onClick={() => onSave(editData)} className="bg-prologue-electric hover:bg-prologue-blue">
+  <Button onClick={handleSave} className="bg-prologue-electric hover:bg-prologue-blue">
     <Save className="h-4 w-4 mr-2" />
     Save Changes
   </Button>
 </div>
-        </div>
+      </div>
     )
   },
 )
@@ -794,7 +824,7 @@ export default function MemberDashboardPage() {
     })
   }, [logout])
 
-  const handleSaveProfile = useCallback(async (data: Omit<ProfileData, "avatar" | "coverImage">) => {
+  const handleSaveProfile = useCallback(async (data: ProfileData) => {
     if (!auth.currentUser) {
       toast({
         title: "Error",
