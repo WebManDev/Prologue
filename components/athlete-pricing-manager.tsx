@@ -79,16 +79,9 @@ export function AthletePricingManager({ athleteData }: AthletePricingManagerProp
 
   // Cooldown logic for 2 changes per 14 days
   useEffect(() => {
-    if (!pricingChangeHistory || pricingChangeHistory.length === 0) {
-      setCooldownError(null)
-      setChangesLeft(MAX_CHANGES)
-      setNextChangeAllowed(null)
-      return
-    }
     const now = Date.now()
     const recent = pricingChangeHistory.filter(ts => now - new Date(ts).getTime() < WINDOW_MS)
     setChangesLeft(MAX_CHANGES - recent.length)
-    setPricingChangeHistory(recent)
     if (recent.length >= MAX_CHANGES) {
       // Find when the next change will be allowed
       const oldest = new Date(recent[0]).getTime()

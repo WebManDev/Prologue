@@ -352,29 +352,41 @@ export default function MemberFeedbackPage() {
 
   const handleSubmitFeedbackToAthlete = async () => {
     if (!selectedAthlete) {
-      alert("Please select an athlete to send feedback to.")
+      toast({
+        title: "Error",
+        description: "Please select an athlete to send feedback to.",
+        variant: "destructive",
+        duration: 3000,
+      })
       return
     }
 
+    setIsSubmitting(true)
     const selectedAthleteData = subscribedAthletes.find((athlete) => athlete.id === selectedAthlete)
     const memberId = auth.currentUser?.uid || null
     const memberName = auth.currentUser?.displayName || ""
     let videoUrl = null
 
-    // Upload video if selected
-    if (selectedFile) {
-      try {
-        const storage = getStorage()
-        const filePath = `feedback-videos/${memberId}/${Date.now()}_${selectedFile.name}`
-        const fileRef = ref(storage, filePath)
-        await uploadBytes(fileRef, selectedFile)
-        videoUrl = await getDownloadURL(fileRef)
-      } catch (e) {
-        alert("Failed to upload video. Feedback will be sent without video.")
-      }
-    }
-
     try {
+      // Upload video if selected
+      if (selectedFile) {
+        try {
+          const storage = getStorage()
+          const filePath = `feedback-videos/${memberId}/${Date.now()}_${selectedFile.name}`
+          const fileRef = ref(storage, filePath)
+          await uploadBytes(fileRef, selectedFile)
+          videoUrl = await getDownloadURL(fileRef)
+        } catch (e) {
+          console.error("Video upload failed:", e)
+          toast({
+            title: "Warning",
+            description: "Failed to upload video. Feedback will be sent without video.",
+            variant: "destructive",
+            duration: 4000,
+          })
+        }
+      }
+
       console.log("Attempting to submit feedback with data:", {
         athleteId: selectedAthleteData?.id,
         athleteName: selectedAthleteData?.name,
@@ -396,20 +408,45 @@ export default function MemberFeedbackPage() {
         videoUrl,
         createdAt: Timestamp.now(),
       })
+
+      // Create notification for the athlete
+      await addDoc(collection(db, "notifications"), {
+        userId: selectedAthleteData?.id, // athlete's user ID
+        type: "feedback",
+        title: feedbackTitle,
+        message: feedbackDescription,
+        from: memberName,
+        createdAt: Timestamp.now(),
+        read: false,
+      })
       
-      // Refresh the sent feedback data
-      await refreshSentFeedback()
+      // Refresh the sent feedback data in background (don't await)
+      refreshSentFeedback().catch(e => {
+        console.warn("Failed to refresh sent feedback:", e)
+      })
       
       // Reset form
       setFeedbackTitle("")
       setFeedbackDescription("")
       setSelectedFile(null)
       setSelectedAthlete("")
-      alert(`Feedback submitted successfully to ${selectedAthleteData?.name}!` + (videoUrl ? "\nVideo uploaded." : ""))
+      setIsSubmitting(false)
+      
+      toast({
+        title: "Success!",
+        description: `Feedback submitted successfully to ${selectedAthleteData?.name}!${videoUrl ? " Video uploaded." : ""}`,
+        duration: 4000,
+      })
     } catch (e) {
       console.error("Feedback submission error:", e)
+      setIsSubmitting(false)
       const errorMessage = e instanceof Error ? e.message : "Unknown error occurred"
-      alert(`Failed to submit feedback: ${errorMessage}. Please check the console for details.`)
+      toast({
+        title: "Error",
+        description: `Failed to submit feedback: ${errorMessage}`,
+        variant: "destructive",
+        duration: 5000,
+      })
     }
   }
 
@@ -420,9 +457,18 @@ export default function MemberFeedbackPage() {
 
     setIsSubmitting(true)
 
-    // Send email to andyhluu23@gmail.com (optional, keep if you want)
     try {
-      await fetch("/api/send-feedback-email", {
+      // Run email sending and Firestore write in parallel, don't wait for email
+      const firestorePromise = addDoc(collection(db, "platformFeedback"), {
+        type: platformFeedbackType,
+        title: platformFeedbackTitle,
+        message: platformFeedbackMessage,
+        createdAt: Timestamp.now(),
+        userId: auth.currentUser?.uid || null,
+      })
+
+      // Send email in background (don't await)
+      fetch("/api/send-feedback-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -430,35 +476,38 @@ export default function MemberFeedbackPage() {
           title: platformFeedbackTitle,
           message: platformFeedbackMessage,
         }),
+      }).catch(e => {
+        // Silent fail for email - it's not critical
+        console.warn("Email sending failed:", e)
       })
-    } catch (e) {
-      // Optionally handle error
-    }
 
-    // Save feedback directly to Firestore (client-side, like articles)
-    try {
-      await addDoc(collection(db, "platformFeedback"), {
-        type: platformFeedbackType,
-        title: platformFeedbackTitle,
-        message: platformFeedbackMessage,
-        createdAt: Timestamp.now(),
-        userId: auth.currentUser?.uid || null,
+      // Only wait for Firestore write
+      await firestorePromise
+
+      // Reset form
+      setPlatformFeedbackType("")
+      setPlatformFeedbackTitle("")
+      setPlatformFeedbackMessage("")
+      setIsSubmitting(false)
+
+      // Show success message using toast instead of alert
+      toast({
+        title: "Success!",
+        description: "Platform feedback submitted successfully!",
+        duration: 3000,
       })
+
     } catch (e) {
-      // Optionally handle error
+      console.error("Feedback submission error:", e)
+      setIsSubmitting(false)
+      
+      toast({
+        title: "Error",
+        description: "Failed to submit feedback. Please try again.",
+        variant: "destructive",
+        duration: 5000,
+      })
     }
-
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-
-    // Reset form
-    setPlatformFeedbackType("")
-    setPlatformFeedbackTitle("")
-    setPlatformFeedbackMessage("")
-    setIsSubmitting(false)
-
-    // Show success message
-    alert("Platform feedback submitted successfully!")
   }
 
   const getStatusIcon = (status: string) => {
@@ -686,10 +735,19 @@ export default function MemberFeedbackPage() {
                   <Button
                     onClick={handleSubmitFeedbackToAthlete}
                     className="w-full bg-prologue-electric hover:bg-prologue-blue text-white"
-                    disabled={!selectedAthlete || !feedbackTitle || !feedbackDescription}
+                    disabled={!selectedAthlete || !feedbackTitle || !feedbackDescription || isSubmitting}
                   >
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Feedback
+                    {isSubmitting ? (
+                      <>
+                        <Clock className="h-4 w-4 mr-2 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send Feedback
+                      </>
+                    )}
                   </Button>
                 </CardContent>
               </Card>

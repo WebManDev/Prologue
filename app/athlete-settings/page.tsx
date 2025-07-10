@@ -83,19 +83,6 @@ const AthleteSettingsPage = () => {
     dataCollection: true,
   })
 
-  // Banking Information State
-  const [bankingInfo, setBankingInfo] = useState({
-    bankName: "",
-    accountHolderName: "",
-    accountNumber: "",
-    routingNumber: "",
-    accountType: "checking",
-    bankAddress: "",
-    bankCity: "",
-    bankState: "",
-    bankZip: "",
-  })
-
   const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
 
   // Fetch athlete profile data on component mount
@@ -124,12 +111,6 @@ const AthleteSettingsPage = () => {
               profilePhotoUrl: profile.profilePhotoUrl || profile.profileImageUrl || "",
               coverPhotoUrl: profile.coverPhotoUrl || "",
             })
-            
-            // Set banking info with user's name
-            setBankingInfo(prev => ({
-              ...prev,
-              accountHolderName: profile.name || `${profile.firstName || ""} ${profile.lastName || ""}`.trim() || "",
-            }))
           }
         } catch (error) {
           console.error("Error fetching athlete profile:", error)
@@ -312,31 +293,6 @@ const AthleteSettingsPage = () => {
       })
     } finally {
       setIsLoading({ ...isLoading, privacy: false })
-    }
-  }
-
-  const saveBankingInfo = async () => {
-    setIsLoading({ ...isLoading, banking: true })
-
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    try {
-      console.log("Saving banking information:", bankingInfo)
-
-      toast({
-        title: "Banking Information Saved",
-        description: "Your banking details have been securely stored.",
-        duration: 3000,
-      })
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to save banking information. Please try again.",
-        variant: "destructive",
-        duration: 3000,
-      })
-    } finally {
-      setIsLoading({ ...isLoading, banking: false })
     }
   }
 
@@ -675,163 +631,7 @@ const AthleteSettingsPage = () => {
                 <p className="text-sm text-gray-600">Add your banking details to receive payments from the platform</p>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="bankName">Bank Name *</Label>
-                    <Input
-                      id="bankName"
-                      value={bankingInfo.bankName}
-                      onChange={(e) => setBankingInfo({ ...bankingInfo, bankName: e.target.value })}
-                      placeholder="e.g., Chase Bank"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="accountHolderName">Account Holder Name *</Label>
-                    <Input
-                      id="accountHolderName"
-                      value={bankingInfo.accountHolderName}
-                      onChange={(e) => setBankingInfo({ ...bankingInfo, accountHolderName: e.target.value })}
-                      placeholder="Full name on account"
-                      disabled={isLoadingProfile}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="routingNumber">Routing Number *</Label>
-                    <Input
-                      id="routingNumber"
-                      value={bankingInfo.routingNumber}
-                      onChange={(e) => setBankingInfo({ ...bankingInfo, routingNumber: e.target.value })}
-                      placeholder="9-digit routing number"
-                      maxLength={9}
-                      required
-                    />
-                    <p className="text-sm text-gray-500 mt-1">9-digit number found on your checks</p>
-                  </div>
-                  <div>
-                    <Label htmlFor="accountNumber">Account Number *</Label>
-                    <Input
-                      id="accountNumber"
-                      value={bankingInfo.accountNumber}
-                      onChange={(e) => setBankingInfo({ ...bankingInfo, accountNumber: e.target.value })}
-                      placeholder="Account number"
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor="accountType">Account Type *</Label>
-                  <Select
-                    value={bankingInfo.accountType}
-                    onValueChange={(value) => setBankingInfo({ ...bankingInfo, accountType: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="checking">Checking Account</SelectItem>
-                      <SelectItem value="savings">Savings Account</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Separator />
-
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-4">Bank Address</h4>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="bankAddress">Street Address</Label>
-                      <Input
-                        id="bankAddress"
-                        value={bankingInfo.bankAddress}
-                        onChange={(e) => setBankingInfo({ ...bankingInfo, bankAddress: e.target.value })}
-                        placeholder="Bank street address"
-                      />
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <Label htmlFor="bankCity">City</Label>
-                        <Input
-                          id="bankCity"
-                          value={bankingInfo.bankCity}
-                          onChange={(e) => setBankingInfo({ ...bankingInfo, bankCity: e.target.value })}
-                          placeholder="City"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="bankState">State</Label>
-                        <Input
-                          id="bankState"
-                          value={bankingInfo.bankState}
-                          onChange={(e) => setBankingInfo({ ...bankingInfo, bankState: e.target.value })}
-                          placeholder="State"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="bankZip">ZIP Code</Label>
-                        <Input
-                          id="bankZip"
-                          value={bankingInfo.bankZip}
-                          onChange={(e) => setBankingInfo({ ...bankingInfo, bankZip: e.target.value })}
-                          placeholder="ZIP"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-start space-x-3">
-                    <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
-                    <div>
-                      <h5 className="font-medium text-blue-900">Secure Banking Information</h5>
-                      <p className="text-sm text-blue-700 mt-1">
-                        Your banking information is encrypted and securely stored. We use bank-level security to protect
-                        your data and only use this information to process payments to you.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <Button
-                  onClick={saveBankingInfo}
-                  className="bg-prologue-electric hover:bg-prologue-blue"
-                  disabled={
-                    isLoading.banking ||
-                    !bankingInfo.bankName ||
-                    !bankingInfo.accountHolderName ||
-                    !bankingInfo.routingNumber ||
-                    !bankingInfo.accountNumber
-                  }
-                >
-                  {isLoading.banking ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4 mr-2" />
-                      Save Banking Information
-                    </>
-                  )}
-                </Button>
-
-                <Separator className="my-6" />
-                {isLoadingProfile ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                    <span>Loading profile data...</span>
-                  </div>
-                ) : (
-                  <AthleteStripeConnect athleteData={accountData} />
-                )}
+                <AthleteStripeConnect athleteData={accountData} />
               </CardContent>
             </Card>
           </TabsContent>

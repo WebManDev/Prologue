@@ -507,21 +507,16 @@ export default function FeedbackPage() {
                                   />
                                 )
                               }
+                              // Fallback for direct video links (Firebase Storage, etc.)
                               return (
-                                <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                                  <div className="text-center">
-                                    <div className="w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center mx-auto mb-2">
-                                      <svg className="w-8 h-8 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                                        <path
-                                          fillRule="evenodd"
-                                          d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
-                                          clipRule="evenodd"
-                                        />
-                                      </svg>
-                                    </div>
-                                    <p className="text-sm text-gray-500">Video not available</p>
-                                  </div>
-                                </div>
+                                <video
+                                  controls
+                                  src={request.videoUrl}
+                                  className="w-full h-full"
+                                  style={{ background: "#222" }}
+                                >
+                                  Your browser does not support the video tag.
+                                </video>
                               )
                             })()}
                           </div>
