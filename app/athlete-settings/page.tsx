@@ -358,7 +358,7 @@ const AthleteSettingsPage = () => {
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-6 py-8">
         <Tabs defaultValue="account" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="account" className="flex items-center space-x-2">
               <User className="h-4 w-4" />
               <span>Profile</span>
@@ -370,10 +370,6 @@ const AthleteSettingsPage = () => {
             <TabsTrigger value="banking" className="flex items-center space-x-2">
               <CreditCard className="h-4 w-4" />
               <span>Banking</span>
-            </TabsTrigger>
-            <TabsTrigger value="privacy" className="flex items-center space-x-2">
-              <Shield className="h-4 w-4" />
-              <span>Privacy</span>
             </TabsTrigger>
             <TabsTrigger value="security" className="flex items-center space-x-2">
               <Lock className="h-4 w-4" />
@@ -632,125 +628,6 @@ const AthleteSettingsPage = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <AthleteStripeConnect athleteData={accountData} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Privacy Settings */}
-          <TabsContent value="privacy" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Privacy Settings</CardTitle>
-                <p className="text-sm text-gray-600">Control who can see your information</p>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <Label htmlFor="profileVisibility">Profile Visibility</Label>
-                  <Select
-                    value={privacySettings.profileVisibility}
-                    onValueChange={(value) => setPrivacySettings({ ...privacySettings, profileVisibility: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="public">Public - Anyone can view</SelectItem>
-                      <SelectItem value="private">Private - Only you can view</SelectItem>
-                      <SelectItem value="subscribers">Subscribers Only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900">Contact Information</h4>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Show Email Address</h5>
-                      <p className="text-sm text-gray-600">Display your email on your public profile</p>
-                    </div>
-                    <Switch
-                      checked={privacySettings.showEmail}
-                      onCheckedChange={(checked) => setPrivacySettings({ ...privacySettings, showEmail: checked })}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Show Phone Number</h5>
-                      <p className="text-sm text-gray-600">Display your phone number on your public profile</p>
-                    </div>
-                    <Switch
-                      checked={privacySettings.showPhone}
-                      onCheckedChange={(checked) => setPrivacySettings({ ...privacySettings, showPhone: checked })}
-                    />
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900">Communication</h4>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Allow Messages</h5>
-                      <p className="text-sm text-gray-600">Allow users to send you direct messages</p>
-                    </div>
-                    <Switch
-                      checked={privacySettings.allowMessages}
-                      onCheckedChange={(checked) => setPrivacySettings({ ...privacySettings, allowMessages: checked })}
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Show Online Status</h5>
-                      <p className="text-sm text-gray-600">Show when you're online to other users</p>
-                    </div>
-                    <Switch
-                      checked={privacySettings.showOnlineStatus}
-                      onCheckedChange={(checked) =>
-                        setPrivacySettings({ ...privacySettings, showOnlineStatus: checked })
-                      }
-                    />
-                  </div>
-                </div>
-
-                <Separator />
-
-                <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900">Data & Analytics</h4>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h5 className="font-medium">Data Collection</h5>
-                      <p className="text-sm text-gray-600">Allow us to collect analytics to improve your experience</p>
-                    </div>
-                    <Switch
-                      checked={privacySettings.dataCollection}
-                      onCheckedChange={(checked) => setPrivacySettings({ ...privacySettings, dataCollection: checked })}
-                    />
-                  </div>
-                </div>
-
-                <Button
-                  onClick={savePrivacySettings}
-                  className="bg-prologue-electric hover:bg-prologue-blue"
-                  disabled={isLoading.privacy}
-                >
-                  {isLoading.privacy ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4 mr-2" />
-                      Save Privacy Settings
-                    </>
-                  )}
-                </Button>
               </CardContent>
             </Card>
           </TabsContent>
