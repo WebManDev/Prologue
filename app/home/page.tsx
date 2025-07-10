@@ -985,7 +985,7 @@ export default function MemberHomePage() {
                                 <MessageSquare className="h-5 w-5 mr-2" />
                                 <span className="hidden sm:inline">Comment</span>
                               </Button>
-                              <Button variant="ghost" size="sm" className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10">
+                              <Button variant="ghost" size="sm" className="flex-1 text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10" onClick={() => handleShare(item.id)}>
                                 <Share className="h-5 w-5 mr-2" />
                                 <span className="hidden sm:inline">Share</span>
                               </Button>

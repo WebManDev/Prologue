@@ -348,6 +348,9 @@ export default function MemberDiscoverPage() {
   // Enhanced filtering logic
   const filteredAthletes = useMemo(() => {
     const filtered = athletes.filter((athlete) => {
+      // Only show athletes with a Stripe account ID
+      if (!athlete.stripeAccountId) return false;
+
       // Sport filter
       if (selectedSport !== "all" && athlete.sport !== selectedSport) return false
 
@@ -519,7 +522,8 @@ export default function MemberDiscoverPage() {
           <div className="relative h-32 bg-gradient-to-r from-gray-300 to-gray-400 overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             <div className="absolute top-3 right-3 flex items-center space-x-2">
-              {athlete.isVerified && (
+              {/* Always show Verified badge if athlete has a Stripe account */}
+              {athlete.stripeAccountId && (
                 <Badge className="bg-prologue-electric text-white text-xs px-2 py-1">
                   <Verified className="h-3 w-3 mr-1" />
                   Verified

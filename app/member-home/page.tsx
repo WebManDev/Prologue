@@ -809,27 +809,22 @@ export default function MemberHomePage() {
             </Card>
 
             {/* Tab Navigation */}
-            <div className="flex items-center space-x-1 mb-4 sm:mb-8 bg-white/50 backdrop-blur-sm rounded-lg p-1">
+            <div className="flex items-center space-x-1 mb-8 bg-white/50 backdrop-blur-sm rounded-lg p-1">
               <button
                 onClick={() => setActiveTab("feed")}
-                className={`flex-1 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                  activeTab === "feed"
-                    ? "bg-white text-prologue-electric shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
+                className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                  activeTab === "feed" ? "bg-white text-prologue-electric shadow-sm" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
-                <div className="flex items-center justify-center space-x-1 sm:space-x-2">
+                <div className="flex items-center justify-center space-x-2">
                   <Zap className="h-4 w-4" />
-                  <span className="text-xs sm:text-sm">Feed</span>
+                  <span>Feed</span>
                 </div>
               </button>
-              {/*
               <button
                 onClick={() => setActiveTab("subscribed")}
                 className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                  activeTab === "subscribed"
-                    ? "bg-white text-prologue-electric shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
+                  activeTab === "subscribed" ? "bg-white text-prologue-electric shadow-sm" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 <div className="flex items-center justify-center space-x-2">
@@ -837,361 +832,152 @@ export default function MemberHomePage() {
                   <span>Subscribed</span>
                 </div>
               </button>
-              */}
             </div>
 
             {/* Content Feed */}
-            <div className="space-y-4 sm:space-y-6">
-              {/* Firebase posts at the top */}
-              {firebasePosts.map((item) => {
-                const profile = profileCache[item.createdBy] || {}
-                // Check if post is new (within 24 hours)
-                let isNew = false
-                if (item.createdAt && item.createdAt.toDate) {
-                  const now = new Date()
-                  const created = item.createdAt.toDate()
-                  isNew = (now.getTime() - created.getTime()) < 24 * 60 * 60 * 1000
-                }
-                const isOwner = auth.currentUser && auth.currentUser.uid === item.createdBy
-                const handleDelete = async () => {
-                  if (!item.id) return
-                  await deleteDoc(doc(db, "posts", item.id))
-                }
-                const likeCount = item.likes || 0
-                const isLiked = item.likedBy && auth.currentUser ? item.likedBy.includes(auth.currentUser.uid) : false
-                const postComments = comments[item.id] || []
-                const commentCount = postComments.length
-                const shareCount = item.shares || 0
-                return (
-                  <Card key={item.id} className="bg-white border transition-all duration-300 hover:shadow-lg border-prologue-electric/30 shadow-md">
-                    <CardContent className="p-0">
-                      <div className="space-y-0">
-                        {/* Post Header */}
-                        <div className="p-3 sm:p-4 pb-2 sm:pb-3">
-                          <div className="flex items-start space-x-3">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
-                              {profile.profileImageUrl ? (
-                                <img src={profile.profileImageUrl} alt={profile.firstName || "User"} className="w-full h-full object-cover" />
-                              ) : (
-                                <User className="w-full h-full text-gray-500 p-2" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-semibold text-gray-900 text-sm sm:text-base truncate">
-                                {profile.firstName && profile.lastName
-                                  ? `${profile.firstName} ${profile.lastName}`
-                                  : profile.firstName || profile.name || item.createdBy}
-                              </h4>
-                              <div className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm text-gray-600">
-                                <span className="truncate">
-                                  {item.createdAt
-                                    ? (() => {
-                                        const date =
-                                          typeof item.createdAt === "string"
-                                            ? parseISO(item.createdAt)
-                                            : item.createdAt;
-                                        return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
-                                      })()
-                                    : "Just now"}
-                                </span>
-                                <span className="hidden xs:inline">•</span>
-                                <div className="flex items-center space-x-1 hidden xs:flex">
-                                  <Eye className="h-3 w-3" />
-                                  <span>{item.views || 0}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              {isNew && (
-                                <Badge className="bg-prologue-electric text-white text-xs">New</Badge>
-                              )}
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button className="p-1 rounded hover:bg-gray-100">
-                                    <MoreHorizontal className="h-5 w-5 text-gray-400" />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  {isOwner && (
-                                    <>
-                                      <DropdownMenuItem onClick={() => handleStartEditPost(item.id, item.content || "")}>
-                                        <Edit className="h-4 w-4 mr-2" />
-                                        Edit
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem onClick={handleDelete} className="text-red-600">
-                                        <Trash2 className="h-4 w-4 mr-2" />
-                                        Delete
-                                      </DropdownMenuItem>
-                                    </>
-                                  )}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </div>
-                        </div>
-                        {/* Text content above media */}
-                        <div className="px-3 sm:px-4 pb-3">
-                          {editingPost === item.id ? (
-                            <form onSubmit={(e) => {
-                              e.preventDefault();
-                              handleEditPost(item.id, editPostContent[item.id] || "");
-                            }}>
-                              <textarea
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-prologue-electric/20 resize-none text-sm sm:text-base"
-                                rows={3}
-                                value={editPostContent[item.id] || ""}
-                                onChange={(e) => setEditPostContent(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                placeholder="Edit your post..."
-                              />
-                              <div className="flex items-center justify-end space-x-2 mt-2">
-                                <Button type="button" variant="outline" size="sm" onClick={handleCancelEditPost}>
-                                  Cancel
-                                </Button>
-                                <Button type="submit" size="sm" className="bg-blue-500 hover:bg-blue-600 text-white">
-                                  Save
-                                </Button>
-                              </div>
-                            </form>
-                          ) : (
-                            <div className="text-gray-700 leading-relaxed text-sm sm:text-base">
-                              <div dangerouslySetInnerHTML={{ __html: item.content || "" }} />
-                              {item.editedAt && (
-                                <span className="text-xs text-gray-500 ml-2">(edited)</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        {/* Media display */}
-                        {item.mediaUrl && item.mediaType === 'image' && (
-                          <div className="w-full max-h-96 bg-black flex items-center justify-center">
-                            <img src={item.mediaUrl} alt="Post media" className="object-contain max-h-96 w-full" />
-                          </div>
-                        )}
-                        {item.mediaUrl && item.mediaType === 'video' && (
-                          <div className="w-full max-h-96 bg-black flex items-center justify-center">
-                            <video src={item.mediaUrl} controls className="object-contain max-h-96 w-full" />
-                          </div>
-                        )}
-                        {/* Engagement Stats Row */}
-                        <div className="px-3 sm:px-4 py-2 border-t border-gray-100">
-                          <div className="flex items-center justify-between text-xs sm:text-sm text-gray-600">
-                            <div className="flex items-center space-x-2 sm:space-x-4">
-                              <div className="flex items-center space-x-1">
-                                <div className="flex -space-x-1">
-                                  <div className="w-4 h-4 sm:w-5 sm:h-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
-                                    <Heart className="h-2 w-2 sm:h-2.5 sm:w-2.5 text-white fill-current" />
-                                  </div>
-                                  <div className="w-4 h-4 sm:w-5 sm:h-5 bg-prologue-electric rounded-full border-2 border-white flex items-center justify-center">
-                                    <ThumbsUp className="h-2 w-2 sm:h-2.5 sm:w-2.5 text-white fill-current" />
-                                  </div>
-                                </div>
-                                <span className="truncate">{likeCount} {likeCount === 1 ? "like" : "likes"}</span>
-                              </div>
-                              <span className="truncate hidden xs:inline">{commentCount} {commentCount === 1 ? "comment" : "comments"}</span>
-                              <span className="truncate hidden sm:inline">{shareCount} {shareCount === 1 ? "share" : "shares"}</span>
-                            </div>
-                          </div>
-                        </div>
-                        {/* Action Buttons */}
-                        <div className="px-3 sm:px-4 py-2 sm:py-3 border-t border-gray-100">
-                          <div className="flex items-center justify-around sm:justify-between">
-                            <Button variant="ghost" size="sm" className={`flex-1 sm:flex-none ${isLiked ? "text-red-500" : "text-gray-600 hover:text-red-500"} px-2 sm:px-3`} onClick={() => handleLike(item.id)}>
-                              <Heart className={`h-4 w-4 sm:h-5 sm:w-5 ${isMobile ? "" : "mr-2"} ${isLiked ? "fill-current" : ""}`} />
-                              <span className="hidden sm:inline ml-2">Like</span>
-                              <span className="ml-1 text-xs sm:text-sm">{likeCount}</span>
-                            </Button>
-                            <Button variant="ghost" size="sm" className="flex-1 sm:flex-none text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10 px-2 sm:px-3">
-                              <MessageSquare className={`h-4 w-4 sm:h-5 sm:w-5 ${isMobile ? "" : "mr-2"}`} />
-                              <span className="hidden sm:inline ml-2">Comment</span>
-                            </Button>
-                            <Button variant="ghost" size="sm" className="flex-1 sm:flex-none text-gray-600 hover:text-prologue-electric hover:bg-prologue-electric/10 px-2 sm:px-3" onClick={() => handleShare(item.id)}>
-                              <Share className={`h-4 w-4 sm:h-5 sm:w-5 ${isMobile ? "" : "mr-2"}`} />
-                              <span className="hidden sm:inline ml-2">Share</span>
-                            </Button>
-                          </div>
-                        </div>
-                        {/* Replace old comment input and list with new CommentSection */}
-                        <div className="px-3 sm:px-4 pb-3 sm:pb-4">
-                          <CommentSection
-                            postId={item.id}
-                            comments={(comments[item.id] || []).map(comment => mapCommentWithProfile(comment, profileCache))}
-                            onAddComment={handleAddComment}
-                            onLikeComment={(commentId) => handleLikeComment(item.id, commentId)}
-                            onEditComment={(commentId, newContent) => handleEditComment(item.id, commentId, newContent)}
-                            onDeleteComment={(commentId) => handleDeleteComment(item.id, commentId)}
-                            currentUserId={auth.currentUser?.uid}
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-
-              {/*
-              {activeTab === "subscribed" && (
+            <div className="space-y-6">
+              {activeTab === "feed" && (
                 <>
-                  {filteredSubscribed.length > 0 &&
-                    filteredSubscribed.map((item) => (
-                      <Card
-                        key={item.id}
-                        className={`bg-white border transition-all duration-300 hover:shadow-lg ${
-                          item.isNew ? "border-prologue-electric/30 shadow-md" : "border-gray-200"
-                        }`}
-                      >
-                        <CardContent className="p-0">
-                          {/* Regular Content Card */}
-                          {/*
-                          <div className="space-y-0">
-                            {/* Post Header */}
-                            {/*
-                            <div className="p-4 pb-3">
-                              <div className="flex items-start space-x-3">
-                                <Link href={`/creator/${item.creatorId}`}>
-                                  <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden hover:ring-2 hover:ring-prologue-electric/30 transition-all cursor-pointer">
-                                    <User className="w-full h-full text-gray-500 p-2" />
-                                  </div>
-                                </Link>
-                                <div className="flex-1">
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <div className="flex items-center space-x-2">
-                                        <Link href={`/creator/${item.creatorId}`}>
-                                          <h4 className="font-semibold text-gray-900 hover:text-prologue-electric transition-colors cursor-pointer">
-                                            {item.creatorName}
-                                          </h4>
-                                        </Link>
-                                        {item.creatorVerified && (
-                                          <div className="w-4 h-4 bg-prologue-electric rounded-full flex items-center justify-center">
-                                            <svg
-                                              className="w-2.5 h-2.5 text-white"
-                                              fill="currentColor"
-                                              viewBox="0 0 20 20"
-                                            >
-                                              <path
-                                                fillRule="evenodd"
-                                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                                clipRule="evenodd"
-                                              />
-                                            </svg>
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                        <span>
-                                          {item.timestamp
-                                            ? (() => {
-                                                const date =
-                                                  typeof item.timestamp === "string"
-                                                    ? parseISO(item.timestamp)
-                                                    : item.timestamp;
-                                                return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
-                                              })()
-                                            : "Just now"}
-                                        </span>
-                                        <span>•</span>
-                                        <div className="flex items-center space-x-1">
-                                          <Eye className="h-3 w-3" />
-                                          <span>{item.views}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      {item.isNew && (
-                                        <Badge className="bg-prologue-electric text-white text-xs">New</Badge>
-                                      )}
-                                      {item.isPremium && (
-                                        <Badge className="bg-prologue-fire text-white text-xs">
-                                          <Crown className="h-3 w-3 mr-1" />
-                                          Premium
-                                        </Badge>
-                                      )}
-                                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">
-                                        <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Post Content */}
-                            {/*
-                            <div className="px-4 pb-3">
-                              <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.title}</h3>
-                              <p className="text-gray-700 leading-relaxed">{item.content}</p>
-                            </div>
-
-                            {/* Media Content */}
-                            {/*
-                            {item.media && (
-                              <div className="relative">
-                                <div className="aspect-video bg-gray-200 overflow-hidden">
-                                  <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                                    {item.media.type === "video" ? (
-                                      <div className="text-center">
-                                        <div className="w-16 h-16 bg-black/70 rounded-full flex items-center justify-center mb-2 mx-auto">
-                                          <Play className="h-8 w-8 text-white ml-1" />
-                                        </div>
-                                        {item.media.duration && (
-                                          <Badge className="bg-black/70 text-white text-xs">
-                                            {item.media.duration}
-                                          </Badge>
-                                        )}
-                                      </div>
+                  {firebasePosts.length > 0 ? (
+                    firebasePosts.map((item) => {
+                      const profile = profileCache[item.createdBy] || {}
+                      let isNew = false
+                      if (item.createdAt && item.createdAt.toDate) {
+                        const now = new Date()
+                        const created = item.createdAt.toDate()
+                        isNew = (now.getTime() - created.getTime()) < 24 * 60 * 60 * 1000
+                      }
+                      const isOwner = auth.currentUser && auth.currentUser.uid === item.createdBy
+                      const handleDelete = async () => {
+                        if (!item.id) return
+                        await deleteDoc(doc(db, "posts", item.id))
+                      }
+                      const likeCount = item.likes || 0
+                      const isLiked = item.likedBy && auth.currentUser ? item.likedBy.includes(auth.currentUser.uid) : false
+                      const postComments = comments[item.id] || []
+                      const commentCount = postComments.length
+                      const shareCount = item.shares || 0
+                      return (
+                        <Card
+                          key={item.id}
+                          className={`bg-white border transition-all duration-300 hover:shadow-lg ${
+                            isNew ? "border-prologue-electric/30 shadow-md" : "border-gray-200"
+                          }`}
+                        >
+                          <CardContent className="p-0">
+                            {/* Regular Content Card */}
+                            <div className="space-y-0">
+                              {/* Post Header */}
+                              <div className="p-4 pb-3">
+                                <div className="flex items-start space-x-3">
+                                  <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
+                                    {profile.profileImageUrl ? (
+                                      <img src={profile.profileImageUrl} alt={profile.firstName || "User"} className="w-full h-full object-cover" />
                                     ) : (
-                                      <ImageIcon className="h-12 w-12 text-gray-600" />
+                                      <User className="w-full h-full text-gray-500 p-2" />
                                     )}
                                   </div>
-                                </div>
-                                {item.isPremium && (
-                                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                                    <div className="text-center text-white">
-                                      <Lock className="h-8 w-8 mx-auto mb-2" />
-                                      <p className="text-sm font-medium">Premium Content</p>
-                                      <p className="text-xs opacity-90">Subscribe to unlock</p>
+                                  <div className="flex-1">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <div className="flex items-center space-x-2">
+                                          <h4 className="font-semibold text-gray-900 hover:text-prologue-electric transition-colors cursor-pointer">
+                                            {profile.firstName && profile.lastName
+                                              ? `${profile.firstName} ${profile.lastName}`
+                                              : profile.firstName || profile.name || item.createdBy}
+                                          </h4>
+                                        </div>
+                                        <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                          <span>{item.createdAt
+                                            ? (() => {
+                                                const date =
+                                                  typeof item.createdAt === "string"
+                                                    ? parseISO(item.createdAt)
+                                                    : item.createdAt;
+                                                return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
+                                              })()
+                                            : "Just now"}</span>
+                                          <span>•</span>
+                                          <div className="flex items-center space-x-1">
+                                            <Eye className="h-3 w-3" />
+                                            <span>{item.views || 0}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        {isNew && <Badge className="bg-prologue-electric text-white text-xs">New</Badge>}
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <button className="p-1 rounded hover:bg-gray-100">
+                                              <MoreHorizontal className="h-5 w-5 text-gray-400" />
+                                            </button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end">
+                                            {isOwner && (
+                                              <>
+                                                <DropdownMenuItem onClick={() => handleStartEditPost(item.id, item.content || "")}> <Edit className="h-4 w-4 mr-2" /> Edit </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={handleDelete} className="text-red-600"> <Trash2 className="h-4 w-4 mr-2" /> Delete </DropdownMenuItem>
+                                              </>
+                                            )}
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+                                      </div>
                                     </div>
                                   </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Engagement Stats */}
-                            {/*
-                            <div className="px-4 py-2 border-t border-gray-100">
-                              <div className="flex items-center justify-between text-sm text-gray-600">
-                                <div className="flex items-center space-x-4">
-                                  <div className="flex items-center space-x-1">
-                                    <div className="flex -space-x-1">
-                                      <div className="w-5 h-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
-                                        <Heart className="h-2.5 w-2.5 text-white fill-current" />
-                                      </div>
-                                      <div className="w-5 h-5 bg-prologue-electric rounded-full border-2 border-white flex items-center justify-center">
-                                        <ThumbsUp className="h-2.5 w-2.5 text-white fill-current" />
-                                      </div>
-                                    </div>
-                                    <span>{item.likes} likes</span>
-                                  </div>
-                                  <span>{item.comments} comments</span>
-                                  <span>{item.shares} shares</span>
                                 </div>
                               </div>
-                            </div>
-
-                            {/* Action Buttons */}
-                            {/*
-                            <div className="px-4 py-3 border-t border-gray-100">
-                              <div className="flex items-center justify-between">
+                              {/* Post Content */}
+                              <div className="px-4 pb-3">
+                                <div className="text-gray-700 leading-relaxed text-sm sm:text-base">
+                                  <div dangerouslySetInnerHTML={{ __html: item.content || "" }} />
+                                  {item.editedAt && (
+                                    <span className="text-xs text-gray-500 ml-2">(edited)</span>
+                                  )}
+                                </div>
+                              </div>
+                              {/* Media Content */}
+                              {item.mediaUrl && item.mediaType === 'image' && (
+                                <div>
+                                  <img src={item.mediaUrl} alt="Post media" className="w-full h-auto object-cover rounded" />
+                                </div>
+                              )}
+                              {item.mediaUrl && item.mediaType === 'video' && (
+                                <div className="relative">
+                                  <div className="aspect-video bg-gray-200 overflow-hidden">
+                                    <video src={item.mediaUrl} controls className="object-contain max-h-96 w-full" />
+                                  </div>
+                                </div>
+                              )}
+                              {/* Engagement Stats */}
+                              <div className="px-4 py-2 border-t border-gray-100">
+                                <div className="flex items-center justify-between text-sm text-gray-600">
+                                  <div className="flex items-center space-x-4">
+                                    <div className="flex items-center space-x-1">
+                                      <div className="flex -space-x-1">
+                                        <div className="w-5 h-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
+                                          <Heart className="h-2.5 w-2.5 text-white fill-current" />
+                                        </div>
+                                        <div className="w-5 h-5 bg-prologue-electric rounded-full border-2 border-white flex items-center justify-center">
+                                          <ThumbsUp className="h-2.5 w-2.5 text-white fill-current" />
+                                        </div>
+                                      </div>
+                                      <span>{likeCount} likes</span>
+                                    </div>
+                                    <span>{commentCount} comments</span>
+                                    <span>{shareCount} shares</span>
+                                  </div>
+                                </div>
+                              </div>
+                              {/* Action Buttons */}
+                              <div className="px-4 py-3 border-t border-gray-100">
                                 <div className="flex items-center space-x-1">
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className={`flex-1 hover:bg-red-50 ${likedPosts.has(item.id) ? "text-red-500" : "text-gray-600 hover:text-red-500"}`}
+                                    className={`flex-1 hover:bg-red-50 ${isLiked ? "text-red-500" : "text-gray-600 hover:text-red-500"}`}
                                     onClick={() => handleLike(item.id)}
                                   >
-                                    <Heart
-                                      className={`h-5 w-5 mr-2 ${likedPosts.has(item.id) ? "fill-current" : ""}`}
-                                    />
+                                    <Heart className={`h-5 w-5 mr-2 ${isLiked ? "fill-current" : ""}`} />
                                     <span className="hidden sm:inline">Like</span>
                                   </Button>
                                   <Button
@@ -1221,7 +1007,7 @@ export default function MemberHomePage() {
                                     <span className="hidden sm:inline">Send</span>
                                   </Button>
                                 </div>
-                                <div className="flex items-center space-x-2">
+                                <div className="flex items-center space-x-2 mt-2">
                                   <Button
                                     size="sm"
                                     variant="ghost"
@@ -1230,40 +1016,57 @@ export default function MemberHomePage() {
                                   >
                                     <Bookmark className={`h-4 w-4 ${savedPosts.has(item.id) ? "fill-current" : ""}`} />
                                   </Button>
-                                  {item.isPremium && (
-                                    <Button size="sm" className="bg-prologue-fire hover:bg-prologue-fire/90 text-white">
-                                      <Crown className="h-3 w-3 mr-1" />
-                                      Subscribe
-                                    </Button>
-                                  )}
                                 </div>
                               </div>
-                            </div>
-
-                            {/* Comment Preview */}
-                            {/*
-                            <div className="px-4 pb-4">
-                              <div className="flex items-start space-x-3">
-                                <div className="w-8 h-8 bg-gray-200 rounded-full overflow-hidden">
-                                  <User className="w-full h-full text-gray-500 p-1.5" />
-                                </div>
-                                <div className="flex-1">
-                                  <input
-                                    type="text"
-                                    placeholder="Write a comment..."
-                                    className="w-full bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
-                                  />
-                                </div>
+                              {/* Comments Section */}
+                              <div className="px-4 pb-4">
+                                <CommentSection
+                                  postId={item.id}
+                                  comments={(comments[item.id] || []).map(comment => mapCommentWithProfile(comment, profileCache))}
+                                  onAddComment={handleAddComment}
+                                  onLikeComment={(commentId) => handleLikeComment(item.id, commentId)}
+                                  onEditComment={(commentId, newContent) => handleEditComment(item.id, commentId, newContent)}
+                                  onDeleteComment={(commentId) => handleDeleteComment(item.id, commentId)}
+                                  currentUserId={auth.currentUser?.uid}
+                                />
                               </div>
                             </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
-                  }
+                          </CardContent>
+                        </Card>
+                      )
+                    })
+                  ) : (
+                    <Card className="bg-white border border-gray-200">
+                      <CardContent className="text-center py-16">
+                        <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
+                          <Home className="h-10 w-10 text-gray-400" />
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-900 mb-3">Your feed is empty</h3>
+                        <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                          Start following creators and subscribing to content to see updates in your feed.
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                          <Link href="/member-discover">
+                            <Button className="bg-prologue-electric hover:bg-prologue-blue text-white">Browse Creators</Button>
+                          </Link>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </>
               )}
-              */}
+
+              {activeTab === "subscribed" && (
+                <Card className="bg-white border border-gray-200 w-full">
+                  <CardContent className="flex flex-col items-center justify-center py-16">
+                    <div className="mb-4">
+                      <Crown className="h-12 w-12 text-prologue-electric" />
+                    </div>
+                    <h3 className="text-2xl font-semibold text-gray-900 mb-2 text-center">Coming soon</h3>
+                    <p className="text-gray-600 text-center">This feature is in development. Stay tuned for updates!</p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
           {/* Right Sidebar Removed */}
