@@ -55,6 +55,8 @@ import { formatDistanceToNow, parseISO, isValid } from "date-fns";
 import CommentSection from "@/components/ui/comment-section"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { AthleteHeader } from "@/components/navigation/athlete-header"
+import AthleteMobileNavigation from "@/components/mobile/athlete-mobile-navigation"
+import AthleteDashboardMobileLayout from "@/components/mobile/athlete-dashboard-mobile-layout"
 
 export default function MemberHomePage() {
   // Mobile detection
@@ -513,19 +515,32 @@ export default function MemberHomePage() {
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
   useEffect(() => {
     const loadProfile = async () => {
-      if (!auth.currentUser) return
-      const memberProfile = await getMemberProfile(auth.currentUser.uid)
+      if (!auth.currentUser) return;
+      // Try member profile first
+      const memberProfile = await getMemberProfile(auth.currentUser.uid);
       if (memberProfile) {
         setProfileData({
           firstName: memberProfile.firstName || "",
           lastName: memberProfile.lastName || "",
           profileImageUrl: memberProfile.profileImageUrl || null,
-        })
-        setProfileImageUrl(memberProfile.profileImageUrl || null)
+        });
+        setProfileImageUrl(memberProfile.profileImageUrl || null);
+        return;
       }
-    }
-    loadProfile()
-  }, [])
+      // If not a member, try athlete profile
+      const athleteProfile = await getAthleteProfile(auth.currentUser.uid);
+      if (athleteProfile) {
+        const athletePhoto = athleteProfile.profilePhotoUrl || athleteProfile.profileImageUrl || athleteProfile.profilePicture || athleteProfile.avatar || null;
+        setProfileData({
+          firstName: athleteProfile.firstName || "",
+          lastName: athleteProfile.lastName || "",
+          profileImageUrl: athletePhoto,
+        });
+        setProfileImageUrl(athletePhoto);
+      }
+    };
+    loadProfile();
+  }, []);
 
   const [postContent, setPostContent] = useState("")
   const [posting, setPosting] = useState(false)
@@ -698,16 +713,18 @@ export default function MemberHomePage() {
 
   const mainContent = (
     <div className="min-h-screen bg-gray-50">
-      <AthleteHeader
-        currentPath="/home"
-        onLogout={logout}
-        showSearch={false}
-        unreadNotifications={unreadNotificationsCount}
-        unreadMessages={unreadMessagesCount}
-        hasNewContent={hasNewTrainingContent}
-        profileImageUrl={profileImageUrl}
-        profileData={profileData}
-      />
+      {!(isMobile || isTablet) && (
+        <AthleteHeader
+          currentPath="/home"
+          onLogout={logout}
+          showSearch={false}
+          unreadNotifications={unreadNotificationsCount}
+          unreadMessages={unreadMessagesCount}
+          hasNewContent={hasNewTrainingContent}
+          profileImageUrl={profileImageUrl}
+          profileData={profileData}
+        />
+      )}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-8 pb-24 sm:pb-20 lg:pb-8">
@@ -1431,20 +1448,16 @@ export default function MemberHomePage() {
 
   // Return with conditional mobile/desktop layout
   if (isMobile || isTablet) {
-    // Always use MobileLayout for mobile, defaulting to athlete if userType is not detected yet
-    console.log("Mobile Layout - userType:", userType || "athlete", "isMobile:", isMobile)
     return (
-      <MobileLayout
-        userType={userType || "athlete"}
+      <AthleteDashboardMobileLayout
         currentPath="/home"
-        showBottomNav={true}
-        showHeader={true}
         unreadNotifications={unreadNotificationsCount}
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
+        profilePhotoUrl={profileImageUrl || undefined}
       >
         {mainContent}
-      </MobileLayout>
+      </AthleteDashboardMobileLayout>
     )
   }
 

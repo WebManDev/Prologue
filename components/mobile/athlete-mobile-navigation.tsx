@@ -9,21 +9,18 @@ import {
   Home, 
   MessageCircle, 
   BookOpen, 
-  Bell, 
   User,
-  TrendingUp
+  MessageSquare
 } from "lucide-react"
 
 interface AthleteMobileNavigationProps {
   currentPath: string
-  unreadNotifications?: number
   unreadMessages?: number
   hasNewContent?: boolean
 }
 
 export default function AthleteMobileNavigation({
   currentPath,
-  unreadNotifications = 0,
   unreadMessages = 0,
   hasNewContent = false,
 }: AthleteMobileNavigationProps) {
@@ -47,10 +44,10 @@ export default function AthleteMobileNavigation({
       badge: unreadMessages > 0 ? unreadMessages : null,
     },
     {
-      name: "Notifications",
-      href: "/notifications",
-      icon: Bell,
-      badge: unreadNotifications > 0 ? unreadNotifications : null,
+      name: "Feedback",
+      href: "/feedback",
+      icon: MessageSquare,
+      badge: null,
     },
     {
       name: "Profile",

@@ -41,15 +41,19 @@ import {
 import Link from "next/link"
 import Image from "next/image"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
-import { auth, getSubscribersForAthlete, sendMessage, listenForMessages, getChatId, db } from "@/lib/firebase"
+import { auth, getSubscribersForAthlete, sendMessage, listenForMessages, getChatId, db, getAthleteProfile, getMemberProfile } from "@/lib/firebase"
 import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { toast } from "@/components/ui/use-toast"
 import type { User as FirebaseUser } from "firebase/auth"
+import AthleteMobileNavigation from "@/components/mobile/athlete-mobile-navigation"
+import { usePathname } from "next/navigation"
+import { AthleteHeader } from "@/components/navigation/athlete-header"
 
 export default function MessagingPage() {
   const { isMobile, isTablet } = useMobileDetection()
   const { logout } = useUnifiedLogout()
+  const pathname = usePathname()
 
   // Search dropdown state
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
@@ -66,6 +70,9 @@ export default function MessagingPage() {
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null)
   const [isClient, setIsClient] = useState(false)
+  const [profileData, setProfileData] = useState<{ firstName: string; lastName: string; profileImageUrl: string | null; profilePic?: string; profilePicture?: string }>({ firstName: "", lastName: "", profileImageUrl: null });
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
 
   // Client-side check
   useEffect(() => {
@@ -234,135 +241,47 @@ export default function MessagingPage() {
     </div>
   )
 
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!auth.currentUser) return;
+      // Try member profile first
+      const memberProfile = await getMemberProfile(auth.currentUser.uid);
+      if (memberProfile) {
+        setProfileData({
+          firstName: memberProfile.firstName || "",
+          lastName: memberProfile.lastName || "",
+          profileImageUrl: memberProfile.profileImageUrl || null,
+        });
+        setProfileImageUrl(memberProfile.profileImageUrl || null);
+        return;
+      }
+      // If not a member, try athlete profile
+      const athleteProfile = await getAthleteProfile(auth.currentUser.uid);
+      if (athleteProfile) {
+        const athletePhoto = athleteProfile.profilePhotoUrl || athleteProfile.profileImageUrl || athleteProfile.profilePicture || athleteProfile.avatar || null;
+        setProfileData({
+          firstName: athleteProfile.firstName || "",
+          lastName: athleteProfile.lastName || "",
+          profileImageUrl: athletePhoto,
+        });
+        setProfileImageUrl(athletePhoto);
+      }
+    };
+    loadProfile();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
-                <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
-                  <Image
-                    src="/prologue-logo.png"
-                    alt="PROLOGUE"
-                    width={32}
-                    height={32}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
-                  PROLOGUE
-                </span>
-              </Link>
-
-              <div className="flex items-center space-x-1 relative" ref={searchRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search athletes, content..."
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    onFocus={handleSearchFocus}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={clearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-
-                {showSearchDropdown && searchDropdownContent}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-6">
-              <nav className="flex items-center space-x-6">
-                <Link
-                  href="/home"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
-                >
-                  <Home className="h-5 w-5" />
-                  <span className="text-xs font-medium">Home</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/content"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
-                >
-                  <BookOpen className="h-5 w-5" />
-                  <span className="text-xs font-medium">Content</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/feedback"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
-                >
-                  <MessageSquare className="h-5 w-5" />
-                  <span className="text-xs font-medium">Feedback</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/messaging"
-                  className="flex flex-col items-center space-y-1 text-blue-500 transition-colors group relative"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  <span className="text-xs font-medium">Messages</span>
-                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full"></div>
-                </Link>
-                <Link
-                  href="/notifications"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group"
-                >
-                  <Bell className="h-5 w-5" />
-                  <span className="text-xs font-medium">Notifications</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-              </nav>
-
-              <div className="flex items-center space-x-3">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center space-x-2 p-2">
-                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                        <User className="w-full h-full text-gray-500 p-1" />
-                      </div>
-                      <ChevronDown className="h-4 w-4 text-gray-500" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem asChild>
-                      <Link href="/dashboard" className="flex items-center w-full cursor-pointer">
-                        <LayoutDashboard className="h-4 w-4 mr-2" />
-                        Profile
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/promote" className="flex items-center w-full cursor-pointer">
-                        <Trophy className="h-4 w-4 mr-2" />
-                        Promote
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Settings className="h-4 w-4 mr-2" />
-                      Settings
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => logout()}>
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Logout
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <AthleteHeader
+        currentPath={pathname || "/messaging"}
+        onLogout={logout}
+        showSearch={false}
+        unreadNotifications={unreadNotifications}
+        unreadMessages={conversations.reduce((sum, conv) => sum + conv.unread, 0)}
+        profileImageUrl={profileImageUrl}
+        profileData={profileData}
+      />
 
       {/* Main Content */}
       <main className={`${isMobile ? "px-4 py-6 pb-24" : "max-w-8xl mx-auto px-4 py-6"}`}>
@@ -628,39 +547,11 @@ export default function MessagingPage() {
       {/* Mobile Bottom Navigation */}
       {isMobile && (
         <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 z-50">
-          <div className="flex items-center justify-around h-16 px-4">
-            <Link
-              href="/home"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-blue-500 transition-colors"
-            >
-              <Home className="h-5 w-5" />
-              <span className="text-xs font-medium">Home</span>
-            </Link>
-            <Link
-              href="/content"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-blue-500 transition-colors"
-            >
-              <BookOpen className="h-5 w-5" />
-              <span className="text-xs font-medium">Content</span>
-            </Link>
-            <Link
-              href="/feedback"
-              className="flex flex-col items-center space-y-1 text-gray-600 hover:text-blue-500 transition-colors"
-            >
-              <MessageSquare className="h-5 w-5" />
-              <span className="text-xs font-medium">Feedback</span>
-            </Link>
-            <Link
-              href="/messaging"
-              className="flex flex-col items-center space-y-1 text-blue-500 transition-colors relative"
-            >
-              <MessageCircle className="h-5 w-5" />
-              <span className="text-xs font-medium">Messages</span>
-              {conversations.reduce((sum, conv) => sum + conv.unread, 0) > 0 && (
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
-              )}
-            </Link>
-          </div>
+          <AthleteMobileNavigation
+            currentPath={pathname || "/messaging"}
+            unreadMessages={conversations.reduce((sum, conv) => sum + conv.unread, 0)}
+            hasNewContent={false}
+          />
         </div>
       )}
     </div>
