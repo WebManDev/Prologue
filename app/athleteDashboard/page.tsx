@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
@@ -18,26 +18,55 @@ import {
   TrendingUp,
   Search,
   X,
+  Plus,
+  Trash2,
+  Trophy,
+  Award,
+  Star,
+  CheckCircle,
+  Share2,
+  MoreHorizontal,
+  Heart,
+  Edit3,
+  Save,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
-import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { useNotifications } from "@/contexts/notification-context"
 import { toast } from "@/components/ui/use-toast"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutNotification } from "@/components/ui/logout-notification"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
-import ProfileHeader from "@/components/profile-header"
-import StatsCards from "@/components/stats-cards"
-import ProfileEditor, { ProfileData } from "@/components/profile-editor"
-import Sidebar from "@/components/sidebar"
-import { NotificationProvider } from "@/contexts/notification-context"
-import { saveAthleteProfile, auth, getAthleteProfile } from "@/lib/firebase"
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
-import type { User as FirebaseUser } from "firebase/auth"
+import ProfileHeader, { type ProfileHeaderHandle } from "@/components/dashboard/profile-header"
+import ProfileEditor, { type ProfileEditorHandle } from "@/components/dashboard/profile-editor"
+import Sidebar from "@/components/dashboard/sidebar"
+import { MobileProfileLayout } from "@/components/dashboard/mobile-profile-layout"
+import { db } from '@/lib/firebase';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { auth } from "@/lib/firebase";
 
-// Static quick searches to prevent re-creation
+const initialProfileData = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  phone: "",
+  bio: "",
+  location: "",
+  school: "",
+  graduationYear: "",
+  sport: "",
+  position: "",
+  certifications: [],
+  specialties: [],
+  experience: "",
+  achievements: [],
+};
+
+export type ProfileData = typeof initialProfileData
+
 const QUICK_SEARCHES = [
   "Navigate Recruitment",
   "Nutrition",
@@ -51,41 +80,20 @@ const QUICK_SEARCHES = [
 
 export default function DashboardPage() {
   const { isMobile, isTablet } = useMobileDetection()
-  const { hasUnreadMessages } = useNotifications()
+  const { unreadCount } = useNotifications()
 
-  // Search state - isolated to prevent re-renders
   const [searchQuery, setSearchQuery] = useState("")
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Profile state
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [profileData, setProfileData] = useState<ProfileData>({
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    bio: "",
-    location: "",
-    school: "",
-    graduationYear: "",
-    sport: "",
-    position: "",
-    certifications: [],
-    specialties: [],
-    experience: "",
-    achievements: [],
-    profilePhotoUrl: "",
-    coverPhotoUrl: "",
-  })
+  const [profileData, setProfileData] = useState(initialProfileData)
 
-  const profileEditorRef = useRef<any>(null)
-  const [isUploadingProfile, setIsUploadingProfile] = useState(false)
-  const [isUploadingCover, setIsUploadingCover] = useState(false)
+  const headerRef = useRef<ProfileHeaderHandle>(null)
+  const editorRef = useRef<ProfileEditorHandle>(null)
 
-  // Stable search handlers
   const handleSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value)
   }, [])
@@ -108,191 +116,130 @@ export default function DashboardPage() {
     }
   }, [])
 
-  // Click outside handler
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowSearchDropdown(false)
       }
     }
-
     document.addEventListener("mousedown", handleClickOutside)
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  // Scroll to top on mount
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" })
   }, [])
 
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const uid = auth.currentUser?.uid;
+      if (!uid) return;
+      const docRef = doc(db, "athletes", uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setProfileData({
+          ...initialProfileData,
+          ...docSnap.data()
+        });
+      }
+    };
+    fetchProfile();
+  }, []);
+
   const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
 
   const handleLogout = useCallback(async () => {
-    console.log("🔄 Athlete logout initiated from dashboard")
-
-    try {
-      const success = await logout({
-        customMessage: "Securing your athlete account and logging out...",
-        onComplete: () => {
-          console.log("✅ Athlete logout completed successfully from dashboard")
-          toast({
-            title: "Logged Out Successfully",
-            description: "You have been securely logged out. Redirecting to login page...",
-            duration: 2000,
-          })
-        },
-        onError: (error) => {
-          console.error("❌ Athlete logout failed from dashboard:", error)
-          toast({
-            title: "Logout Failed",
-            description: "There was an issue logging you out. Please try again.",
-            variant: "destructive",
-            duration: 3000,
-          })
-        },
-      })
-
-      if (!success) {
-        console.warn("⚠️ Athlete logout was not successful, attempting emergency logout")
-        setTimeout(() => {
-          window.location.href = "/login"
-        }, 3000)
-      }
-    } catch (error) {
-      console.error("Logout error:", error)
-      setTimeout(() => {
-        window.location.href = "/login"
-      }, 1000)
-    }
+    await logout({
+      onComplete: () => {
+        toast({
+          title: "Logged Out Successfully",
+          description: "You have been securely logged out.",
+          duration: 2000,
+        })
+      },
+      onError: () => {
+        toast({
+          title: "Logout Failed",
+          description: "There was an issue logging you out. Please try again.",
+          variant: "destructive",
+          duration: 3000,
+        });
+      },
+    })
   }, [logout])
 
-  const handleEditToggle = useCallback(() => {
-    setIsEditing((prev) => !prev)
-  }, [])
+  // Add refs for file inputs at the top of DashboardPage
+  const profilePicFileRef = useRef<File | null>(null);
+  const coverFileRef = useRef<File | null>(null);
 
-  const handleSaveProfile = useCallback(async (newProfileData: ProfileData) => {
-    setIsSaving(true)
+  // Add handler for file input changes
+  const handleProfilePicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    profilePicFileRef.current = e.target.files?.[0] || null;
+  };
+  const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    coverFileRef.current = e.target.files?.[0] || null;
+  };
+
+  // Add this function inside DashboardPage, after hooks and before handlers
+  const saveProfileData = useCallback(async (newProfileData: ProfileData) => {
+    setIsSaving(true);
+    const uid = auth.currentUser?.uid;
+    if (!uid) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to save your profile.",
+        variant: "destructive",
+        duration: 3000,
+      });
+      setIsSaving(false);
+      return;
+    }
     try {
-      const user = auth.currentUser
-      if (!user) throw new Error("User not authenticated")
-      await saveAthleteProfile(user.uid, newProfileData)
-      const updatedProfile = await getAthleteProfile(user.uid)
-      if (updatedProfile) {
-        setProfileData({
-          firstName: updatedProfile.firstName || "",
-          lastName: updatedProfile.lastName || "",
-          email: updatedProfile.email || "",
-          phone: updatedProfile.phone || "",
-          bio: updatedProfile.bio || "",
-          location: updatedProfile.location || "",
-          school: updatedProfile.school || "",
-          graduationYear: updatedProfile.graduationYear || "",
-          sport: updatedProfile.sport || "",
-          position: updatedProfile.position || "",
-          certifications: updatedProfile.certifications || [],
-          specialties: updatedProfile.specialties || [],
-          experience: updatedProfile.experience || "",
-          achievements: updatedProfile.achievements || [],
-          profilePhotoUrl: updatedProfile.profilePhotoUrl || "",
-          coverPhotoUrl: updatedProfile.coverPhotoUrl || "",
-        })
-      }
-      setIsEditing(false)
+      await setDoc(doc(db, 'athletes', uid), newProfileData, { merge: true });
+      setProfileData(newProfileData);
+      setIsEditing(false);
       toast({
         title: "Profile Updated",
         description: "Your profile has been saved successfully.",
         duration: 3000,
-      })
-    } catch (error) {
+      });
+    } catch (e) {
       toast({
         title: "Error",
         description: "Failed to save profile. Please try again.",
         variant: "destructive",
         duration: 3000,
-      })
+      });
     } finally {
-      setIsSaving(false)
+      setIsSaving(false);
     }
+  }, []);
+
+  // Update handleSaveProfile for desktop to use saveProfileData
+  const handleSaveProfile = useCallback(async () => {
+    if (!headerRef.current || !editorRef.current) return;
+    const headerData = headerRef.current.getFormData();
+    const editorData = editorRef.current.getFormData();
+    let newProfileData = {
+      ...profileData,
+      ...headerData,
+      ...editorData,
+    };
+    await saveProfileData(newProfileData);
+  }, [profileData, saveProfileData]);
+
+  // Add a handler for mobile save
+  const handleMobileSave = useCallback(
+    async (newProfileData: ProfileData) => {
+      await saveProfileData(newProfileData);
+    },
+    [saveProfileData]
+  );
+
+  const handleEditToggle = useCallback(() => {
+    setIsEditing((prev) => !prev)
   }, [])
 
-  // Add a handler to save profile changes from ProfileHeader (triggers ProfileEditor save)
-  const handleHeaderSave = useCallback(() => {
-    // This will trigger the ProfileEditor's save function via ref
-    if (profileEditorRef.current?.save) {
-      profileEditorRef.current.save()
-    }
-  }, [])
-
-  // Member-dashboard-style image upload handlers
-  const handleProfileImageChange = async (file: File) => {
-    if (!auth.currentUser) return
-    setIsUploadingProfile(true)
-    try {
-      const storage = getStorage()
-      const fileRef = storageRef(storage, `athlete-profile-pics/${auth.currentUser.uid}/profile.jpg`)
-      await uploadBytes(fileRef, file)
-      const url = await getDownloadURL(fileRef)
-      const newProfileData = { ...profileData, profilePhotoUrl: url }
-      await saveAthleteProfile(auth.currentUser.uid, newProfileData)
-      setProfileData(newProfileData)
-      toast({ title: "Profile picture updated!" })
-    } catch (err) {
-      toast({ title: "Upload failed", description: "Could not upload profile picture.", variant: "destructive" })
-    } finally {
-      setIsUploadingProfile(false)
-    }
-  }
-  const handleCoverImageChange = async (file: File) => {
-    if (!auth.currentUser) return
-    setIsUploadingCover(true)
-    try {
-      const storage = getStorage()
-      const fileRef = storageRef(storage, `athlete-profile-pics/${auth.currentUser.uid}/cover.jpg`)
-      await uploadBytes(fileRef, file)
-      const url = await getDownloadURL(fileRef)
-      const newProfileData = { ...profileData, coverPhotoUrl: url }
-      await saveAthleteProfile(auth.currentUser.uid, newProfileData)
-      setProfileData(newProfileData)
-      toast({ title: "Cover photo updated!" })
-    } catch (err) {
-      toast({ title: "Upload failed", description: "Could not upload cover photo.", variant: "destructive" })
-    } finally {
-      setIsUploadingCover(false)
-    }
-  }
-
-  // Fetch athlete profile on mount and when auth state changes
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user: FirebaseUser | null) => {
-      if (user) {
-        getAthleteProfile(user.uid).then((profile) => {
-          if (profile) {
-            setProfileData({
-              firstName: profile.firstName || "",
-              lastName: profile.lastName || "",
-              email: profile.email || "",
-              phone: profile.phone || "",
-              bio: profile.bio || "",
-              location: profile.location || "",
-              school: profile.school || "",
-              graduationYear: profile.graduationYear || "",
-              sport: profile.sport || "",
-              position: profile.position || "",
-              certifications: profile.certifications || [],
-              specialties: profile.specialties || [],
-              experience: profile.experience || "",
-              achievements: profile.achievements || [],
-              profilePhotoUrl: profile.profilePhotoUrl || "",
-              coverPhotoUrl: profile.coverPhotoUrl || "",
-            })
-          }
-        })
-      }
-    })
-    return () => unsubscribe()
-  }, [])
-
-  // Memoized search component to prevent re-renders
   const SearchComponent = useMemo(
     () => (
       <div className="flex items-center space-x-1 relative" ref={searchRef}>
@@ -316,7 +263,6 @@ export default function DashboardPage() {
             </button>
           )}
         </div>
-
         {showSearchDropdown && (
           <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
             <div className="p-3 border-b border-gray-100">
@@ -356,7 +302,7 @@ export default function DashboardPage() {
               <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
                 <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
                   <Image
-                    src="/Prologue LOGO-1.png"
+                    src="/prologue-logo.png"
                     alt="PROLOGUE"
                     width={32}
                     height={32}
@@ -367,10 +313,8 @@ export default function DashboardPage() {
                   PROLOGUE
                 </span>
               </Link>
-
               {SearchComponent}
             </div>
-
             <div className="flex items-center space-x-6">
               <nav className="flex items-center space-x-6">
                 <Link
@@ -379,7 +323,6 @@ export default function DashboardPage() {
                 >
                   <Home className="h-5 w-5" />
                   <span className="text-xs font-medium">Home</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </Link>
                 <Link
                   href="/content"
@@ -387,7 +330,6 @@ export default function DashboardPage() {
                 >
                   <FileText className="h-5 w-5" />
                   <span className="text-xs font-medium">Content</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </Link>
                 <Link
                   href="/feedback"
@@ -395,7 +337,6 @@ export default function DashboardPage() {
                 >
                   <MessageSquare className="h-5 w-5" />
                   <span className="text-xs font-medium">Feedback</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </Link>
                 <Link
                   href="/messaging"
@@ -403,7 +344,6 @@ export default function DashboardPage() {
                 >
                   <MessageCircle className="h-5 w-5" />
                   <span className="text-xs font-medium">Messages</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 </Link>
                 <Link
                   href="/notifications"
@@ -411,11 +351,9 @@ export default function DashboardPage() {
                 >
                   <Bell className="h-5 w-5" />
                   <span className="text-xs font-medium">Notifications</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
+                  {unreadCount > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
                 </Link>
               </nav>
-
               <div className="flex items-center space-x-3">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -425,18 +363,14 @@ export default function DashboardPage() {
                       disabled={loadingState.isLoading}
                     >
                       <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                        {profileData.profilePhotoUrl ? (
-                          <img src={profileData.profilePhotoUrl} alt="Profile" className="w-full h-full object-cover" />
-                        ) : (
-                          <User className="w-full h-full text-gray-500 p-1" />
-                        )}
+                        <User className="w-full h-full text-gray-500 p-1" />
                       </div>
                       <ChevronDown className="h-4 w-4 text-gray-500" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
                     <DropdownMenuItem>
-                      <Link href="/athleteDashboard" className="flex items-center w-full">
+                      <Link href="/dashboard" className="flex items-center w-full">
                         <LayoutDashboard className="h-4 w-4 mr-2" />
                         Profile
                       </Link>
@@ -469,34 +403,29 @@ export default function DashboardPage() {
         </div>
       </header>
     ),
-    [SearchComponent, hasUnreadMessages, loadingState.isLoading, handleLogout, profileData.profilePhotoUrl],
+    [SearchComponent, unreadCount, loadingState.isLoading, handleLogout],
   )
 
-  const MainContent = () => (
-    <main className={`${isMobile ? "px-4 py-6 pb-24" : "max-w-7xl mx-auto px-6 py-8"}`}>
-      <ProfileHeader
-        profileData={profileData}
-        isEditing={isEditing}
-        isLoading={isSaving}
-        onEditToggle={handleEditToggle}
-        onSave={handleHeaderSave}
-        onProfileImageChange={handleProfileImageChange}
-        onCoverImageChange={handleCoverImageChange}
-      />
-
-      <StatsCards />
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
+  const DesktopContent = () => (
+    <main className="max-w-7xl mx-auto px-6 py-8">
+      <div className="relative">
+        <ProfileHeader
+          ref={headerRef}
+          profileData={profileData}
+          isEditing={isEditing}
+          isLoading={isSaving}
+          onEditToggle={handleEditToggle}
+          onSave={handleSaveProfile}
+          onProfilePicChange={handleProfilePicChange}
+          onCoverChange={handleCoverChange}
+        />
+        {/* Edit Profile Button (Desktop) - moved below card */}
+        {/* Remove all floating Save/Cancel buttons from here. Only show action buttons in the profile header next to the name. */}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8 mt-8">
         <div className="lg:col-span-2">
-          <ProfileEditor
-            ref={profileEditorRef}
-            isEditing={isEditing}
-            initialData={profileData}
-            onSave={handleSaveProfile}
-            isLoading={isSaving}
-          />
+          <ProfileEditor ref={editorRef} isEditing={isEditing} initialData={profileData} isLoading={isSaving} />
         </div>
-
         <Sidebar profileData={profileData} />
       </div>
     </main>
@@ -504,38 +433,40 @@ export default function DashboardPage() {
 
   if (isMobile || isTablet) {
     return (
-      <NotificationProvider>
-        <MobileLayout
-          userType="athlete"
-          currentPath="/athleteDashboard"
-          showBottomNav={true}
-          unreadNotifications={hasUnreadMessages ? 1 : 0}
-          unreadMessages={0}
-          hasNewContent={false}
-        >
-          <MainContent />
-        </MobileLayout>
-      </NotificationProvider>
+      <MobileLayout
+        userType="athlete"
+        currentPath="/dashboard"
+        showBottomNav={true}
+        unreadNotifications={unreadCount}
+        unreadMessages={0}
+        hasNewContent={false}
+      >
+        <MobileProfileLayout
+          profileData={profileData}
+          isEditing={isEditing}
+          isSaving={isSaving}
+          onEditToggle={handleEditToggle}
+          onSave={handleMobileSave}
+        />
+      </MobileLayout>
     )
   }
 
   return (
-    <NotificationProvider>
-      <div className="min-h-screen bg-gray-50">
-        {DesktopHeader}
-        <MainContent />
-
-        <LogoutNotification
-          isVisible={loadingState.isVisible}
-          userType={loadingState.userType}
-          stage={loadingState.stage}
-          message={loadingState.message}
-          error={loadingState.error}
-          canRetry={loadingState.canRetry}
-          onRetry={retryLogout}
-          onCancel={cancelLogout}
-        />
-      </div>
-    </NotificationProvider>
+    <div className="min-h-screen bg-gray-50">
+      {DesktopHeader}
+      <DesktopContent />
+      <LogoutNotification
+        isVisible={loadingState.isVisible}
+        userType={loadingState.userType}
+        stage={loadingState.stage}
+        message={loadingState.message}
+        error={loadingState.error}
+        canRetry={loadingState.canRetry}
+        onRetry={retryLogout}
+        onCancel={cancelLogout}
+      />
+    </div>
   )
 }
+
