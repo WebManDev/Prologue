@@ -500,6 +500,7 @@ export default function DashboardPage() {
         unreadNotifications={hasUnreadMessages ? 1 : 0}
         unreadMessages={hasUnreadMessages ? 1 : 0}
         hasNewContent={false}
+        profilePhotoUrl={profileData.profilePhotoUrl}
       >
         <ProfileEditorMobile
           profileData={profileData}

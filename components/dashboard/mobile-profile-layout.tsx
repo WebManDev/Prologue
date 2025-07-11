@@ -32,57 +32,6 @@ interface ProfileEditorMobileProps {
   onSave: (data: ProfileData, files?: { profilePhotoFile?: File; coverPhotoFile?: File }) => void
 }
 
-const allPosts = [
-  {
-    id: 1,
-    content:
-      "Just finished an amazing training session with my junior athletes. The mental game is just as important as the physical technique. Remember: confidence comes from preparation! 🎾",
-    timestamp: "2 hours ago",
-    likes: 24,
-    comments: 8,
-  },
-  {
-    id: 2,
-    content:
-      "Tournament season is approaching! Here are my top 3 tips for peak performance: 1) Consistent practice routine 2) Mental visualization 3) Proper nutrition and rest. What's your game plan?",
-    timestamp: "1 day ago",
-    likes: 42,
-    comments: 15,
-  },
-  {
-    id: 3,
-    content:
-      "Proud to announce that Sarah just committed to play Division I tennis at Stanford! Hard work and dedication always pay off. Congratulations! 🏆",
-    timestamp: "3 days ago",
-    likes: 67,
-    comments: 23,
-  },
-  {
-    id: 4,
-    content:
-      "Mental performance tip: Before every match, take 5 minutes to visualize your success. See yourself executing perfect shots, staying calm under pressure, and celebrating your wins.",
-    timestamp: "5 days ago",
-    likes: 31,
-    comments: 12,
-  },
-  {
-    id: 5,
-    content:
-      "Great session today working on serve technique with my advanced players. The key is consistency in your toss and follow-through. Small adjustments make big differences!",
-    timestamp: "1 week ago",
-    likes: 28,
-    comments: 9,
-  },
-  {
-    id: 6,
-    content:
-      "Nutrition plays a huge role in athletic performance. Here's what I recommend for my athletes: balanced meals, proper hydration, and strategic timing of nutrients around training.",
-    timestamp: "1 week ago",
-    likes: 35,
-    comments: 14,
-  },
-]
-
 export function ProfileEditorMobile({
   profileData,
   isEditing,
@@ -91,7 +40,6 @@ export function ProfileEditorMobile({
   onSave,
 }: ProfileEditorMobileProps) {
   const [localData, setLocalData] = useState(profileData)
-  const [visiblePosts, setVisiblePosts] = useState(2)
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null)
   const [coverPhotoFile, setCoverPhotoFile] = useState<File | null>(null)
   const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null)
@@ -146,10 +94,6 @@ export function ProfileEditorMobile({
       ...prev,
       [field]: prev[field].filter((_, i) => i !== index),
     }))
-  }, [])
-
-  const handleLoadMorePosts = useCallback(() => {
-    setVisiblePosts((prev) => Math.min(prev + 2, allPosts.length))
   }, [])
 
   const currentData = isEditing ? localData : profileData
@@ -325,18 +269,18 @@ export function ProfileEditorMobile({
                 value={localData.bio}
                 onChange={(e) => handleFieldChange("bio", e.target.value)}
                 placeholder="Tell athletes about your coaching philosophy..."
-                className="min-h-[80px] resize-none text-sm"
+                className="min-h-[80px] resize-none text-sm px-3"
                 disabled={isSaving}
               />
             ) : (
-              <p className="text-gray-700 leading-relaxed text-sm text-left">{currentData.bio}</p>
+              <p className="text-gray-700 leading-relaxed text-sm text-left px-3">{currentData.bio}</p>
             )}
           </div>
 
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-1 mb-2">
             {!isEditing ? (
-              <Button variant="outline" onClick={onEditToggle} size="sm" className="bg-transparent">
+              <Button variant="outline" onClick={onEditToggle} size="sm" className="bg-transparent ml-4">
                 <Edit3 className="h-4 w-4 mr-2" />
                 Edit Profile
               </Button>
@@ -346,7 +290,7 @@ export function ProfileEditorMobile({
                   onClick={() => onSave(localData, { profilePhotoFile, coverPhotoFile })}
                   disabled={isSaving}
                   size="sm"
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-blue-600 hover:bg-blue-700 ml-4"
                 >
                   {isSaving ? (
                     <>
@@ -374,50 +318,26 @@ export function ProfileEditorMobile({
             <MessageCircle className="h-5 w-5 mr-2" />
             Recent Posts
           </h3>
-          <div className="space-y-4">
-            {allPosts.slice(0, visiblePosts).map((post) => (
-              <div key={post.id} className="border-b border-gray-100 pb-4 last:border-b-0 pl-2">
-                <div className="flex items-start space-x-3">
-                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                    <User className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <span className="font-semibold text-gray-900">
-                        {currentData.firstName} {currentData.lastName}
-                      </span>
-                      <span className="text-gray-500 text-sm">•</span>
-                      <span className="text-gray-500 text-sm">{post.timestamp}</span>
-                    </div>
-                    <p className="text-gray-700 mb-3 leading-relaxed text-sm">{post.content}</p>
-                    <div className="flex items-center space-x-6 text-gray-500">
-                      <div className="flex items-center space-x-2">
-                        <Heart className="w-4 h-4" />
-                        <span className="text-sm">{post.likes}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <MessageCircle className="w-4 h-4" />
-                        <span className="text-sm">{post.comments}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Share2 className="w-4 h-4" />
-                        <span className="text-sm">Share</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {visiblePosts < allPosts.length && (
-              <Button
-                variant="outline"
-                onClick={handleLoadMorePosts}
-                className="w-full bg-transparent"
-                disabled={isSaving}
-              >
-                Load More
-              </Button>
-            )}
+          <div className="text-center text-gray-500 text-sm my-4">
+            Recent posts are coming soon!
+          </div>
+        </div>
+
+        {/* Sport Details Section */}
+        <div className="bg-white mt-1 py-2 w-full px-4">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Trophy className="h-5 w-5 mr-2" />
+            Sport Details
+          </h3>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center text-sm">
+              <span className="font-medium w-32">Primary Sport</span>
+              <span className="text-gray-700">{currentData.sport || <span className="text-gray-400">N/A</span>}</span>
+            </div>
+            <div className="flex items-center text-sm">
+              <span className="font-medium w-32">Position</span>
+              <span className="text-gray-700">{currentData.position || <span className="text-gray-400">N/A</span>}</span>
+            </div>
           </div>
         </div>
 
@@ -429,13 +349,13 @@ export function ProfileEditorMobile({
           </h3>
           <div className="space-y-3">
             {currentData.achievements.map((achievement, index) => (
-              <div key={index} className="flex items-start space-x-3">
+              <div key={index} className="flex items-start space-x-3 mb-1">
                 {isEditing ? (
                   <div className="flex-1 flex items-center space-x-2">
                     <Input
                       value={achievement}
                       onChange={(e) => handleListChange("achievements", index, e.target.value)}
-                      className="flex-1 text-sm"
+                      className="w-full min-w-0 text-xs py-1"
                       disabled={isSaving}
                     />
                     <Button
@@ -479,13 +399,13 @@ export function ProfileEditorMobile({
           </h3>
           <div className="space-y-3">
             {currentData.certifications.map((cert, index) => (
-              <div key={index} className="flex items-center space-x-3">
+              <div key={index} className="flex items-center space-x-3 mb-1">
                 {isEditing ? (
                   <div className="flex-1 flex items-center space-x-2">
                     <Input
                       value={cert}
                       onChange={(e) => handleListChange("certifications", index, e.target.value)}
-                      className="flex-1 text-sm"
+                      className="w-full min-w-0 text-xs py-1"
                       disabled={isSaving}
                     />
                     <Button
@@ -529,13 +449,13 @@ export function ProfileEditorMobile({
           </h3>
           <div className="space-y-3">
             {currentData.specialties.map((specialty, index) => (
-              <div key={index} className="flex items-center space-x-3">
+              <div key={index} className="flex items-center space-x-3 mb-1">
                 {isEditing ? (
                   <div className="flex-1 flex items-center space-x-2">
                     <Input
                       value={specialty}
                       onChange={(e) => handleListChange("specialties", index, e.target.value)}
-                      className="flex-1 text-sm"
+                      className="w-full min-w-0 text-xs py-1"
                       disabled={isSaving}
                     />
                     <Button

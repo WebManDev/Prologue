@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import { useMemo } from "react"
 import AthleteMobileNavigation from "@/components/mobile/athlete-mobile-navigation"
 import { Button } from "@/components/ui/button"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 import { User, Settings, Search, LogOut, Bell, ChevronDown, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -18,6 +18,7 @@ interface AthleteDashboardMobileLayoutProps {
   unreadNotifications?: number
   unreadMessages?: number
   hasNewContent?: boolean
+  profilePhotoUrl?: string
 }
 
 export default function AthleteDashboardMobileLayout({
@@ -27,6 +28,7 @@ export default function AthleteDashboardMobileLayout({
   unreadNotifications = 0,
   unreadMessages = 0,
   hasNewContent = false,
+  profilePhotoUrl,
 }: AthleteDashboardMobileLayoutProps) {
   const pathname = usePathname()
 
@@ -46,7 +48,7 @@ export default function AthleteDashboardMobileLayout({
           >
             <div className="w-7 h-7 relative flex-shrink-0">
               <Image
-                src="/prologue-main-logo.png"
+                src="/Prologue LOGO-1.png"
                 alt="PROLOGUE"
                 width={28}
                 height={28}
@@ -90,7 +92,17 @@ export default function AthleteDashboardMobileLayout({
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center space-x-1 p-2 touch-target h-10">
                   <div className="w-7 h-7 bg-gray-300 rounded-full overflow-hidden flex-shrink-0">
-                    <User className="w-full h-full text-gray-500 p-1" />
+                    {profilePhotoUrl ? (
+                      <Image
+                        src={profilePhotoUrl}
+                        alt="Profile"
+                        width={28}
+                        height={28}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <User className="w-full h-full text-gray-500 p-1" />
+                    )}
                   </div>
                   <ChevronDown className="h-3 w-3 text-gray-500" />
                 </Button>
@@ -98,22 +110,14 @@ export default function AthleteDashboardMobileLayout({
               <DropdownMenuContent align="end" className="w-48 mr-2">
                 <DropdownMenuItem asChild>
                   <Link
-                    href="/promote"
-                    className="flex items-center w-full cursor-pointer py-3"
-                  >
-                    <TrendingUp className="h-4 w-4 mr-3" />
-                    <span className="text-sm">Promote</span>
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link
-                    href="/settings"
+                    href="/athlete-settings"
                     className="flex items-center w-full cursor-pointer py-3"
                   >
                     <Settings className="h-4 w-4 mr-3" />
                     <span className="text-sm">Settings</span>
                   </Link>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={async () => { await logout(); }}
                   className="cursor-pointer py-3"
