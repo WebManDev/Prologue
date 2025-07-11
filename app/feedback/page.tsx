@@ -33,11 +33,14 @@ import Image from "next/image"
 import Link from "next/link"
 import { useAdvancedNotifications } from "@/contexts/advanced-notification-context"
 import { collection, query, where, getDocs, addDoc, serverTimestamp, doc, getDoc, deleteDoc } from "firebase/firestore"
-import { db, auth, getAthleteProfile, addFeedback } from "@/lib/firebase"
+import { db, auth, addFeedback, getAthleteProfile, getMemberProfile } from "@/lib/firebase"
 import { onAuthStateChanged } from "firebase/auth"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { toast } from "@/components/ui/use-toast"
 import { Toaster } from "@/components/ui/toaster"
+import AthleteMobileNavigation from "@/components/mobile/athlete-mobile-navigation"
+import { usePathname } from "next/navigation"
+import { AthleteHeader } from "@/components/navigation/athlete-header"
 
 // Types for feedback
 interface FeedbackRequest {
@@ -75,6 +78,37 @@ const getYouTubeVideoId = (url: string): string | null => {
 export default function FeedbackPage() {
   const { isMobile, isTablet } = useMobileDetection()
   const { logout } = useUnifiedLogout()
+  const pathname = usePathname()
+  const [profileData, setProfileData] = useState<{ firstName: string; lastName: string; profileImageUrl: string | null; profilePic?: string; profilePicture?: string }>({ firstName: "", lastName: "", profileImageUrl: null });
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!auth.currentUser) return;
+      // Try member profile first
+      const memberProfile = await getMemberProfile(auth.currentUser.uid);
+      if (memberProfile) {
+        setProfileData({
+          firstName: memberProfile.firstName || "",
+          lastName: memberProfile.lastName || "",
+          profileImageUrl: memberProfile.profileImageUrl || null,
+        });
+        setProfileImageUrl(memberProfile.profileImageUrl || null);
+        return;
+      }
+      // If not a member, try athlete profile
+      const athleteProfile = await getAthleteProfile(auth.currentUser.uid);
+      if (athleteProfile) {
+        const athletePhoto = athleteProfile.profilePhotoUrl || athleteProfile.profileImageUrl || athleteProfile.profilePicture || athleteProfile.avatar || null;
+        setProfileData({
+          firstName: athleteProfile.firstName || "",
+          lastName: athleteProfile.lastName || "",
+          profileImageUrl: athletePhoto,
+        });
+        setProfileImageUrl(athletePhoto);
+      }
+    };
+    loadProfile();
+  }, []);
 
   // State management
   const [activeTab, setActiveTab] = useState("requested")
@@ -692,16 +726,25 @@ export default function FeedbackPage() {
 
   if (isMobile || isTablet) {
     return (
-      <MobileLayout
-        userType="athlete"
-        currentPath="/feedback"
-        showBottomNav={true}
-        unreadNotifications={0}
-        unreadMessages={0}
-        hasNewContent={false}
-      >
+      <div className="min-h-screen bg-gray-50 pb-20">
+        <AthleteHeader
+          currentPath={pathname || "/feedback"}
+          onLogout={logout}
+          showSearch={false}
+          unreadNotifications={0}
+          unreadMessages={0}
+          profileImageUrl={profileImageUrl}
+          profileData={profileData}
+        />
         {renderMainContent()}
-      </MobileLayout>
+        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg">
+          <AthleteMobileNavigation
+            currentPath={pathname || "/feedback"}
+            unreadMessages={0}
+            hasNewContent={false}
+          />
+        </div>
+      </div>
     )
   }
 
