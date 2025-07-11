@@ -42,11 +42,12 @@ import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import ProfileHeader, { type ProfileHeaderHandle } from "@/components/dashboard/profile-header"
 import ProfileEditor, { type ProfileEditorHandle } from "@/components/dashboard/profile-editor"
 import Sidebar from "@/components/dashboard/sidebar"
-import { MobileProfileLayout } from "@/components/dashboard/mobile-profile-layout"
+import { ProfileEditorMobile } from "@/components/dashboard/mobile-profile-layout"
 import { db } from '@/lib/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth } from "@/lib/firebase";
+import AthleteDashboardMobileLayout from "@/components/mobile/athlete-dashboard-mobile-layout"
 
 const initialProfileData = {
   firstName: "",
@@ -63,6 +64,8 @@ const initialProfileData = {
   specialties: [],
   experience: "",
   achievements: [],
+  profilePhotoUrl: "",
+  coverPhotoUrl: "",
 };
 
 export type ProfileData = typeof initialProfileData
@@ -80,7 +83,7 @@ const QUICK_SEARCHES = [
 
 export default function DashboardPage() {
   const { isMobile, isTablet } = useMobileDetection()
-  const { unreadCount } = useNotifications()
+  const { hasUnreadMessages } = useNotifications()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
@@ -183,7 +186,7 @@ export default function DashboardPage() {
   };
 
   // Add this function inside DashboardPage, after hooks and before handlers
-  const saveProfileData = useCallback(async (newProfileData: ProfileData) => {
+  const saveProfileData = useCallback(async (newProfileData: ProfileData, files?: { profilePhotoFile?: File | null, coverPhotoFile?: File | null }) => {
     setIsSaving(true);
     const uid = auth.currentUser?.uid;
     if (!uid) {
@@ -197,8 +200,29 @@ export default function DashboardPage() {
       return;
     }
     try {
-      await setDoc(doc(db, 'athletes', uid), newProfileData, { merge: true });
-      setProfileData(newProfileData);
+      let profilePhotoUrl = newProfileData.profilePhotoUrl || "";
+      let coverPhotoUrl = newProfileData.coverPhotoUrl || "";
+      // Upload profile photo if provided
+      if (files?.profilePhotoFile) {
+        const storage = getStorage();
+        const profileRef = ref(storage, `athlete-profile-pics/${uid}-${Date.now()}`);
+        await uploadBytes(profileRef, files.profilePhotoFile);
+        profilePhotoUrl = await getDownloadURL(profileRef);
+      }
+      // Upload cover photo if provided
+      if (files?.coverPhotoFile) {
+        const storage = getStorage();
+        const coverRef = ref(storage, `athlete-cover-pics/${uid}-${Date.now()}`);
+        await uploadBytes(coverRef, files.coverPhotoFile);
+        coverPhotoUrl = await getDownloadURL(coverRef);
+      }
+      const updatedProfile = {
+        ...newProfileData,
+        profilePhotoUrl,
+        coverPhotoUrl,
+      };
+      await setDoc(doc(db, 'athletes', uid), updatedProfile, { merge: true });
+      setProfileData(updatedProfile);
       setIsEditing(false);
       toast({
         title: "Profile Updated",
@@ -375,7 +399,7 @@ export default function DashboardPage() {
                 >
                   <Bell className="h-5 w-5" />
                   <span className="text-xs font-medium">Notifications</span>
-                  {unreadCount > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
+                  {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
                 </Link>
               </nav>
               <div className="flex items-center space-x-3">
@@ -427,7 +451,7 @@ export default function DashboardPage() {
         </div>
       </header>
     ),
-    [SearchComponent, unreadCount, loadingState.isLoading, handleLogout],
+    [SearchComponent, hasUnreadMessages, loadingState.isLoading, handleLogout],
   )
 
   const DesktopContent = () => (
@@ -443,8 +467,22 @@ export default function DashboardPage() {
           onProfilePicChange={handleProfilePicChange}
           onCoverChange={handleCoverChange}
         />
-        {/* Edit Profile Button (Desktop) - moved below card */}
-        {/* Remove all floating Save/Cancel buttons from here. Only show action buttons in the profile header next to the name. */}
+        {isEditing && (
+          <div className="flex space-x-2 mt-4">
+            <Button onClick={() => {
+              const headerData = headerRef.current?.getFormData() || {};
+              const editorData = editorRef.current?.getFormData() || {};
+              const merged = { ...headerData, ...editorData };
+              handleSaveProfile(merged);
+            }} disabled={isSaving} size="sm" className="bg-blue-600 hover:bg-blue-700">
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              <span className="ml-2">Save Changes</span>
+            </Button>
+            <Button variant="outline" onClick={handleEditToggle} disabled={isSaving} size="sm" className="bg-transparent">
+              Cancel
+            </Button>
+          </div>
+        )}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8 mt-8">
         <div className="lg:col-span-2">
@@ -455,24 +493,22 @@ export default function DashboardPage() {
     </main>
   )
 
-  if (isMobile || isTablet) {
+  if (isMobile) {
     return (
-      <MobileLayout
-        userType="athlete"
-        currentPath="/dashboard"
-        showBottomNav={true}
-        unreadNotifications={unreadCount}
-        unreadMessages={0}
+      <AthleteDashboardMobileLayout
+        currentPath="/athleteDashboard"
+        unreadNotifications={hasUnreadMessages ? 1 : 0}
+        unreadMessages={hasUnreadMessages ? 1 : 0}
         hasNewContent={false}
       >
-        <MobileProfileLayout
+        <ProfileEditorMobile
           profileData={profileData}
           isEditing={isEditing}
           isSaving={isSaving}
-          onEditToggle={handleEditToggle}
-          onSave={handleMobileSave}
+          onEditToggle={() => setIsEditing((v) => !v)}
+          onSave={saveProfileData}
         />
-      </MobileLayout>
+      </AthleteDashboardMobileLayout>
     )
   }
 
