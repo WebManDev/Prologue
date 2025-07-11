@@ -7,9 +7,12 @@ import MemberDashboardPage from "@/components/member-dashboard-page"
 
 export default function MemberDashboardPageWrapper() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <MemberDashboardContent />
-    </Suspense>
+    <>
+      <div className="font-athletic font-black uppercase text-lg tracking-wide text-center my-4">Still in Development</div>
+      <Suspense fallback={<div>Loading...</div>}>
+        <MemberDashboardContent />
+      </Suspense>
+    </>
   )
 }
 
