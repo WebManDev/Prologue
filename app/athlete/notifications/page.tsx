@@ -23,7 +23,7 @@ import {
 import Image from "next/image"
 import { useState, useEffect } from "react"
 import { useMemberNotifications } from "@/contexts/member-notification-context"
-import MemberMobileNavigation from "@/components/mobile/member-mobile-navigation"
+import AthleteMobileNavigation from "@/components/mobile/athlete-mobile-navigation"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { MemberHeader } from "@/components/navigation/member-header"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
@@ -329,11 +329,9 @@ export default function AthleteNotificationsPage() {
 
       {/* Mobile Bottom Navigation */}
       {(isMobile || isTablet) && (
-        <MemberMobileNavigation
-          currentPath="/athlete/notifications"
-          unreadNotifications={unreadNotificationsCount}
+        <AthleteMobileNavigation
+          currentPath="/athleteDashboard"
           unreadMessages={unreadMessagesCount}
-          hasNewContent={false}
         />
       )}
       <Toaster />
