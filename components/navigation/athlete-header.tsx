@@ -35,6 +35,8 @@ interface AthleteHeaderProps {
     profileImageUrl?: string | null
     profilePic?: string | null
     profilePicture?: string | null
+    profilePhotoUrl?: string | null
+    avatar?: string | null
   }
 }
 
@@ -153,7 +155,13 @@ export function AthleteHeader({
                   <Button variant="ghost" className="flex items-center space-x-1 lg:space-x-2 p-1 lg:p-2">
                     <Avatar className="w-7 h-7 lg:w-8 lg:h-8">
                       {(() => {
-                        const profileImageUrl = profileData && profileData.profileImageUrl && profileData.profileImageUrl.trim() !== '' ? profileData.profileImageUrl : (profileData && profileData.profilePic && profileData.profilePic.trim() !== '' ? profileData.profilePic : (profileData && profileData.profilePicture && profileData.profilePicture.trim() !== '' ? profileData.profilePicture : null));
+                        const profileImageUrl =
+                          profileData?.profileImageUrl ||
+                          profileData?.profilePicture ||
+                          profileData?.profilePhotoUrl ||
+                          profileData?.profilePic ||
+                          profileData?.avatar ||
+                          '/placeholder-user.jpg';
                         if (profileImageUrl) {
                           return <AvatarImage src={profileImageUrl} alt={profileData ? `${profileData.firstName} ${profileData.lastName}` : 'User'} />;
                         } else {

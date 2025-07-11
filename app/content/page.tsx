@@ -5,934 +5,624 @@ import type React from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
+  Settings,
+  User,
+  ChevronDown,
+  LogOut,
+  MessageSquare,
   Search,
-  Plus,
-  Video,
+  X,
+  Home,
+  MessageCircle,
+  Bell,
   FileText,
-  BookOpen,
-  Clock,
-  Users,
-  Star,
+  LayoutDashboard,
+  Lock,
+  Crown,
+  MoreHorizontal,
   Play,
+  Bookmark,
+  Heart,
   Eye,
   TrendingUp,
-  X,
-  ImageIcon,
-  Save,
-  Trash2,
-  ArrowLeft,
-  MoreVertical,
+  Filter,
+  Grid,
+  List,
+  Clock,
+  BookOpen,
+  PlayCircle,
+  Headphones,
+  Share2,
 } from "lucide-react"
-import Image from "next/image"
 import Link from "next/link"
-import { useState, useMemo, useRef, useEffect } from "react"
-import { useMobileDetection } from "@/hooks/use-mobile-detection"
-import MobileLayout from "@/components/mobile/mobile-layout"
-import { AdvancedNotificationProvider } from "@/contexts/advanced-notification-context"
-import { AthleteHeader } from "@/components/navigation/athlete-header"
+import Image from "next/image"
+import { useState, useRef, useEffect, useMemo, useCallback } from "react"
+import { useNotifications } from "@/contexts/notification-context"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
-import { db } from "@/lib/firebase"
-import { getAuth } from "firebase/auth"
-import { collection, addDoc, serverTimestamp, getDocs, query, orderBy, where } from "firebase/firestore"
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
-import { useRouter } from "next/navigation"
-import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
-import { getMemberProfile, getAthleteProfile } from "@/lib/firebase"
-import { format } from "date-fns"
+import { useMobileDetection } from "@/hooks/use-mobile-detection"
+import { auth } from "@/lib/firebase"
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
+import { getFirestore, collection, getDocs, query, orderBy, addDoc, serverTimestamp } from "firebase/firestore"
+import { getAthleteProfile, getMemberProfile } from "@/lib/firebase"
+import AthleteMobileNavigation from "@/components/mobile/athlete-mobile-navigation"
+import { usePathname } from "next/navigation"
 
-// Mock data for content
-const CONTENT_DATA = {
-  videos: [
-    {
-      id: 1,
-      title: "Advanced Basketball Shooting Form",
-      description: "Master the perfect shooting technique with detailed form analysis and practice drills.",
-      thumbnail: "/placeholder.svg?height=200&width=300",
-      duration: "15:30",
-      views: 1234,
-      rating: 4.8,
-      category: "Basketball",
-      instructor: "Coach Mike Johnson",
-      uploadedAt: "2 days ago",
-      tags: ["Basketball", "Shooting", "Technique"],
-    },
-    {
-      id: 2,
-      title: "Mental Performance Visualization",
-      description: "Learn powerful visualization techniques used by Olympic athletes to enhance performance.",
-      thumbnail: "/placeholder.svg?height=200&width=300",
-      duration: "22:15",
-      views: 892,
-      rating: 4.9,
-      category: "Mental Training",
-      instructor: "Dr. Sarah Chen",
-      uploadedAt: "5 days ago",
-      tags: ["Mental", "Visualization", "Performance"],
-    },
-    {
-      id: 3,
-      title: "Injury Prevention Warm-up Routine",
-      description: "Essential warm-up exercises to prevent common sports injuries.",
-      thumbnail: "/placeholder.svg?height=200&width=300",
-      duration: "12:45",
-      views: 2156,
-      rating: 4.7,
-      category: "Training",
-      instructor: "Alex Rodriguez",
-      uploadedAt: "1 week ago",
-      tags: ["Injury Prevention", "Warm-up", "Safety"],
-    },
-  ],
-  articles: [
-    {
-      id: 1,
-      title: "Understanding Pressure in Competition",
-      description: "Learn to identify and manage high-pressure scenarios in competitive sports.",
-      readTime: "8 min read",
-      views: 567,
-      rating: 4.6,
-      category: "Mental Performance",
-      author: "Dr. Sarah Mitchell",
-      publishedAt: "3 days ago",
-      tags: ["Mental", "Competition", "Pressure"],
-      excerpt:
-        "Pressure situations are inevitable in competitive sports. The key to success lies not in avoiding pressure, but in learning how to thrive under it...",
-    },
-    {
-      id: 2,
-      title: "Nutrition for Peak Athletic Performance",
-      description: "Comprehensive guide to fueling your body for optimal athletic performance and recovery.",
-      readTime: "12 min read",
-      views: 1089,
-      rating: 4.8,
-      category: "Nutrition",
-      author: "Lisa Martinez",
-      publishedAt: "1 week ago",
-      tags: ["Nutrition", "Performance", "Recovery"],
-      excerpt:
-        "What you eat directly impacts your athletic performance. This guide covers everything from pre-workout nutrition to recovery meals...",
-    },
-  ],
-  courses: [
-    {
-      id: 1,
-      title: "Elite Mindset Training Course",
-      description:
-        "Master the mental aspects of athletic performance with proven techniques used by elite athletes worldwide.",
-      thumbnail: "/placeholder.svg?height=200&width=300",
-      duration: "6 weeks",
-      lessons: 5,
-      participants: 450,
-      rating: 4.8,
-      category: "Mental Performance",
-      instructor: "Dr. Sarah Mitchell",
-      price: "Free",
-      tags: ["Mental", "Elite", "Mindset"],
-      progress: 0,
-    },
-    {
-      id: 2,
-      title: "Injury Prevention Masterclass",
-      description:
-        "Comprehensive guide to preventing sports injuries through proper warm-up, technique, and recovery protocols.",
-      thumbnail: "/placeholder.svg?height=200&width=300",
-      duration: "4 weeks",
-      lessons: 3,
-      participants: 320,
-      rating: 4.9,
-      category: "Training",
-      instructor: "Coach Mike Rodriguez",
-      price: "Free",
-      tags: ["Injury Prevention", "Safety", "Training"],
-      progress: 0,
-    },
-  ],
+// Helper: Upload a file to Firebase Storage and return the download URL
+async function uploadFileToStorage(path: string, file: File): Promise<string> {
+  const storage = getStorage();
+  const fileRef = storageRef(storage, path);
+  await uploadBytes(fileRef, file);
+  return await getDownloadURL(fileRef);
 }
 
-// Helper to get video duration as mm:ss
-function getVideoDuration(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    video.preload = 'metadata';
-    video.onloadedmetadata = function () {
-      window.URL.revokeObjectURL(video.src);
-      const seconds = video.duration;
-      const mins = Math.floor(seconds / 60);
-      const secs = Math.floor(seconds % 60);
-      const formatted = `${mins}:${secs.toString().padStart(2, '0')}`;
-      resolve(formatted);
-    };
-    video.onerror = function () {
-      reject('Failed to load video metadata.');
-    };
-    video.src = URL.createObjectURL(file);
-  });
-}
-
-// Content Creation Modal Component
-const CreateContentModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
-  const [step, setStep] = useState(1) // 1: Type selection, 2: Content creation
-  const [contentType, setContentType] = useState<string>("")
-  const [title, setTitle] = useState("")
-  const [category, setCategory] = useState("")
-  const [description, setDescription] = useState("")
-  const [lessons, setLessons] = useState<any[]>([])
-  const [showAddLesson, setShowAddLesson] = useState(false)
-  const [videoFile, setVideoFile] = useState<File | null>(null)
-  const [imageFile, setImageFile] = useState<File | null>(null)
-  const [articleContent, setArticleContent] = useState("")
-  const [isUploading, setIsUploading] = useState(false)
-  const [videoDuration, setVideoDuration] = useState<string>("");
-
-  // Lesson form state
-  const [lessonType, setLessonType] = useState("video")
-  const [lessonTitle, setLessonTitle] = useState("")
-  const [lessonDescription, setLessonDescription] = useState("")
-  const [lessonVideoFile, setLessonVideoFile] = useState<File | null>(null)
-  const [lessonImageFile, setLessonImageFile] = useState<File | null>(null)
-  const [lessonContent, setLessonContent] = useState("")
-
-  const { isMobile } = useMobileDetection()
-
-  const resetForm = () => {
-    setStep(1)
-    setContentType("")
-    setTitle("")
-    setCategory("")
-    setDescription("")
-    setLessons([])
-    setVideoFile(null)
-    setImageFile(null)
-    setArticleContent("")
-    setShowAddLesson(false)
-  }
-
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setVideoFile(file);
-      try {
-        const duration = await getVideoDuration(file);
-        setVideoDuration(duration);
-      } catch {
-        setVideoDuration("");
-      }
-    }
-  }
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) setImageFile(file)
-  }
-
-  const handleLessonVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) setLessonVideoFile(file)
-  }
-
-  const handleLessonImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) setLessonImageFile(file)
-  }
-
-  const addLesson = () => {
-    if (!lessonTitle.trim()) return
-
-    const newLesson = {
-      id: Date.now().toString(),
-      type: lessonType,
-      title: lessonTitle,
-      description: lessonDescription,
-      content: lessonContent,
-      videoFile: lessonVideoFile,
-      imageFile: lessonImageFile,
-      duration: lessonType === "video" ? "15:30" : "8 min read",
-    }
-
-    setLessons([...lessons, newLesson])
-
-    // Reset lesson form
-    setLessonTitle("")
-    setLessonDescription("")
-    setLessonContent("")
-    setLessonVideoFile(null)
-    setLessonImageFile(null)
-    setShowAddLesson(false)
-  }
-
-  const removeLesson = (lessonId: string) => {
-    setLessons(lessons.filter((lesson) => lesson.id !== lessonId))
-  }
-
-  const handleCreateContent = async () => {
-    setIsUploading(true)
-    const auth = getAuth();
-    const user = auth.currentUser;
-    const userId = user ? user.uid : "anonymous";
-    const storage = getStorage();
-
-    // Parse category as tags array
-    const tags = category.split(",").map(tag => tag.trim()).filter(tag => tag.length > 0);
-
-    try {
-      let contentDoc = null;
-      let videoUrl = null;
-      let imageUrl = null;
-
-      // Upload video file if present
-      if (contentType === "video" && videoFile) {
-        const videoRef = ref(storage, `videos/${userId}/${Date.now()}_${videoFile.name}`);
-        await uploadBytes(videoRef, videoFile);
-        videoUrl = await getDownloadURL(videoRef);
-      }
-
-      // Upload image file if present
-      if ((contentType === "article" || contentType === "course") && imageFile) {
-        const imageRef = ref(storage, `images/${userId}/${Date.now()}_${imageFile.name}`);
-        await uploadBytes(imageRef, imageFile);
-        imageUrl = await getDownloadURL(imageRef);
-      }
-
-      // Prepare lessons for course (upload files if needed)
-      let courseLessons = [];
-      if (contentType === "course") {
-        for (const lesson of lessons) {
-          let lessonVideoUrl = null;
-          let lessonImageUrl = null;
-          if (lesson.videoFile) {
-            const lessonVideoRef = ref(storage, `lessons/${userId}/${Date.now()}_${lesson.videoFile.name}`);
-            await uploadBytes(lessonVideoRef, lesson.videoFile);
-            lessonVideoUrl = await getDownloadURL(lessonVideoRef);
-          }
-          if (lesson.imageFile) {
-            const lessonImageRef = ref(storage, `lessons/${userId}/${Date.now()}_${lesson.imageFile.name}`);
-            await uploadBytes(lessonImageRef, lesson.imageFile);
-            lessonImageUrl = await getDownloadURL(lessonImageRef);
-          }
-          // Only include serializable fields in Firestore
-          courseLessons.push({
-            id: lesson.id,
-            type: lesson.type,
-            title: lesson.title,
-            description: lesson.description,
-            content: lesson.content,
-            duration: lesson.duration,
-            videoUrl: lessonVideoUrl,
-            imageUrl: lessonImageUrl,
-          });
-        }
-      }
-
-      // After uploading and preparing courseLessons, clear File objects from lessons state
-      if (contentType === "course") {
-        setLessons(lessons.map(lesson => ({
-          ...lesson,
-          videoFile: undefined,
-          imageFile: undefined,
-        })));
-      }
-
-      // Save to Firestore
-      if (contentType === "video") {
-        console.log("Creating video content:", {
-          type: contentType,
-          title,
-          category,
-          description,
-          videoUrl,
-        })
-
-        // Create video document in Firestore
-        const videoDoc = await addDoc(collection(db, "videos"), {
-          title,
-          category,
-          description,
-          videoUrl,
-          imageUrl,
-          authorId: userId,
-          createdAt: serverTimestamp(),
-          views: 0,
-          rating: 0,
-          tags,
-          duration: videoDuration,
-        })
-
-        console.log("Video document created with ID:", videoDoc.id)
-        setIsUploading(false)
-        resetForm()
-        onClose()
-      } else if (contentType === "article") {
-        console.log("Creating article content:", {
-          type: contentType,
-          title,
-          category,
-          description,
-          articleContent,
-        })
-
-        // Create article document in Firestore
-        const articleDoc = await addDoc(collection(db, "articles"), {
-          title,
-          category,
-          description,
-          content: articleContent,
-          imageUrl,
-          authorId: userId,
-          createdAt: serverTimestamp(),
-          views: 0,
-          rating: 0,
-          tags,
-        })
-
-        console.log("Article document created with ID:", articleDoc.id)
-        setIsUploading(false)
-        resetForm()
-        onClose()
-      } else if (contentType === "course") {
-        console.log("Creating course content:", {
-          type: contentType,
-          title,
-          category,
-          description,
-          lessons: courseLessons,
-        })
-
-        // Create course document in Firestore
-        const courseDoc = await addDoc(collection(db, "courses"), {
-          title,
-          category,
-          description,
-          imageUrl,
-          lessons: courseLessons,
-          authorId: userId,
-          createdAt: serverTimestamp(),
-          participants: 0,
-          rating: 0,
-          tags,
-        })
-
-        console.log("Course document created with ID:", courseDoc.id)
-        setIsUploading(false)
-        resetForm()
-        onClose()
-      }
-    } catch (error) {
-      console.error("Error creating content:", error);
-      setIsUploading(false);
-      // Optionally show an error message to the user
-    }
-  }
-
-  const contentTypeOptions = [
-    {
-      type: "video",
-      title: "Video",
-      description: "Upload and share video content",
-      icon: Video,
-      color: "bg-red-500",
-    },
-    {
-      type: "article",
-      title: "Article",
-      description: "Write and publish articles",
-      icon: FileText,
-      color: "bg-green-500",
-    },
-    {
-      type: "course",
-      title: "Course",
-      description: "Create structured learning courses",
-      icon: BookOpen,
-      color: "bg-blue-500",
-    },
-  ]
-
-  if (!isOpen) return null
-
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/50" onClick={showAddLesson ? undefined : onClose} />
-      <div
-        className={`relative bg-white rounded-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl ${
-          isMobile ? "max-w-full h-full" : "max-w-2xl"
-        }`}
-      >
-        {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-gray-200 flex items-center justify-between">
-          {step > 1 && (
-            <Button variant="ghost" size="sm" onClick={() => setStep(step - 1)} className="mr-2">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          )}
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900 flex-1">
-            {step === 1 ? "Create New Content" : `Create ${contentType}`}
-          </h2>
-          <Button variant="ghost" size="sm" onClick={onClose} className="text-gray-500 hover:text-gray-700">
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="overflow-y-auto max-h-[calc(90vh-140px)]">
-          {step === 1 ? (
-            // Step 1: Content Type Selection
-            <div className="p-4 sm:p-6">
-              <p className="text-gray-600 mb-6">Choose the type of content you want to create:</p>
-              <div className="grid gap-4">
-                {contentTypeOptions.map((option) => (
-                  <button
-                    key={option.type}
-                    onClick={() => {
-                      setContentType(option.type)
-                      setStep(2)
-                    }}
-                    className="flex items-center p-4 border-2 border-gray-200 rounded-xl hover:border-blue-300 hover:bg-blue-50 transition-all group"
-                  >
-                    <div className={`w-12 h-12 ${option.color} rounded-lg flex items-center justify-center mr-4`}>
-                      <option.icon className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="text-left">
-                      <h3 className="font-semibold text-gray-900 group-hover:text-blue-600">{option.title}</h3>
-                      <p className="text-sm text-gray-600">{option.description}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            // Step 2: Content Creation Form
-            <div className="p-4 sm:p-6 space-y-6">
-              {/* Title */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Title *</label>
-                <Input
-                  placeholder={`Enter ${contentType} title...`}
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-              </div>
-
-              {/* Category */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
-                <Input
-                  placeholder="e.g., Basketball, Mental Training, Nutrition"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                />
-              </div>
-
-              {/* Description */}
-              {contentType && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
-                  <textarea
-                    className="w-full p-2 border border-gray-300 rounded-lg resize-none"
-                    rows={3}
-                    placeholder="Describe your content..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    required
-                  />
-                </div>
-              )}
-
-              {/* Content-specific fields */}
-              {contentType === "video" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Video File *</label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={handleVideoUpload}
-                      className="hidden"
-                      id="video-upload"
-                    />
-                    <label htmlFor="video-upload" className="cursor-pointer">
-                      <div className="flex flex-col items-center">
-                        <Video className="h-12 w-12 text-gray-400 mb-3" />
-                        <p className="text-sm text-gray-600 mb-1">
-                          {videoFile ? videoFile.name : "Click to upload or drag and drop"}
-                        </p>
-                        <p className="text-xs text-gray-500">MP4, MOV, AVI up to 500MB</p>
-                        {videoDuration && (
-                          <span className="text-xs text-gray-700 mt-2">Duration: {videoDuration}</span>
-                        )}
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {/* Article Content */}
-              {contentType === "article" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Article Content *</label>
-                  <LexicalRichTextEditor value={articleContent} onChange={setArticleContent} />
-                </div>
-              )}
-
-              {contentType === "course" && (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <label className="block text-sm font-medium text-gray-700">Course Lessons</label>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowAddLesson(true)}
-                      className="text-blue-600 border-blue-600 hover:bg-blue-50"
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add Lesson
-                    </Button>
-                  </div>
-
-                  {lessons.length > 0 && (
-                    <div className="space-y-2 mb-4">
-                      {lessons.map((lesson, index) => (
-                        <div key={lesson.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                              {lesson.type === "video" ? (
-                                <Video className="h-4 w-4 text-blue-600" />
-                              ) : (
-                                <FileText className="h-4 w-4 text-green-600" />
-                              )}
-                            </div>
-                            <div>
-                              <p className="font-medium text-sm">
-                                {index + 1}. {lesson.title}
-                              </p>
-                              <p className="text-xs text-gray-600">{lesson.duration}</p>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeLesson(lesson.id)}
-                            className="text-red-600 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Add Lesson Modal */}
-                  {showAddLesson && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                      <div className="fixed inset-0 bg-black/50" onClick={() => setShowAddLesson(false)} />
-                      <div
-                        className={`relative bg-white rounded-xl shadow-xl ${
-                          isMobile
-                            ? "w-full max-w-full h-full overflow-y-auto"
-                            : "max-w-md w-full max-h-[80vh] overflow-y-auto"
-                        }`}
-                      >
-                        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-                          <h3 className="font-semibold">Add Course Lesson</h3>
-                          <Button variant="ghost" size="sm" onClick={() => setShowAddLesson(false)}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-
-                        <div className="p-4 space-y-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Lesson Type</label>
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                onClick={() => setLessonType("video")}
-                                className={`p-3 border rounded-lg flex flex-col items-center space-y-2 ${
-                                  lessonType === "video" ? "border-blue-500 bg-blue-50" : "border-gray-200"
-                                }`}
-                              >
-                                <Video className="h-5 w-5" />
-                                <span className="text-sm">Video</span>
-                              </button>
-                              <button
-                                onClick={() => setLessonType("article")}
-                                className={`p-3 border rounded-lg flex flex-col items-center space-y-2 ${
-                                  lessonType === "article" ? "border-blue-500 bg-blue-50" : "border-gray-200"
-                                }`}
-                              >
-                                <FileText className="h-5 w-5" />
-                                <span className="text-sm">Article</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Lesson Title</label>
-                            <Input
-                              placeholder="Enter lesson title..."
-                              value={lessonTitle}
-                              onChange={(e) => setLessonTitle(e.target.value)}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                            <textarea
-                              className="w-full p-2 border border-gray-300 rounded-lg resize-none"
-                              rows={2}
-                              placeholder="Describe this lesson..."
-                              value={lessonDescription}
-                              onChange={(e) => setLessonDescription(e.target.value)}
-                            />
-                          </div>
-
-                          {lessonType === "video" ? (
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">Video File</label>
-                              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                                <input
-                                  type="file"
-                                  accept="video/*"
-                                  onChange={handleLessonVideoUpload}
-                                  className="hidden"
-                                  id="lesson-video-upload"
-                                />
-                                <label htmlFor="lesson-video-upload" className="cursor-pointer">
-                                  <Video className="h-6 w-6 text-gray-400 mx-auto mb-1" />
-                                  <p className="text-xs text-gray-600">
-                                    {lessonVideoFile ? lessonVideoFile.name : "Upload video file"}
-                                  </p>
-                                </label>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  Cover Image (Optional)
-                                </label>
-                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleLessonImageUpload}
-                                    className="hidden"
-                                    id="lesson-image-upload"
-                                  />
-                                  <label htmlFor="lesson-image-upload" className="cursor-pointer">
-                                    <ImageIcon className="h-6 w-6 text-gray-400 mx-auto mb-1" />
-                                    <p className="text-xs text-gray-600">
-                                      {lessonImageFile ? lessonImageFile.name : "Upload cover image"}
-                                    </p>
-                                  </label>
-                                </div>
-                              </div>
-
-                              <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Content</label>
-                                <textarea
-                                  className="w-full p-2 border border-gray-300 rounded-lg resize-none"
-                                  rows={4}
-                                  placeholder="Write lesson content..."
-                                  value={lessonContent}
-                                  onChange={(e) => setLessonContent(e.target.value)}
-                                />
-                              </div>
-                            </>
-                          )}
-                        </div>
-
-                        <div className="p-4 border-t border-gray-200 flex justify-end space-x-2">
-                          <Button variant="outline" onClick={() => setShowAddLesson(false)}>
-                            Cancel
-                          </Button>
-                          <Button onClick={addLesson} disabled={!lessonTitle.trim()}>
-                            Add Lesson
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {step === 2 && (
-          <div className="p-4 sm:p-6 border-t border-gray-200 flex justify-end space-x-3">
-            <Button variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleCreateContent}
-              disabled={!title.trim() || !category.trim() || !description.trim() || isUploading}
-              className="min-w-[100px]"
-            >
-              {isUploading ? (
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Creating...</span>
-                </div>
-              ) : (
-                <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Create {contentType}
-                </>
-              )}
-            </Button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// Utility to allow only <b>, <strong>, <i>, <em> tags in HTML
-function sanitizeDescription(html: string) {
-  if (!html) return "";
-  // Remove all tags except <b>, <strong>, <i>, <em>
-  return html
-    .replace(/<(?!\/?(b|strong|i|em)\b)[^>]*>/gi, "")
-    .replace(/<\/?(script|style)[^>]*>/gi, "");
-}
-
-function ContentPageContent() {
+export default function ContentPage() {
+  // Mobile detection
   const { isMobile, isTablet } = useMobileDetection()
-  const [activeTab, setActiveTab] = useState("all")
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [selectedFilter, setSelectedFilter] = useState("all")
+  const pathname = usePathname()
 
+  // Optimized logout hook
+  const { logout, loadingState } = useUnifiedLogout()
+
+  // Contexts
+  const { hasUnreadMessages } = useNotifications()
+
+  // Search dropdown state
   const [showSearchDropdown, setShowSearchDropdown] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const searchRef = useRef<HTMLDivElement>(null)
+  const [activeTab, setActiveTab] = useState<"all" | "videos" | "courses">("all")
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [sortBy, setSortBy] = useState<"recent" | "popular" | "trending">("recent")
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [likedContent, setLikedContent] = useState<Set<string>>(new Set())
+  const [savedContent, setSavedContent] = useState<Set<string>>(new Set())
 
-  // Real content state
-  const [videos, setVideos] = useState<any[]>([])
-  const [articles, setArticles] = useState<any[]>([])
-  const [courses, setCourses] = useState<any[]>([])
-  const [loadingContent, setLoadingContent] = useState(true)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    title: "",
+    description: "",
+    category: "",
+    type: "video" as "video" | "course",
+    isPrivate: false,
+    file: null as File | File[] | null, // allow array for courses
+    thumbnail: null as File | null,
+  })
+  const [isUploading, setIsUploading] = useState(false)
 
-  const auth = typeof window !== "undefined" ? getAuth() : null;
-  const [currentAthleteId, setCurrentAthleteId] = useState<string | null>(null);
+  const [showCourseModal, setShowCourseModal] = useState(false)
+  // Update courseForm.videos to use files: File[]
+  const [courseForm, setCourseForm] = useState({
+    title: "",
+    description: "",
+    thumbnail: null as File | null,
+    videos: [] as Array<{
+      id: string
+      title: string
+      files: File[]
+      existingVideoId?: string
+      order: number
+    }>,
+  })
+  const [isCreatingCourse, setIsCreatingCourse] = useState(false)
+  const [existingVideos, setExistingVideos] = useState([
+    { id: "vid-1", title: "Basic Fundamentals", duration: "10:30" },
+    { id: "vid-2", title: "Advanced Techniques", duration: "15:45" },
+    { id: "vid-3", title: "Practice Drills", duration: "12:20" },
+  ])
 
-  // Header state for AthleteHeader
-  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
-  const [profileData, setProfileData] = useState<any>(null)
-  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0)
-  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0)
-  const [hasNewTrainingContent, setHasNewTrainingContent] = useState(false)
+  // Content categories
+  const categories = useMemo(
+    () => [
+      "Training",
+      "Nutrition",
+      "Mental Health",
+      "Recovery",
+      "Technique",
+      "Strategy",
+      "Equipment",
+      "Motivation",
+      "Injury Prevention",
+      "Performance Analysis",
+    ],
+    [],
+  )
 
-  // Fetch content from Firestore
-  const fetchContent = async () => {
-    setLoadingContent(true)
-    try {
-      const videosSnap = await getDocs(query(collection(db, "videos"), orderBy("createdAt", "desc")))
-      const articlesSnap = await getDocs(query(collection(db, "articles"), orderBy("createdAt", "desc")))
-      const coursesSnap = await getDocs(query(collection(db, "courses"), orderBy("createdAt", "desc")))
-      setVideos(videosSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), type: "video" })))
-      setArticles(articlesSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), type: "article" })))
-      setCourses(coursesSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), type: "course" })))
-    } catch (err) {
-      console.error("Error fetching content:", err)
-    }
-    setLoadingContent(false)
-  }
+  // State for real content
+  const [content, setContent] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  // Creator profile cache: { [userId]: { firstName, lastName, profileImageUrl, isVerified } }
+  const [creatorProfiles, setCreatorProfiles] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    fetchContent()
-  }, [])
-
-  useEffect(() => {
-    // Fetch current user's athlete document
-    const fetchAthleteId = async () => {
-      if (!auth?.currentUser?.uid) return;
-      const q = query(collection(db, "athletes"), where("email", "==", auth.currentUser.email));
-      const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        setCurrentAthleteId(snapshot.docs[0].id);
+    const fetchProfile = async () => {
+      const userId = auth.currentUser?.uid;
+      if (userId) {
+        const profile = await getAthleteProfile(userId);
+        setUserProfile(profile);
       }
     };
-    fetchAthleteId();
-  }, [auth?.currentUser?.uid]);
+    fetchProfile();
+  }, []);
 
-  // Fetch profile data for header
+  // Fetch videos and courses from Firestore
   useEffect(() => {
-    const fetchProfileData = async () => {
-      if (!auth?.currentUser?.uid) return;
-      
-      try {
-        const athleteProfile = await getAthleteProfile(auth.currentUser.uid);
-        if (athleteProfile) {
-          setProfileData(athleteProfile);
-          setProfileImageUrl(athleteProfile.profileImageUrl || athleteProfile.profilePicture || null);
-        }
-      } catch (error) {
-        console.error("Error fetching profile data:", error);
-      }
+    const fetchContent = async () => {
+      setLoading(true);
+      const db = getFirestore();
+      // Fetch videos
+      const videosQ = query(collection(db, "videos"), orderBy("createdAt", "desc"));
+      const videosSnapshot = await getDocs(videosQ);
+      const videos = videosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Fetch courses
+      const coursesQ = query(collection(db, "courses"), orderBy("createdAt", "desc"));
+      const coursesSnapshot = await getDocs(coursesQ);
+      const courses = coursesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), type: "course" }));
+      // Combine
+      setContent([...videos, ...courses]);
+      setLoading(false);
     };
-    
-    fetchProfileData();
-  }, [auth?.currentUser?.uid]);
+    fetchContent();
+  }, []);
 
-  // Combine all content for "All" tab
-  const allContent = useMemo(() => {
-    return [...videos, ...articles, ...courses]
-  }, [videos, articles, courses])
-
-  // Filter content based on active tab and search
+  // Remove mockContent and use real content
+  // Filter content based on active tab and selected categories
   const filteredContent = useMemo(() => {
-    let content =
-      activeTab === "all"
-        ? allContent
-        : activeTab === "videos"
-          ? videos
-          : activeTab === "articles"
-            ? articles
-            : courses
+    const userId = auth && auth.currentUser ? auth.currentUser.uid : null;
+    let filtered = content;
 
-    if (searchQuery) {
-      content = content.filter(
-        (item) =>
-          item.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.description?.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
+    if (!userId) return [];
+
+    // Only show content created by the current user
+    if (userId) {
+      filtered = filtered.filter((item) => {
+        if (item.type === "video" || !item.type) {
+          return item.authorId === userId;
+        } else if (item.type === "course") {
+          // Accept both authorId and athleteId for course ownership
+          return item.athleteId === userId || item.authorId === userId;
+        }
+        return false;
+      });
     }
 
-    return content
-  }, [activeTab, searchQuery, allContent, videos, articles, courses])
+    // Filter by content type
+    if (activeTab !== "all") {
+      filtered = filtered.filter((item) => {
+        switch (activeTab) {
+          case "videos":
+            return item.type === "video" || !item.type; // fallback for old docs
+          case "courses":
+            return item.type === "course";
+          default:
+            return true;
+        }
+      });
+    }
 
-  // After creating content, refetch
-  const handleModalClose = () => {
-    setShowCreateModal(false)
-    fetchContent()
-  }
+    // Filter by categories
+    if (selectedCategories.length > 0) {
+      filtered = filtered.filter((item) => selectedCategories.includes(item.category));
+    }
+
+    // Sort content
+    filtered = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case "popular":
+          return (b.views || 0) - (a.views || 0);
+        case "trending":
+          return (b.likes || 0) - (a.likes || 0);
+        case "recent":
+        default:
+          return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+      }
+    });
+
+    return filtered;
+  }, [content, activeTab, selectedCategories, sortBy]);
 
   // Quick search suggestions
-  const quickSearches = [
-    "Navigate Recruitment",
-    "Nutrition",
-    "NIL",
-    "Training Programs",
-    "Mental Performance",
-    "Injury Prevention",
-    "Sports Psychology",
-    "Athletic Scholarships",
-  ]
+  const quickSearches = useMemo(
+    () => [
+      "Training techniques",
+      "Nutrition tips",
+      "Mental performance",
+      "Recovery methods",
+      "Injury prevention",
+      "Equipment reviews",
+      "Workout routines",
+      "Sports psychology",
+    ],
+    [],
+  )
+
+  // Social media interaction handlers
+  const handleLike = useCallback((contentId: string) => {
+    setLikedContent((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(contentId)) {
+        newSet.delete(contentId)
+      } else {
+        newSet.add(contentId)
+      }
+      return newSet
+    })
+  }, [])
+
+  const handleSave = useCallback((contentId: string) => {
+    setSavedContent((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(contentId)) {
+        newSet.delete(contentId)
+      } else {
+        newSet.add(contentId)
+      }
+      return newSet
+    })
+  }, [])
+
+  const handleShare = useCallback((contentId: string) => {
+    console.log("Sharing content:", contentId)
+  }, [])
 
   // Search handlers
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value)
-  }
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setSearchQuery(value)
+  }, [])
 
-  const handleSearchFocus = () => {
+  const handleSearchFocus = useCallback(() => {
     setShowSearchDropdown(true)
-  }
+  }, [])
 
-  const clearSearch = () => {
+  const handleSearchSelect = useCallback((search: string) => {
+    setSearchQuery(search)
+    setShowSearchDropdown(false)
+    console.log("Searching for:", search)
+  }, [])
+
+  const clearSearch = useCallback(() => {
     setSearchQuery("")
     setShowSearchDropdown(false)
-  }
+  }, [])
+
+  // Category filter handlers
+  const handleCategoryToggle = useCallback((category: string) => {
+    setSelectedCategories((prev) => {
+      if (prev.includes(category)) {
+        return prev.filter((c) => c !== category)
+      } else {
+        return [...prev, category]
+      }
+    })
+  }, [])
+
+  const clearFilters = useCallback(() => {
+    setSelectedCategories([])
+    setFilterOpen(false)
+  }, [])
+
+  const handleCreateContent = useCallback(() => {
+    setShowCreateModal(true)
+  }, [])
+
+  const handleCreateFormChange = useCallback((field: string, value: any) => {
+    setCreateForm((prev) => ({ ...prev, [field]: value }))
+  }, [])
+
+  const handleFileUpload = useCallback((field: "file" | "thumbnail", file: File | File[] | null) => {
+    setCreateForm((prev) => ({ ...prev, [field]: file }))
+  }, [])
+
+  const handleSubmitContent = useCallback(async () => {
+    if (!createForm.title || !createForm.description || !createForm.category || !createForm.file) {
+      alert("Please fill in all required fields and upload a file")
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        alert("You must be logged in to create content.");
+        throw new Error("Not logged in");
+      }
+      const athleteId = user.uid;
+      const db = getFirestore();
+
+      if (createForm.type === "video" && createForm.file instanceof File) {
+        // Video upload logic (single file)
+        const videoUrl = await uploadFileToStorage(
+          `videos/${athleteId}_${Date.now()}_${createForm.file.name}`,
+          createForm.file
+        );
+        let thumbnailUrl = null;
+        if (createForm.thumbnail) {
+          thumbnailUrl = await uploadFileToStorage(
+            `video-thumbnails/${athleteId}_${Date.now()}_${createForm.thumbnail.name}`,
+            createForm.thumbnail
+          );
+        }
+        const videoDoc = await addDoc(collection(db, "videos"), {
+          title: createForm.title,
+          description: createForm.description,
+          category: createForm.category,
+          type: createForm.type,
+          videoUrl,
+          thumbnailUrl,
+          authorId: athleteId,
+          isPrivate: createForm.isPrivate,
+          createdAt: serverTimestamp(),
+          views: 0,
+          likes: 0,
+          comments: 0,
+          creator: userProfile && userProfile.firstName && userProfile.lastName ? `${userProfile.firstName} ${userProfile.lastName}` : "Anonymous",
+          creatorProfileImageUrl: userProfile?.coverPhotoUrl || null,
+          creatorVerified: false,
+          publishedAt: new Date().toLocaleDateString(),
+          isNew: true,
+          isPremium: createForm.isPrivate,
+        });
+        const q = query(collection(db, "videos"), orderBy("createdAt", "desc"));
+        const snapshot = await getDocs(q);
+        const videos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setContent(videos);
+        setCreateForm({
+          title: "",
+          description: "",
+          category: "",
+          type: "video",
+          isPrivate: false,
+          file: null,
+          thumbnail: null,
+        })
+        setShowCreateModal(false)
+        alert("Video created successfully!")
+      } else if (createForm.type === "course" && Array.isArray(createForm.file)) {
+        // Course upload logic (multiple files)
+        let thumbnailUrl = null;
+        if (createForm.thumbnail) {
+          thumbnailUrl = await uploadFileToStorage(
+            `course-thumbnails/${athleteId}_${Date.now()}_${createForm.thumbnail.name}`,
+            createForm.thumbnail
+          );
+        }
+        const fileUrls = [];
+        for (const file of createForm.file) {
+          const ext = file.name.split('.').pop();
+          const fileType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'other';
+          const fileUrl = await uploadFileToStorage(
+            `course-materials/${athleteId}_${Date.now()}_${file.name}`,
+            file
+          );
+          fileUrls.push({ url: fileUrl, type: fileType, name: file.name, ext });
+        }
+        const courseDoc = await addDoc(collection(db, "courses"), {
+          title: createForm.title,
+          description: createForm.description,
+          category: createForm.category,
+          type: "course",
+          files: fileUrls,
+          thumbnailUrl,
+          authorId: athleteId,
+          isPrivate: createForm.isPrivate,
+          createdAt: serverTimestamp(),
+          creator: userProfile && userProfile.firstName && userProfile.lastName ? `${userProfile.firstName} ${userProfile.lastName}` : "Anonymous",
+          creatorProfileImageUrl: userProfile?.coverPhotoUrl || null,
+        });
+        setCreateForm({
+          title: "",
+          description: "",
+          category: "",
+          type: "video",
+          isPrivate: false,
+          file: null,
+          thumbnail: null,
+        })
+        setShowCreateModal(false)
+        alert("Course created successfully!")
+      } else {
+        alert("Invalid file selection.");
+      }
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error("Content creation failed:", error.message, error.stack)
+        alert("Content creation failed: " + error.message)
+      } else {
+        console.error("Content creation failed:", error)
+        alert("Content creation failed. Please try again.")
+      }
+    } finally {
+      setIsUploading(false)
+    }
+  }, [createForm])
+
+  const closeCreateModal = useCallback(() => {
+    setShowCreateModal(false)
+    setCreateForm({
+      title: "",
+      description: "",
+      category: "",
+      type: "video",
+      isPrivate: false,
+      file: null,
+      thumbnail: null,
+    })
+  }, [])
+
+  const handleCreateCourse = useCallback(() => {
+    setShowCourseModal(true)
+  }, [])
+
+  const handleCourseFormChange = useCallback((field: string, value: any) => {
+    setCourseForm((prev) => ({ ...prev, [field]: value }))
+  }, [])
+
+  const handleCourseThumbnailUpload = useCallback((file: File | null) => {
+    setCourseForm((prev) => ({ ...prev, thumbnail: file }))
+  }, [])
+
+  // Update addVideoToCourse to use files: []
+  const addVideoToCourse = useCallback(() => {
+    const newVideo = {
+      id: `video-${Date.now()}`,
+      title: "",
+      files: [],
+      order: courseForm.videos.length + 1,
+    }
+    setCourseForm((prev) => ({
+      ...prev,
+      videos: [...prev.videos, newVideo],
+    }))
+  }, [courseForm.videos.length])
+
+  const addExistingVideoToCourse = useCallback(
+    (videoId: string, videoTitle: string) => {
+      const newVideo = {
+        id: `existing-${Date.now()}`,
+        title: videoTitle,
+        files: [],
+        existingVideoId: videoId,
+        order: courseForm.videos.length + 1,
+      }
+      setCourseForm((prev) => ({
+        ...prev,
+        videos: [...prev.videos, newVideo],
+      }))
+    },
+    [courseForm.videos.length],
+  )
+
+  // Update courseForm.videos to use files: File[]
+  const updateCourseVideo = useCallback((videoId: string, field: string, value: any) => {
+    setCourseForm((prev) => ({
+      ...prev,
+      videos: prev.videos.map((video) => (video.id === videoId ? { ...video, [field]: value } : video)),
+    }))
+  }, [])
+
+  const removeCourseVideo = useCallback((videoId: string) => {
+    setCourseForm((prev) => ({
+      ...prev,
+      videos: prev.videos
+        .filter((video) => video.id !== videoId)
+        .map((video, index) => ({
+          ...video,
+          order: index + 1,
+        })),
+    }))
+  }, [])
+
+  const reorderCourseVideos = useCallback((fromIndex: number, toIndex: number) => {
+    setCourseForm((prev) => {
+      const newVideos = [...prev.videos]
+      const [movedVideo] = newVideos.splice(fromIndex, 1)
+      newVideos.splice(toIndex, 0, movedVideo)
+      return {
+        ...prev,
+        videos: newVideos.map((video, index) => ({ ...video, order: index + 1 })),
+      }
+    })
+  }, [])
+
+  // Update handleSubmitCourse to upload videos/thumbnails and save to Firestore
+  const handleSubmitCourse = useCallback(async (e?: React.MouseEvent) => {
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
+    if (!courseForm.title || !courseForm.description || courseForm.videos.length === 0) {
+      alert("Please fill in all required fields and add at least one video")
+      return
+    }
+
+    setIsCreatingCourse(true)
+    try {
+      // Get current user (athlete)
+      const user = auth.currentUser;
+      console.log("Current user:", user);
+      if (!user) {
+        alert("You must be logged in to create a course.");
+        throw new Error("Not logged in");
+      }
+      const athleteId = user.uid;
+
+      // 1. Upload thumbnail if present
+      let thumbnailUrl = null;
+      if (courseForm.thumbnail) {
+        console.log("Uploading thumbnail...");
+        thumbnailUrl = await uploadFileToStorage(`course-thumbnails/${athleteId}_${Date.now()}_${courseForm.thumbnail.name}`, courseForm.thumbnail);
+        console.log("Thumbnail uploaded:", thumbnailUrl);
+      }
+
+      // 2. Upload new videos and collect video doc refs
+      const db = getFirestore();
+      const videoRefs: Array<{ videoId: string; order: number; title: string }> = [];
+      for (const video of courseForm.videos) {
+        if (video.existingVideoId) {
+          // Reference existing video
+          videoRefs.push({ videoId: video.existingVideoId, order: video.order, title: video.title });
+        } else if (video.files && video.files.length > 0) {
+          const fileUrls = [];
+          for (const file of video.files) {
+            const ext = file.name.split('.').pop();
+            const fileType = file.type.startsWith('image/') ? 'image' : 'video';
+            const fileUrl = await uploadFileToStorage(`course-materials/${athleteId}_${Date.now()}_${file.name}`, file);
+            fileUrls.push({ url: fileUrl, type: fileType, name: file.name, ext });
+          }
+          const videoDoc = await addDoc(collection(db, "videos"), {
+            title: video.title,
+            files: fileUrls,
+            authorId: athleteId,
+            createdAt: serverTimestamp(),
+            order: video.order,
+          });
+          videoRefs.push({ videoId: videoDoc.id, order: video.order, title: video.title });
+        }
+      }
+
+      // 3. Save course to Firestore
+      console.log("Saving course to Firestore...");
+      const courseDoc = await addDoc(collection(db, "courses"), {
+        title: courseForm.title,
+        description: courseForm.description,
+        thumbnailUrl,
+        athleteId,
+        createdAt: serverTimestamp(),
+        videos: videoRefs,
+      });
+      console.log("Course doc created:", courseDoc.id);
+
+      setCourseForm({
+        title: "",
+        description: "",
+        thumbnail: null,
+        videos: [],
+      })
+      setShowCourseModal(false)
+      alert("Course created successfully!")
+    } catch (error) {
+      if (error instanceof Error) {
+        console.error("Course creation failed:", error.message, error.stack)
+        alert("Course creation failed: " + error.message)
+      } else {
+        console.error("Course creation failed:", error)
+        alert("Course creation failed. Please try again.")
+      }
+    } finally {
+      setIsCreatingCourse(false)
+    }
+  }, [courseForm])
+
+  const closeCourseModal = useCallback(() => {
+    setShowCourseModal(false)
+    setCourseForm({
+      title: "",
+      description: "",
+      thumbnail: null,
+      videos: [],
+    })
+  }, [])
 
   // Handle clicks outside search dropdown
   useEffect(() => {
@@ -948,402 +638,1244 @@ function ContentPageContent() {
     }
   }, [])
 
-  // Search dropdown content
-  const searchDropdownContent = (
-    <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-      <div className="p-3 border-b border-gray-100">
-        <h4 className="text-sm font-semibold text-gray-700 mb-2">Quick Searches</h4>
-        <div className="space-y-1">
-          {quickSearches.map((search, index) => (
-            <button
-              key={index}
-              className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-blue-500 rounded transition-colors"
-              onClick={() => {
-                setSearchQuery(search)
-                setShowSearchDropdown(false)
-              }}
-            >
-              {search}
-            </button>
-          ))}
+  // Optimized logout handler
+  const handleLogout = async () => {
+    try {
+      await logout({
+        onComplete: () => {
+          window.location.href = "/"
+        },
+        onError: (error: any) => {
+          console.error("Logout error:", error)
+        },
+      })
+    } catch (error) {
+      console.error("Logout failed:", error)
+      window.location.href = "/"
+    }
+  }
+
+  // Get content type icon
+  const getContentTypeIcon = (type: string) => {
+    switch (type) {
+      case "video":
+        return <PlayCircle className="h-4 w-4" />
+      case "article":
+        return <FileText className="h-4 w-4" />
+      case "course":
+        return <BookOpen className="h-4 w-4" />
+      case "podcast":
+        return <Headphones className="h-4 w-4" />
+      default:
+        return <FileText className="h-4 w-4" />
+    }
+  }
+
+  // Get content duration/read time
+  const getContentDuration = (item: any) => {
+    if (item.duration) return item.duration
+    if (item.readTime) return item.readTime
+    if (item.lessons) return `${item.lessons} lessons`
+    return ""
+  }
+
+  // Fetch creator profiles for all unique authorIds in filteredContent
+  useEffect(() => {
+    const fetchCreators = async () => {
+      // Get all unique authorIds from filteredContent
+      const ids = Array.from(new Set(filteredContent.map(item => item.authorId).filter(Boolean)));
+      // Only fetch if not already cached
+      const idsToFetch = ids.filter(id => !creatorProfiles[id]);
+      if (idsToFetch.length === 0) return;
+      const newProfiles: Record<string, any> = {};
+      for (const id of idsToFetch) {
+        let profile = await getAthleteProfile(id);
+        if (!profile) profile = await getMemberProfile(id);
+        if (profile) {
+          newProfiles[id] = {
+            firstName: profile.firstName || "",
+            lastName: profile.lastName || "",
+            profileImageUrl: profile.profileImageUrl || profile.coverPhotoUrl || "",
+            isVerified: profile.isVerified || false,
+          };
+        } else {
+          newProfiles[id] = {
+            firstName: "",
+            lastName: "",
+            profileImageUrl: "",
+            isVerified: false,
+          };
+        }
+      }
+      setCreatorProfiles(prev => ({ ...prev, ...newProfiles }));
+    };
+    fetchCreators();
+    // Only run when filteredContent or creatorProfiles changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredContent]);
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Mobile Header - Fixed Navigation */}
+      <header className="lg:hidden bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="flex items-center justify-between h-16 px-4">
+          {/* Logo */}
+          <Link href="/home" className="flex items-center space-x-2">
+            <div className="w-8 h-8 relative">
+              <Image
+                src="/Prologue LOGO-1.png"
+                alt="PROLOGUE"
+                width={32}
+                height={32}
+                className="w-full h-full object-contain"
+                priority
+              />
+            </div>
+            <span className="text-lg font-athletic font-bold text-gray-900 tracking-wider">PROLOGUE</span>
+          </Link>
+
+          {/* Right Actions - Search, Bell, Dropdown */}
+          <div className="flex items-center space-x-2">
+            {/* Search Button */}
+            <Button variant="ghost" size="sm" className="p-2" onClick={() => setShowSearchDropdown(true)}>
+              <Search className="h-5 w-5 text-gray-600" />
+            </Button>
+
+            {/* Notification Bell */}
+            <Link href="/notifications" className="relative">
+              <Button variant="ghost" size="sm" className="p-2 relative">
+                <Bell className="h-5 w-5 text-gray-600" />
+                {hasUnreadMessages && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div>
+                )}
+              </Button>
+            </Link>
+
+            {/* User Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center space-x-2 p-2" disabled={loadingState.isLoading}>
+                  <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
+                    {userProfile?.profileImageUrl ? (
+                      <Image src={userProfile.profileImageUrl} alt="Profile" width={32} height={32} className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-full h-full text-gray-500 p-1" />
+                    )}
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard" className="flex items-center w-full cursor-pointer">
+                    <LayoutDashboard className="h-4 w-4 mr-2" />
+                    Profile
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/promote" className="flex items-center w-full cursor-pointer">
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Promote
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings" className="flex items-center w-full cursor-pointer">
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout} className="cursor-pointer" disabled={loadingState.isLoading}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  {loadingState.isLoading ? "Logging out..." : "Logout"}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-      </div>
-    </div>
-  )
 
-  // Author profile cache
-  const [authorProfiles, setAuthorProfiles] = useState<{ [uid: string]: { firstName?: string; lastName?: string } }>({});
-
-  // Fetch author profile if not cached (athletes only)
-  const fetchAuthorProfile = async (uid: string) => {
-    if (!uid || authorProfiles[uid]) return;
-    const profile = await getAthleteProfile(uid);
-    if (profile) {
-      setAuthorProfiles(prev => ({ ...prev, [uid]: { firstName: profile.firstName || "", lastName: profile.lastName || "" } }));
-    } else {
-      setAuthorProfiles(prev => ({ ...prev, [uid]: { firstName: "Unknown", lastName: "" } }));
-    }
-  };
-
-  const ContentCard = ({ item }: { item: any }) => {
-    // Fetch author profile on mount
-    useEffect(() => {
-      if (item.authorId) fetchAuthorProfile(item.authorId);
-    }, [item.authorId]);
-    const author = item.authorId && authorProfiles[item.authorId]
-      ? `${authorProfiles[item.authorId].firstName || ""} ${authorProfiles[item.authorId].lastName || ""}`.trim()
-      : "";
-
-    const getContentLink = () => {
-      switch (item.type) {
-        case "video":
-          return `/video/${item.id}`
-        case "article":
-          return `/article/${item.id}`
-        case "course":
-          return `/course/${item.id}`
-        default:
-          return "#"
-      }
-    }
-
-    const getContentIcon = () => {
-      switch (item.type) {
-        case "video":
-          return <Video className="h-4 w-4" />
-        case "article":
-          return <FileText className="h-4 w-4" />
-        case "course":
-          return <BookOpen className="h-4 w-4" />
-        default:
-          return null
-      }
-    }
-
-    const getContentMeta = () => {
-      switch (item.type) {
-        case "video":
-          return (
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <div className="flex items-center space-x-1">
-                <Clock className="h-4 w-4" />
-                <span>{item.duration}</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Eye className="h-4 w-4" />
-                <span>{item.views}</span>
+        {/* Mobile Search Overlay */}
+        {showSearchDropdown && (
+          <div className="fixed inset-0 z-50 bg-white">
+            <div className="flex items-center h-16 px-4 border-b border-gray-200">
+              <Button variant="ghost" size="sm" className="p-2 mr-2" onClick={() => setShowSearchDropdown(false)}>
+                <X className="h-5 w-5 text-gray-600" />
+              </Button>
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search content..."
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  autoFocus
+                />
               </div>
             </div>
-          )
-        case "article":
-          return (
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <div className="flex items-center space-x-1">
-                <Clock className="h-4 w-4" />
-                <span>{item.readTime}</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Eye className="h-4 w-4" />
-                <span>{item.views}</span>
-              </div>
-            </div>
-          )
-        case "course":
-          return (
-            <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <div className="flex items-center space-x-1">
-                <BookOpen className="h-4 w-4" />
-                <span>{Array.isArray(item.lessons) ? item.lessons.length : 0} lessons</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Users className="h-4 w-4" />
-                <span>{item.participants}</span>
-              </div>
-            </div>
-          )
-        default:
-          return null
-      }
-    }
 
-    return (
-      <Card className="hover:shadow-lg transition-shadow">
-        <CardContent className="p-0">
-          <div className="relative">
-            <div className="aspect-video bg-gray-200 rounded-t-lg overflow-hidden">
-              {item.type === "article" ? (
-                <div className="w-full h-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center">
-                  <FileText className="h-12 w-12 text-white" />
+            <div className="p-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick Searches</h3>
+              <div className="space-y-2">
+                {quickSearches.slice(0, 8).map((search, index) => (
+                  <button
+                    key={index}
+                    className="w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors"
+                    onClick={() => handleSearchSelect(search)}
+                  >
+                    <span className="text-gray-700">{search}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* Desktop Header */}
+      <header className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-8">
+              <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
+                <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
+                  <Image
+                    src="/Prologue LOGO-1.png"
+                    alt="PROLOGUE"
+                    width={32}
+                    height={32}
+                    className="w-full h-full object-contain"
+                  />
                 </div>
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
-                  <Play className="h-12 w-12 text-gray-600" />
+                <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
+                  PROLOGUE
+                </span>
+              </Link>
+
+              <div className="flex items-center space-x-1 relative" ref={searchRef}>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search content..."
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    onFocus={handleSearchFocus}
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={clearSearch}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
-              )}
-            </div>
-            <Badge className="absolute top-3 left-3 flex items-center space-x-1">
-              {getContentIcon()}
-              <span className="capitalize">{item.type}</span>
-            </Badge>
-            {item.type === "video" && (
-              <div className="absolute bottom-3 right-3 bg-black/70 text-white px-2 py-1 rounded text-xs">
-                {item.duration}
+
+                {/* Search Dropdown */}
+                {showSearchDropdown && (
+                  <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                    <div className="p-3 border-b border-gray-100">
+                      <h4 className="text-sm font-semibold text-gray-700 mb-2">Quick Searches</h4>
+                      <div className="space-y-1">
+                        {quickSearches.slice(0, 8).map((search, index) => (
+                          <button
+                            key={index}
+                            className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-blue-500 rounded transition-colors"
+                            onClick={() => handleSearchSelect(search)}
+                          >
+                            {search}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-            {/* Three-dot menu in top right for user's own content */}
-            {item.authorId && currentAthleteId && item.authorId === currentAthleteId && (
-              <div className="absolute top-3 right-3 z-10">
+            </div>
+
+            <div className="flex items-center space-x-6">
+              <nav className="flex items-center space-x-6">
+                <Link
+                  href="/home"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
+                >
+                  <Home className="h-5 w-5" />
+                  <span className="text-xs font-medium">Home</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </Link>
+                <Link
+                  href="/content"
+                  className="flex flex-col items-center space-y-1 text-blue-500 transition-colors group relative"
+                >
+                  <FileText className="h-5 w-5" />
+                  <span className="text-xs font-medium">Content</span>
+                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full"></div>
+                </Link>
+                <Link
+                  href="/feedback"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
+                >
+                  <MessageSquare className="h-5 w-5" />
+                  <span className="text-xs font-medium">Feedback</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                </Link>
+                <Link
+                  href="/messaging"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group"
+                >
+                  <MessageCircle className="h-5 w-5" />
+                  <span className="text-xs font-medium">Messages</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
+                </Link>
+                <Link
+                  href="/notifications"
+                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group"
+                >
+                  <Bell className="h-5 w-5" />
+                  <span className="text-xs font-medium">Notifications</span>
+                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
+                </Link>
+              </nav>
+
+              <div className="flex items-center space-x-3">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button size="icon" variant="ghost">
-                      <MoreVertical className="h-5 w-5" />
+                    <Button variant="ghost" className="flex items-center space-x-2 p-2" disabled={loadingState.isLoading}>
+                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
+                        {userProfile?.profileImageUrl ? (
+                          <Image src={userProfile.profileImageUrl} alt="Profile" width={32} height={32} className="w-full h-full object-cover" />
+                        ) : (
+                          <User className="w-full h-full text-gray-500 p-1" />
+                        )}
+                      </div>
+                      <ChevronDown className="h-4 w-4 text-gray-500" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleEdit(item)}>
-                      Edit
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard" className="flex items-center w-full cursor-pointer">
+                        <LayoutDashboard className="h-4 w-4 mr-2" />
+                        Profile
+                      </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDeleteClick(item)} className="text-red-600 focus:text-red-700">
-                      Delete
+                    <DropdownMenuItem asChild>
+                      <Link href="/promote" className="flex items-center w-full cursor-pointer">
+                        <TrendingUp className="h-4 w-4 mr-2" />
+                        Promote
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/settings" className="flex items-center w-full cursor-pointer">
+                        <Settings className="h-4 w-4 mr-2" />
+                        Settings
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer" disabled={loadingState.isLoading}>
+                      <LogOut className="h-4 w-4 mr-2" />
+                      {loadingState.isLoading ? "Logging out..." : "Logout"}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-            )}
-          </div>
-          <div className="p-4">
-            {/* Tags as badges */}
-            {Array.isArray(item.tags) && item.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-2">
-                {item.tags.map((tag: string, idx: number) => (
-                  <Badge key={idx} variant="outline" className="text-xs">
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
-            )}
-            <div className="flex items-start justify-between mb-2">
-              {/* Optionally keep category badge if needed, or remove if redundant with tags */}
-              <div className="flex items-center space-x-1">
-                <Star className="h-3 w-3 text-yellow-400 fill-current" />
-                <span className="text-xs text-gray-600">{item.rating}</span>
-              </div>
-            </div>
-            <Link href={getContentLink()}>
-              <h3 className="font-semibold text-gray-900 mb-2 hover:text-blue-600 transition-colors line-clamp-2">
-                {item.title}
-              </h3>
-            </Link>
-            <p
-              className="text-sm text-gray-600 mb-3 line-clamp-2"
-              dangerouslySetInnerHTML={{ __html: sanitizeDescription(item.description) }}
-            />
-            {getContentMeta()}
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-xs text-gray-500">by {author || item.instructor || item.author || "Unknown"}</p>
-              <div className="flex items-center space-x-2">
-                <Link href={getContentLink()}>
-                  <Button size="sm">View</Button>
-                </Link>
-              </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  // State for edit/delete modals
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-
-  // Delete handler (Firestore logic to be added)
-  const handleDelete = async () => {
-    if (!selectedItem) return;
-    // TODO: Add Firestore delete logic here
-    setDeleteModalOpen(false);
-    setSelectedItem(null);
-    // Refetch content after delete
-    fetchContent();
-  };
-
-  // Edit handler (open modal)
-  const handleEdit = (item: any) => {
-    setSelectedItem(item);
-    setEditModalOpen(true);
-  };
-
-  // Delete handler (open modal)
-  const handleDeleteClick = (item: any) => {
-    setSelectedItem(item);
-    setDeleteModalOpen(true);
-  };
-
-  // Edit Modal (skeleton)
-  const EditModal = () => (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center ${editModalOpen ? '' : 'hidden'}`}>
-      <div className="fixed inset-0 bg-black/40" onClick={() => setEditModalOpen(false)} />
-      <div className="relative bg-white rounded-lg shadow-lg p-8 w-full max-w-lg z-10">
-        <h2 className="text-xl font-bold mb-4">Edit Content</h2>
-        {/* TODO: Add edit form here */}
-        <Button onClick={() => setEditModalOpen(false)}>Close</Button>
-      </div>
-    </div>
-  );
-
-  // Delete Confirmation Modal
-  const DeleteModal = () => (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center ${deleteModalOpen ? '' : 'hidden'}`}>
-      <div className="fixed inset-0 bg-black/40" onClick={() => setDeleteModalOpen(false)} />
-      <div className="relative bg-white rounded-lg shadow-lg p-8 w-full max-w-md z-10">
-        <h2 className="text-xl font-bold mb-4">Delete Content</h2>
-        <p className="mb-6">Are you sure you want to delete this content? This action cannot be undone.</p>
-        <div className="flex justify-end space-x-2">
-          <Button variant="outline" onClick={() => setDeleteModalOpen(false)}>Cancel</Button>
-          <Button variant="destructive" onClick={handleDelete}>Delete</Button>
         </div>
-      </div>
-    </div>
-  );
+      </header>
 
-  const MainContent = (
-    <div className={`${isMobile ? "p-4" : "max-w-7xl mx-auto px-6 py-4"}`}>
-      {/* Mobile Create Button */}
-      {isMobile && (
-        <div className="mb-6">
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 lg:px-6 py-8 pb-20 lg:pb-8">
+        {/* Page Header */}
+
+        {/* Content Type Tabs with Create Content Button */}
+        <div className="flex items-center justify-between mb-6 bg-white/50 backdrop-blur-sm rounded-lg p-1">
+          <div className="flex items-center space-x-1 overflow-x-auto">
+            <button
+              onClick={() => setActiveTab("all")}
+              className={`flex-shrink-0 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                activeTab === "all" ? "bg-white text-blue-500 shadow-sm" : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              All Content
+            </button>
+            <button
+              onClick={() => setActiveTab("videos")}
+              className={`flex-shrink-0 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                activeTab === "videos" ? "bg-white text-blue-500 shadow-sm" : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <PlayCircle className="h-4 w-4" />
+                <span>Videos</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab("courses")}
+              className={`flex-shrink-0 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+                activeTab === "courses" ? "bg-white text-blue-500 shadow-sm" : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <BookOpen className="h-4 w-4" />
+                <span>Courses</span>
+              </div>
+            </button>
+          </div>
+
+          {/* Create Content/Course Buttons - Desktop */}
+          <div className="hidden sm:flex items-center space-x-2">
+            {activeTab === "courses" && (
+              <Button
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 text-sm font-medium flex items-center space-x-2"
+                onClick={handleCreateCourse}
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Create Course</span>
+              </Button>
+            )}
+            <Button
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 text-sm font-medium"
+              onClick={handleCreateContent}
+            >
+              Create Content
+            </Button>
+          </div>
+        </div>
+
+        {/* Create Content/Course Buttons - Mobile */}
+        <div className="sm:hidden flex flex-col space-y-2 mb-6">
+          {activeTab === "courses" && (
+            <Button
+              className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 text-base font-semibold w-full max-w-xs mx-auto flex items-center justify-center space-x-2"
+              onClick={handleCreateCourse}
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Create Course</span>
+            </Button>
+          )}
           <Button
-            onClick={() => setShowCreateModal(true)}
-            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-            size="lg"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 text-base font-semibold w-full max-w-xs mx-auto"
+            onClick={handleCreateContent}
           >
-            <Plus className="h-5 w-5 mr-2" />
             Create Content
           </Button>
         </div>
-      )}
 
-      {/* Filters and Search */}
-      <div className={`flex items-center justify-between mb-8 ${isMobile ? "flex-col space-y-4" : ""}`}>
-        <div className={`${isMobile ? "w-full" : "flex-1"} flex justify-center`}>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="bg-white">
-              <TabsTrigger value="all" className="flex items-center space-x-2">
-                <TrendingUp className="h-4 w-4" />
-                <span>All</span>
-              </TabsTrigger>
-              <TabsTrigger value="videos" className="flex items-center space-x-2">
-                <Video className="h-4 w-4" />
-                <span>Videos</span>
-              </TabsTrigger>
-              <TabsTrigger value="articles" className="flex items-center space-x-2">
-                <FileText className="h-4 w-4" />
-                <span>Articles</span>
-              </TabsTrigger>
-              <TabsTrigger value="courses" className="flex items-center space-x-2">
-                <BookOpen className="h-4 w-4" />
-                <span>Courses</span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-
-        <div className={`flex items-center space-x-3 ${isMobile ? "w-full" : ""}`}>
-          {!isMobile && (
+        {/* Filters and Controls */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div className="flex items-center space-x-3">
+            {/* Filter Button */}
             <Button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+              variant="outline"
+              size="sm"
+              onClick={() => setFilterOpen(!filterOpen)}
+              className={`${selectedCategories.length > 0 ? "bg-blue-50 border-blue-500 text-blue-600" : ""}`}
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Create
+              <Filter className="h-4 w-4 mr-2" />
+              Filters
+              {selectedCategories.length > 0 && (
+                <Badge className="ml-2 bg-blue-500 text-white text-xs">{selectedCategories.length}</Badge>
+              )}
             </Button>
-          )}
-          <div className={`relative ${isMobile ? "flex-1" : ""}`}>
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search content..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className={`pl-10 ${isMobile ? "w-full" : "w-64"}`}
-            />
+
+            {/* Sort Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Clock className="h-4 w-4 mr-2" />
+                  {sortBy === "recent" ? "Recent" : sortBy === "popular" ? "Popular" : "Trending"}
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => setSortBy("recent")}>
+                  <Clock className="h-4 w-4 mr-2" />
+                  Recent
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortBy("popular")}>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Popular
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSortBy("trending")}>
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  Trending
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* View Mode Toggle */}
+          <div className="flex items-center space-x-2">
+            <Button variant={viewMode === "grid" ? "default" : "outline"} size="sm" onClick={() => setViewMode("grid")}>
+              <Grid className="h-4 w-4" />
+            </Button>
+            <Button variant={viewMode === "list" ? "default" : "outline"} size="sm" onClick={() => setViewMode("list")}>
+              <List className="h-4 w-4" />
+            </Button>
           </div>
         </div>
-      </div>
 
-      {/* Content Grid */}
-      {filteredContent.length > 0 ? (
-        <div
-          className={`grid ${isMobile ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"} gap-6`}
-        >
-          {filteredContent.map((item) => (
-            <ContentCard key={`${item.type}-${item.id}`} item={item} />
-          ))}
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="text-center py-16">
-            <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
-              <Search className="h-10 w-10 text-gray-400" />
+        {/* Filter Panel */}
+        {filterOpen && (
+          <Card className="mb-6 bg-white border border-gray-200">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">Filter by Category</h3>
+                {selectedCategories.length > 0 && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters} className="text-blue-500">
+                    Clear All
+                  </Button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => handleCategoryToggle(category)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                      selectedCategories.includes(category)
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Content Grid/List */}
+        {loading ? (
+          <div className="text-center py-16">Loading...</div>
+        ) : (
+          <div className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 gap-6" : "space-y-4"}>
+            {filteredContent.map((item) => (
+              <Card
+                key={item.id}
+                className={`bg-white border border-gray-200 hover:shadow-lg transition-all duration-300 cursor-pointer ${
+                  item.isNew ? "border-blue-500/30 shadow-md" : ""
+                } ${viewMode === "list" ? "flex" : ""}`}
+              >
+                <CardContent className={`p-0 ${viewMode === "list" ? "flex w-full" : ""}`}>
+                  {/* Thumbnail */}
+                  <div
+                    className={`relative ${viewMode === "list" ? "w-48 flex-shrink-0" : "aspect-video"} bg-gray-200 overflow-hidden ${viewMode === "grid" ? "rounded-t-lg" : "rounded-l-lg"}`}
+                  >
+                    {item.type === "video" && item.thumbnailUrl ? (
+                      <Image
+                        src={item.thumbnailUrl}
+                        alt={item.title || "Video thumbnail"}
+                        fill
+                        className="object-cover w-full h-full"
+                        style={{ objectFit: 'cover' }}
+                        priority={false}
+                      />
+                    ) : (item.type === "course" && item.thumbnailUrl) ? (
+                      <Image
+                        src={item.thumbnailUrl}
+                        alt={item.title || "Course thumbnail"}
+                        fill
+                        className="object-cover w-full h-full"
+                        style={{ objectFit: 'cover' }}
+                        priority={false}
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center">
+                        {item.type === "video" ? (
+                          <div className="text-center">
+                            <div className="w-12 h-12 bg-black/70 rounded-full flex items-center justify-center mb-2 mx-auto">
+                              <Play className="h-6 w-6 text-white ml-0.5" />
+                            </div>
+                            {item.duration && (
+                              <Badge className="bg-black/70 text-white text-xs">{typeof item.duration === 'string' || typeof item.duration === 'number' ? item.duration : ''}</Badge>
+                            )}
+                          </div>
+                        ) : item.type === "course" ? (
+                          <div className="text-center">
+                            <BookOpen className="h-8 w-8 text-gray-600 mx-auto mb-2" />
+                            {item.lessons && (
+                              <Badge className="bg-black/70 text-white text-xs">{typeof item.lessons === 'string' || typeof item.lessons === 'number' ? `${item.lessons} lessons` : ''}</Badge>
+                            )}
+                          </div>
+                        ) : item.type === "podcast" ? (
+                          <div className="text-center">
+                            <Headphones className="h-8 w-8 text-gray-600 mx-auto mb-2" />
+                            {item.duration && (
+                              <Badge className="bg-black/70 text-white text-xs">{typeof item.duration === 'string' || typeof item.duration === 'number' ? item.duration : ''}</Badge>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <FileText className="h-8 w-8 text-gray-600 mx-auto mb-2" />
+                            {item.readTime && (
+                              <Badge className="bg-black/70 text-white text-xs">{typeof item.readTime === 'string' || typeof item.readTime === 'number' ? item.readTime : ''}</Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Premium Overlay */}
+                    {item.isPremium && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <div className="text-center text-white">
+                          <Lock className="h-6 w-6 mx-auto mb-1" />
+                          <p className="text-xs font-medium">Premium</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* New Badge */}
+                    {item.isNew && (
+                      <div className="absolute top-2 left-2">
+                        <Badge className="bg-blue-500 text-white text-xs">New</Badge>
+                      </div>
+                    )}
+
+                    {/* Content Type Badge */}
+                    <div className="absolute top-2 right-2">
+                      <Badge className="bg-black/70 text-white text-xs flex items-center space-x-1">
+                        {getContentTypeIcon(item.type)}
+                        <span className="capitalize">{item.type}</span>
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Content Info */}
+                  <div className={`p-4 ${viewMode === "list" ? "flex-1" : ""}`}>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <h3
+                          className={`font-semibold text-gray-900 hover:text-blue-500 transition-colors ${viewMode === "list" ? "text-lg" : "text-base"} line-clamp-2`}
+                        >
+                          {item.title}
+                        </h3>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <div className="w-6 h-6 bg-gray-200 rounded-full overflow-hidden">
+                            {creatorProfiles[item.authorId]?.profileImageUrl ? (
+                              <Image src={creatorProfiles[item.authorId].profileImageUrl} alt="Profile" width={24} height={24} className="w-full h-full object-cover" />
+                            ) : (
+                              <User className="w-full h-full text-gray-500 p-1" />
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <span className="text-sm text-gray-600 group-hover:text-blue-500">
+                              {creatorProfiles[item.authorId]?.firstName || creatorProfiles[item.authorId]?.lastName
+                                ? `${creatorProfiles[item.authorId]?.firstName || ""} ${creatorProfiles[item.authorId]?.lastName || ""}`.trim()
+                                : "Anonymous"}
+                            </span>
+                            {creatorProfiles[item.authorId]?.isVerified && (
+                              <div className="w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
+                                <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {/* Description */}
+                    <p
+                      className={`text-gray-600 mb-3 ${viewMode === "list" ? "line-clamp-2" : "line-clamp-3"} text-sm leading-relaxed`}
+                    >
+                      {item.description}
+                    </p>
+
+                    {/* Category and Stats */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-2">
+                        <Badge className="bg-gray-100 text-gray-700 text-xs">{typeof item.category === 'string' ? item.category : '[No Category]'}</Badge>
+                        <span className="text-xs text-gray-500">{item.publishedAt}</span>
+                      </div>
+                      <div className="flex items-center space-x-3 text-xs text-gray-500">
+                        <div className="flex items-center space-x-1">
+                          <Eye className="h-3 w-3" />
+                          <span>{(item.views ?? 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Heart className="h-3 w-3" />
+                          <span>{(item.likes ?? 0).toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <MessageSquare className="h-3 w-3" />
+                          <span>{(item.comments ?? 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={`${likedContent.has(item.id) ? "text-red-500" : "text-gray-600 hover:text-red-500"}`}
+                          onClick={() => handleLike(item.id)}
+                        >
+                          <Heart className={`h-4 w-4 ${likedContent.has(item.id) ? "fill-current" : ""}`} />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-gray-600 hover:text-blue-500">
+                          <MessageSquare className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-gray-600 hover:text-green-600"
+                          onClick={() => handleShare(item.id)}
+                        >
+                          <Share2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className={`${savedContent.has(item.id) ? "text-blue-500" : "text-gray-600 hover:text-blue-500"}`}
+                          onClick={() => handleSave(item.id)}
+                        >
+                          <Bookmark className={`h-4 w-4 ${savedContent.has(item.id) ? "fill-current" : ""}`} />
+                        </Button>
+                        {item.isPremium ? (
+                          <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white">
+                            <Crown className="h-3 w-3 mr-1" />
+                            Subscribe
+                          </Button>
+                        ) : (
+                          item.type === 'course' ? (
+                            <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white">
+                              <Play className="h-3 w-3 mr-1" />
+                              View
+                            </Button>
+                          ) : (
+                            <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white">
+                              <Play className="h-3 w-3 mr-1" />
+                              Watch
+                            </Button>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Empty State */}
+        {filteredContent.length === 0 && (
+          <Card className="bg-white border border-gray-200">
+            <CardContent className="text-center py-16">
+              <div className="w-20 h-20 mx-auto mb-6 bg-gray-100 rounded-full flex items-center justify-center">
+                <FileText className="h-10 w-10 text-gray-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">No content found</h3>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                Try adjusting your filters or search terms to find the content you're looking for.
+              </p>
+              <Button onClick={clearFilters} className="bg-blue-500 hover:bg-blue-600 text-white">
+                Clear Filters
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Create Content Modal */}
+        {showCreateModal && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    {createForm.type === "video" ? "Create Video" : "Create Content"}
+                  </h2>
+                  <Button variant="ghost" size="sm" onClick={closeCreateModal}>
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Content Type Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Content Type</label>
+                    <div className="flex space-x-4">
+                      <button
+                        onClick={() => handleCreateFormChange("type", "video")}
+                        className={`flex items-center space-x-2 px-4 py-2 rounded-lg border ${
+                          createForm.type === "video"
+                            ? "border-blue-500 bg-blue-50 text-blue-600"
+                            : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <PlayCircle className="h-4 w-4" />
+                        <span>Video</span>
+                      </button>
+                      <button
+                        onClick={() => handleCreateFormChange("type", "course")}
+                        className={`flex items-center space-x-2 px-4 py-2 rounded-lg border ${
+                          createForm.type === "course"
+                            ? "border-blue-500 bg-blue-50 text-blue-600"
+                            : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        <BookOpen className="h-4 w-4" />
+                        <span>Course</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Title */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Title *</label>
+                    <input
+                      type="text"
+                      value={createForm.title}
+                      onChange={(e) => handleCreateFormChange("title", e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter content title"
+                    />
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
+                    <textarea
+                      value={createForm.description}
+                      onChange={(e) => handleCreateFormChange("description", e.target.value)}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Describe your content"
+                    />
+                  </div>
+
+                  {/* Category */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
+                    <select
+                      value={createForm.category}
+                      onChange={(e) => handleCreateFormChange("category", e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select a category</option>
+                      {categories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* File Upload */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {createForm.type === "video" ? "Video File" : "Course Materials"} *
+                    </label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                      <input
+                        type="file"
+                        accept={createForm.type === "video" ? "video/*" : "video/*,image/*"}
+                        multiple={createForm.type === "course"}
+                        onChange={(e) => {
+                          if (createForm.type === "course") {
+                            const newFiles = Array.from(e.target.files || []);
+                            handleFileUpload(
+                              "file",
+                              Array.isArray(createForm.file)
+                                ? [...createForm.file, ...newFiles]
+                                : newFiles
+                            );
+                          } else {
+                            handleFileUpload("file", e.target.files?.[0] || null);
+                          }
+                        }}
+                        className="hidden"
+                        id="file-upload"
+                      />
+                      <label htmlFor="file-upload" className="cursor-pointer">
+                        <div className="space-y-2">
+                          <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                            <FileText className="h-6 w-6 text-gray-400" />
+                          </div>
+                          <div>
+                            <span className="text-blue-500 hover:text-blue-600">Click to upload</span>
+                            <span className="text-gray-500"> or drag and drop</span>
+                          </div>
+                          {createForm.type === "course" && Array.isArray(createForm.file) && createForm.file.length > 0 && (
+                            <ul className="text-xs text-green-600 mt-2">
+                              {createForm.file.map((f, idx) => (
+                                <li key={idx}>{f.name}</li>
+                              ))}
+                            </ul>
+                          )}
+                          {createForm.type === "video" && createForm.file && (
+                            <p className="text-sm text-green-600">Selected: {(createForm.file as File).name}</p>
+                          )}
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Thumbnail Upload */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Thumbnail (Optional)</label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload("thumbnail", e.target.files?.[0] || null)}
+                        className="hidden"
+                        id="thumbnail-upload"
+                      />
+                      <label htmlFor="thumbnail-upload" className="cursor-pointer">
+                        <div className="space-y-2">
+                          <div className="mx-auto w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                            <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <span className="text-blue-500 hover:text-blue-600 text-sm">Upload thumbnail</span>
+                          </div>
+                          {createForm.thumbnail && (
+                            <p className="text-xs text-green-600">Selected: {createForm.thumbnail.name}</p>
+                          )}
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Privacy Setting */}
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      id="private-content"
+                      checked={createForm.isPrivate}
+                      onChange={(e) => handleCreateFormChange("isPrivate", e.target.checked)}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <label htmlFor="private-content" className="text-sm text-gray-700">
+                      Make this content private (only visible to subscribers)
+                    </label>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex space-x-4 pt-4">
+                    <Button
+                      onClick={closeCreateModal}
+                      variant="outline"
+                      className="flex-1 bg-transparent"
+                      disabled={isUploading}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSubmitContent}
+                      className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+                      disabled={isUploading}
+                    >
+                      {isUploading ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Uploading Video...</span>
+                        </div>
+                      ) : (
+                        "Create Video"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-3">No content found</h3>
-            <p className="text-gray-600 mb-6">Try adjusting your search or filters to find what you're looking for.</p>
-            <Button variant="outline" onClick={() => setSearchQuery("")}>
-              Clear Search
-            </Button>
-          </CardContent>
-        </Card>
+          </div>
+        )}
+
+        {/* Course Creation Modal */}
+        {showCourseModal && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Create Training Course</h2>
+                  <Button variant="ghost" size="sm" onClick={closeCourseModal}>
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+
+                <div className="space-y-6">
+                  {/* Course Title */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Course Title *</label>
+                    <input
+                      type="text"
+                      value={courseForm.title}
+                      onChange={(e) => handleCourseFormChange("title", e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="Enter course title"
+                    />
+                  </div>
+
+                  {/* Course Description */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Course Description *</label>
+                    <textarea
+                      value={courseForm.description}
+                      onChange={(e) => handleCourseFormChange("description", e.target.value)}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                      placeholder="Describe what students will learn in this course"
+                    />
+                  </div>
+
+                  {/* Course Thumbnail */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Course Thumbnail</label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleCourseThumbnailUpload(e.target.files?.[0] || null)}
+                        className="hidden"
+                        id="course-thumbnail-upload"
+                      />
+                      <label htmlFor="course-thumbnail-upload" className="cursor-pointer">
+                        <div className="space-y-2">
+                          <div className="mx-auto w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                            <BookOpen className="h-4 w-4 text-gray-400" />
+                          </div>
+                          <div>
+                            <span className="text-green-500 hover:text-green-600 text-sm">Upload course thumbnail</span>
+                          </div>
+                          {courseForm.thumbnail && (
+                            <p className="text-xs text-green-600">Selected: {courseForm.thumbnail.name}</p>
+                          )}
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Course Videos Section */}
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <label className="block text-sm font-medium text-gray-700">Course Videos *</label>
+                      <div className="flex space-x-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addVideoToCourse}
+                          className="text-green-600 border-green-600 hover:bg-green-50 bg-transparent"
+                        >
+                          <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Add New Video
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Existing Videos to Add */}
+                    <div className="mb-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Add from existing videos:</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {existingVideos.map((video) => (
+                          <Button
+                            key={video.id}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => addExistingVideoToCourse(video.id, video.title)}
+                            className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                          >
+                            {video.title} ({video.duration})
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Course Video List */}
+                    <div className="space-y-3 max-h-60 overflow-y-auto">
+                      {courseForm.videos.map((video, index) => (
+                        <div key={video.id} className="border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-start space-x-4">
+                            <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium text-gray-600">
+                              {video.order}
+                            </div>
+                            <div className="flex-1 space-y-3">
+                              <input
+                                type="text"
+                                value={video.title}
+                                onChange={(e) => updateCourseVideo(video.id, "title", e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                                placeholder="Video title"
+                                disabled={!!video.existingVideoId}
+                              />
+                              {!video.existingVideoId && (
+                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-3">
+                                  <input
+                                    type="file"
+                                    accept="video/*,image/*"
+                                    multiple
+                                    onChange={(e) => updateCourseVideo(video.id, "files", Array.from(e.target.files || []))}
+                                    className="hidden"
+                                    id={`video-upload-${video.id}`}
+                                  />
+                                  <label htmlFor={`video-upload-${video.id}`} className="cursor-pointer">
+                                    <div className="text-center">
+                                      <PlayCircle className="h-6 w-6 text-gray-400 mx-auto mb-1" />
+                                      <span className="text-sm text-blue-500 hover:text-blue-600">
+                                        {video.files && video.files.length > 0 && (
+                                          <ul className="mt-2 text-left">
+                                            {video.files.map((file, idx) => (
+                                              <li key={idx} className="flex items-center space-x-2 text-xs text-gray-700">
+                                                {file.type.startsWith('image/') ? (
+                                                  <span className="inline-block w-4 h-4 bg-gray-200 rounded-full flex items-center justify-center">
+                                                    <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                                  </span>
+                                                ) : file.type.startsWith('video/') ? (
+                                                  <span className="inline-block w-4 h-4 bg-gray-200 rounded-full flex items-center justify-center">
+                                                    <Play className="w-3 h-3 text-green-500" />
+                                                  </span>
+                                                ) : (
+                                                  <span className="inline-block w-4 h-4 bg-gray-200 rounded-full flex items-center justify-center">
+                                                    <FileText className="w-3 h-3 text-gray-400" />
+                                                  </span>
+                                                )}
+                                                <span>{file.name}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </span>
+                                    </div>
+                                  </label>
+                                </div>
+                              )}
+                              {video.existingVideoId && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                  <div className="flex items-center space-x-2">
+                                    <PlayCircle className="h-4 w-4 text-blue-600" />
+                                    <span className="text-sm text-blue-600">Using existing video</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex flex-col space-y-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => reorderCourseVideos(index, Math.max(0, index - 1))}
+                                disabled={index === 0}
+                                className="text-gray-400 hover:text-gray-600"
+                              >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M5 15l7-7 7 7"
+                                  />
+                                </svg>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() =>
+                                  reorderCourseVideos(index, Math.min(courseForm.videos.length - 1, index + 1))
+                                }
+                                disabled={index === courseForm.videos.length - 1}
+                                className="text-gray-400 hover:text-gray-600"
+                              >
+                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M19 9l-7 7-7-7"
+                                  />
+                                </svg>
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeCourseVideo(video.id)}
+                                className="text-red-400 hover:text-red-600"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {courseForm.videos.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <BookOpen className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                        <p>No videos added yet. Add videos to create your course.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex space-x-4 pt-4">
+                    <Button
+                      onClick={closeCourseModal}
+                      variant="outline"
+                      className="flex-1 bg-transparent"
+                      disabled={isCreatingCourse}
+                      type="button"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSubmitCourse}
+                      className="flex-1 bg-green-500 hover:bg-green-600 text-white"
+                      disabled={isCreatingCourse}
+                      type="button"
+                    >
+                      {isCreatingCourse ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Creating Course...</span>
+                        </div>
+                      ) : (
+                        "Create Course"
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Mobile Bottom Navigation - Athlete Style */}
+      {isMobile && (
+        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 z-50">
+          <AthleteMobileNavigation currentPath={String(pathname)} unreadMessages={0} />
+        </div>
       )}
-
-      <CreateContentModal isOpen={showCreateModal} onClose={handleModalClose} />
-    </div>
-  )
-
-  const { logout } = useUnifiedLogout()
-  const router = useRouter()
-
-  const handleLogout = () => {
-    logout()
-    router.push("/")
-  }
-
-  if (isMobile || isTablet) {
-    return (
-      <MobileLayout
-        userType="athlete"
-        currentPath="/content"
-        showBottomNav={true}
-        unreadNotifications={0}
-        unreadMessages={0}
-        hasNewContent={false}
-      >
-        {MainContent}
-      </MobileLayout>
-    )
-  }
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <AthleteHeader
-        currentPath="/content"
-        onLogout={handleLogout}
-        showSearch={true}
-        unreadNotifications={unreadNotificationsCount}
-        unreadMessages={unreadMessagesCount}
-        hasNewContent={hasNewTrainingContent}
-        profileImageUrl={profileImageUrl}
-        profileData={profileData}
-      />
-      <div className="max-w-7xl mx-auto px-6 py-4">{MainContent}</div>
-      <EditModal />
-      <DeleteModal />
     </div>
   )
 }
-
-export default function ContentPage() {
-  return (
-    <AdvancedNotificationProvider>
-      <ContentPageContent />
-    </AdvancedNotificationProvider>
-  )
-} 
