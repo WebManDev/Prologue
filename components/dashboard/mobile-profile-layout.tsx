@@ -25,6 +25,10 @@ import {
   User,
 } from "lucide-react"
 import type { ProfileData } from "@/app/dashboard/page"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import Link from "next/link"
+import Image from "next/image"
+import { Bell, ChevronDown, User as UserIcon } from "lucide-react"
 
 const allPosts = [
   { id: 1, content: "Just finished an amazing training session...", timestamp: "2 hours ago", likes: 24, comments: 8 },
@@ -144,6 +148,52 @@ export function MobileProfileLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Sticky Header - exactly matches MemberHeader */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 lg:px-6">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-2 sm:space-x-4 lg:space-x-8 flex-1 min-w-0">
+              <Link href="/home" className="flex items-center space-x-2 lg:space-x-3 group cursor-pointer flex-shrink-0">
+                <div className="w-7 h-7 lg:w-8 lg:h-8 relative transition-transform group-hover:scale-110">
+                  <Image
+                    src="/Prologue LOGO-1.png"
+                    alt="PROLOGUE"
+                    width={32}
+                    height={32}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <span className="text-lg lg:text-xl font-athletic font-bold text-gray-900 group-hover:text-prologue-electric transition-colors tracking-wider">
+                  PROLOGUE
+                </span>
+              </Link>
+            </div>
+            <div className="flex items-center space-x-2 lg:space-x-3 flex-shrink-0">
+              {/* Avatar and dropdown (no dropdown for now) */}
+              <Button variant="ghost" className="flex items-center space-x-1 lg:space-x-2 p-1 lg:p-2">
+                <Avatar className="w-7 h-7 lg:w-8 lg:h-8">
+                  {currentData.profileImageUrl && currentData.profileImageUrl.trim() !== '' ? (
+                    <AvatarImage src={currentData.profileImageUrl} alt={currentData.firstName && currentData.lastName ? `${currentData.firstName} ${currentData.lastName}` : 'User'} />
+                  ) : (
+                    <AvatarFallback>{currentData.firstName && currentData.lastName ? `${currentData.firstName[0]}${currentData.lastName[0]}`.toUpperCase() : <UserIcon className="w-full h-full text-gray-500 p-1" />}</AvatarFallback>
+                  )}
+                </Avatar>
+                <ChevronDown className="h-4 w-4 text-gray-500" />
+              </Button>
+              {/* Notification Bell */}
+              <Link href="/notifications" className="relative">
+                <Button variant="ghost" size="icon" className="p-1 lg:p-2">
+                  <Bell className="h-4 w-4 lg:h-5 lg:w-5 text-gray-700" />
+                  {/* Always show notification dot for demo; replace with logic if needed */}
+                  <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </header>
+      {/* Existing content below */}
+
       <div className="relative h-48 bg-gradient-to-r from-blue-500 to-blue-600 overflow-hidden">
         <div className="absolute inset-0 bg-black/10"></div>
         {isEditing && (

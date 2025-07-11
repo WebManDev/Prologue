@@ -131,10 +131,12 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      const uid = auth.currentUser?.uid;
-      if (!uid) return;
-      const docRef = doc(db, "athletes", uid);
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (!user) {
+        // Optionally redirect or show login
+        return;
+      }
+      const docRef = doc(db, "athletes", user.uid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         setProfileData({
@@ -142,8 +144,8 @@ export default function DashboardPage() {
           ...docSnap.data()
         });
       }
-    };
-    fetchProfile();
+    });
+    return () => unsubscribe();
   }, []);
 
   const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
@@ -216,17 +218,39 @@ export default function DashboardPage() {
   }, []);
 
   // Update handleSaveProfile for desktop to use saveProfileData
-  const handleSaveProfile = useCallback(async () => {
-    if (!headerRef.current || !editorRef.current) return;
-    const headerData = headerRef.current.getFormData();
-    const editorData = editorRef.current.getFormData();
-    let newProfileData = {
-      ...profileData,
-      ...headerData,
-      ...editorData,
-    };
-    await saveProfileData(newProfileData);
-  }, [profileData, saveProfileData]);
+  const handleSaveProfile = useCallback(async (data: ProfileData) => {
+    setIsSaving(true);
+    const uid = auth.currentUser?.uid;
+    if (!uid) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to save your profile.",
+        variant: "destructive",
+        duration: 3000,
+      });
+      setIsSaving(false);
+      return;
+    }
+    try {
+      const updatedProfile = { ...profileData, ...data };
+      await setDoc(doc(db, 'athletes', uid), updatedProfile, { merge: true });
+      setProfileData(updatedProfile);
+      setIsEditing(false);
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been successfully updated.",
+      });
+    } catch (error) {
+      toast({
+        title: "Save Failed",
+        description: "Failed to save profile to Firebase. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [profileData, toast]);
 
   // Add a handler for mobile save
   const handleMobileSave = useCallback(
