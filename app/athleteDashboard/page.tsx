@@ -142,10 +142,15 @@ export default function DashboardPage() {
       const docRef = doc(db, "athletes", user.uid);
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
+        const data = docSnap.data();
         setProfileData({
           ...initialProfileData,
-          ...docSnap.data()
+          ...data
         });
+        // Block dashboard access if no stripeAccountId
+        if (!data.stripeAccountId) {
+          window.location.replace("/athlete/onboarding/stripe");
+        }
       }
     });
     return () => unsubscribe();

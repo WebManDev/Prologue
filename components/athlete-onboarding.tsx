@@ -110,7 +110,8 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
         }
       })
 
-      router.push("/athleteDashboard")
+      // After saving profile, redirect to Stripe onboarding step
+      router.push("/athlete/onboarding/stripe")
     } catch (error) {
       console.error("Error saving profile:", error)
     } finally {

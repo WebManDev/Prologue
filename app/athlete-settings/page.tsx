@@ -22,6 +22,13 @@ import { app as firebaseApp, getAthleteProfile } from "@/lib/firebase";
 import { AthleteStripeConnect } from "@/components/athlete-stripe-connect";
 import { AthletePricingManager } from "@/components/athlete-pricing-manager";
 
+// Add this at the top of the file (after imports)
+declare global {
+  interface Window {
+    __stripeConnectTriggered?: boolean;
+  }
+}
+
 const AthleteSettingsPage = () => {
   // Loading states
   const [isLoading, setIsLoading] = useState({
@@ -51,6 +58,7 @@ const AthleteSettingsPage = () => {
     achievements: [] as string[],
     profilePhotoUrl: "",
     coverPhotoUrl: "",
+    stripeAccountId: "",
   })
   
   const [isLoadingProfile, setIsLoadingProfile] = useState(true)
@@ -110,6 +118,7 @@ const AthleteSettingsPage = () => {
               achievements: profile.achievements || [],
               profilePhotoUrl: profile.profilePhotoUrl || profile.profileImageUrl || "",
               coverPhotoUrl: profile.coverPhotoUrl || "",
+              stripeAccountId: profile.stripeAccountId || "",
             })
           }
         } catch (error) {
@@ -130,6 +139,8 @@ const AthleteSettingsPage = () => {
 
     return () => unsubscribe()
   }, [])
+
+  // Remove the useEffect that auto-triggers Stripe Connect onboarding
 
   const handleLogout = async () => {
     console.log("🔄 Athlete logout initiated from settings")
