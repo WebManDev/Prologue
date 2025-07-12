@@ -859,6 +859,10 @@ export default function ContentPage() {
     setEditUploading(false);
   }, [editForm, editingItem]);
 
+  // Add state for video modal
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState<any>(null);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Mobile Header - Fixed Navigation */}
@@ -1512,15 +1516,17 @@ export default function ContentPage() {
                           </Button>
                         ) : (
                           item.type === 'course' ? (
-                            <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white">
-                              <Play className="h-3 w-3 mr-1" />
-                              View
-                            </Button>
-                          ) : (
-                            <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white">
+                            <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white" onClick={() => { setSelectedVideo(item); setShowVideoModal(true); }}>
                               <Play className="h-3 w-3 mr-1" />
                               Watch
                             </Button>
+                          ) : (
+                            <Link href={`/video/${item.id}`}>
+                              <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white">
+                                <Play className="h-3 w-3 mr-1" />
+                                Watch
+                              </Button>
+                            </Link>
                           )
                         )}
                       </div>
@@ -2172,6 +2178,20 @@ export default function ContentPage() {
       {isMobile && (
         <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 z-50">
           <AthleteMobileNavigation currentPath={String(pathname)} unreadMessages={0} />
+        </div>
+      )}
+
+      {/* Video Modal */}
+      {showVideoModal && selectedVideo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-xl w-full relative">
+            <button className="absolute top-2 right-2 text-gray-500 hover:text-gray-700" onClick={() => setShowVideoModal(false)}>
+              <span className="text-xl">&times;</span>
+            </button>
+            <h2 className="text-lg font-semibold mb-4">{selectedVideo.title}</h2>
+            <video src={selectedVideo.videoUrl} controls className="w-full rounded-lg" style={{ maxHeight: 400 }} />
+            <p className="mt-2 text-gray-600">{selectedVideo.description}</p>
+          </div>
         </div>
       )}
     </div>
