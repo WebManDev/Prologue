@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Upload, User, Trophy, Target, ArrowLeft } from "lucide-react"
+import { Upload, User, Trophy, Target, ArrowLeft, CreditCard } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -49,6 +49,7 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
     premiumTierPrice: "19.99",
     profileImage: null as File | null,
   })
+  const [showStripeChoice, setShowStripeChoice] = useState(false)
 
   const handleSportToggle = (sport: string) => {
     setFormData((prev) => ({
@@ -64,6 +65,14 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
     if (file) {
       setFormData((prev) => ({ ...prev, profileImage: file }))
     }
+  }
+
+  const handleSetupStripeNow = () => {
+    router.push("/athlete/onboarding/stripe")
+  }
+
+  const handleGoToDashboard = () => {
+    router.push("/athleteDashboard")
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,8 +119,8 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
         }
       })
 
-      // After saving profile, redirect to Stripe onboarding step
-      router.push("/athlete/onboarding/stripe")
+      // Show choice between setting up Stripe now or going to dashboard
+      setShowStripeChoice(true)
     } catch (error) {
       console.error("Error saving profile:", error)
     } finally {
@@ -404,7 +413,7 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
                       Saving Profile...
                     </>
                   ) : (
-                    "Save & Continue to Dashboard"
+                    "Save Profile"
                   )}
                 </Button>
 
@@ -413,6 +422,43 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
                 </p>
               </div>
             </form>
+
+            {/* Stripe Choice Modal */}
+            {showStripeChoice && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-gradient-to-r from-prologue-electric to-prologue-fire rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CreditCard className="h-8 w-8 text-white" />
+                    </div>
+                    <h2 className="text-xl font-bold text-gray-900 mb-2">Set Up Payment Processing</h2>
+                    <p className="text-sm text-gray-600">
+                      Would you like to set up Stripe Connect now to receive payments, or skip this step and set it up later?
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Button
+                      onClick={handleSetupStripeNow}
+                      className="w-full h-12 bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white font-semibold rounded-2xl"
+                    >
+                      Set Up Stripe Now
+                    </Button>
+                    <Button
+                      onClick={handleGoToDashboard}
+                      variant="outline"
+                      className="w-full h-12 border-2 border-gray-300 hover:border-gray-400 text-gray-700 font-semibold rounded-2xl"
+                    >
+                      Skip for Now
+                    </Button>
+                  </div>
+
+                  <p className="text-xs text-gray-500 text-center mt-4">
+                    You can always set up payment processing later in your settings
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>

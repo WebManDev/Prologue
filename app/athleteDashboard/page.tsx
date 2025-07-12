@@ -147,10 +147,8 @@ export default function DashboardPage() {
           ...initialProfileData,
           ...data
         });
-        // Block dashboard access if no stripeAccountId
-        if (!data.stripeAccountId) {
-          window.location.replace("/athlete/onboarding/stripe");
-        }
+        // Stripe is now optional - no blocking required
+        // Athletes can set up Stripe later through settings if needed
       }
     });
     return () => unsubscribe();
