@@ -78,7 +78,8 @@ export function AthleteStripeConnect({ athleteData }: AthleteStripeConnectProps)
           }),
         })
 
-        const createData = await createResponse.json()
+        const createText = await createResponse.text();
+        const createData = createText ? JSON.parse(createText) : {};
         if (!createResponse.ok) {
           throw new Error(createData.error || 'Failed to create Stripe account')
         }
@@ -92,7 +93,8 @@ export function AthleteStripeConnect({ athleteData }: AthleteStripeConnectProps)
           body: JSON.stringify({ account: createData.account }),
         })
 
-        const linkData = await linkResponse.json()
+        const linkText = await linkResponse.text();
+        const linkData = linkText ? JSON.parse(linkText) : {};
         if (!linkResponse.ok) {
           throw new Error(linkData.error || 'Failed to create account link')
         }
@@ -119,7 +121,8 @@ export function AthleteStripeConnect({ athleteData }: AthleteStripeConnectProps)
           body: JSON.stringify({ accountId: stripeAccountId }),
         })
 
-        const loginData = await loginResponse.json()
+        const loginText = await loginResponse.text();
+        const loginData = loginText ? JSON.parse(loginText) : {};
         if (!loginResponse.ok) {
           throw new Error(loginData.error || 'Failed to create login link')
         }

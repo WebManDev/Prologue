@@ -234,16 +234,8 @@ const ProfileEditor = forwardRef<ProfileEditorHandle, ProfileEditorProps>(({ isE
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {allPosts.slice(0, visiblePosts).map((post) => (
-              <PostCard key={post.id} post={post} />
-            ))}
-
-            {visiblePosts < allPosts.length && (
-              <Button variant="outline" onClick={loadMorePosts} className="w-full bg-transparent" disabled={isLoading}>
-                Load More
-              </Button>
-            )}
+          <div className="flex flex-col items-center justify-center py-8">
+            <span className="text-lg font-semibold text-gray-400">Coming Soon</span>
           </div>
         </CardContent>
       </Card>

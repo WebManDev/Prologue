@@ -57,14 +57,21 @@ export default function AthleteStripeOnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 px-4 py-12">
-      <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 max-w-md w-full p-8 flex flex-col items-center">
+    <div className="min-h-screen flex flex-col items-center justify-center relative px-4 py-12" style={{ backgroundColor: "#0f172a" }}>
+      {/* Fixed background layer */}
+      <div className="fixed inset-0 bg-slate-900" style={{ backgroundColor: "#0f172a", zIndex: -2 }}></div>
+      <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" style={{ zIndex: -1 }}></div>
+      {/* Athletic Background Elements */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-20 left-20 w-96 h-96 bg-gradient-to-br from-blue-500/10 to-purple-400/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-20 right-20 w-80 h-80 bg-gradient-to-br from-orange-500/10 to-red-400/10 rounded-full blur-3xl animate-pulse"></div>
+      </div>
+      <div className="bg-white rounded-3xl shadow-2xl border border-gray-200 max-w-md w-full p-8 flex flex-col items-center z-10">
         <h1 className="text-2xl font-bold mb-2 text-gray-900">Step 2: Set Up Payments</h1>
         <p className="text-gray-600 mb-6 text-center">Connect your Stripe account to receive payouts from the platform. You must complete this step to access your dashboard.</p>
         {!stripeAccountId ? (
           <>
             <AthleteStripeConnect athleteData={athleteData || { email: "", firstName: "", lastName: "" }} />
-            <Button variant="outline" className="mt-6 w-full" onClick={() => router.push("/athlete-settings")}>Skip for now / Return to Settings</Button>
           </>
         ) : (
           <>

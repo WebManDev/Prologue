@@ -44,7 +44,7 @@ import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { auth } from "@/lib/firebase"
 import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
-import { getFirestore, collection, getDocs, query, orderBy, addDoc, serverTimestamp } from "firebase/firestore"
+import { getFirestore, collection, getDocs, query, orderBy, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from "firebase/firestore"
 import { getAthleteProfile, getMemberProfile } from "@/lib/firebase"
 import AthleteMobileNavigation from "@/components/mobile/athlete-mobile-navigation"
 import { usePathname } from "next/navigation"
@@ -107,11 +107,62 @@ export default function ContentPage() {
     }>,
   })
   const [isCreatingCourse, setIsCreatingCourse] = useState(false)
-  const [existingVideos, setExistingVideos] = useState([
-    { id: "vid-1", title: "Basic Fundamentals", duration: "10:30" },
-    { id: "vid-2", title: "Advanced Techniques", duration: "15:45" },
-    { id: "vid-3", title: "Practice Drills", duration: "12:20" },
-  ])
+  // Define type for existing videos
+  type ExistingVideo = { id: string; title: string; duration: string };
+  const [existingVideos, setExistingVideos] = useState<ExistingVideo[]>([]);
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState<any>({});
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [editUploading, setEditUploading] = useState(false);
+
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!auth.currentUser) return;
+      // Try member profile first
+      const memberProfile = await getMemberProfile(auth.currentUser.uid);
+      if (memberProfile) {
+        setUserProfile({
+          ...memberProfile,
+          profileImageUrl: memberProfile.profileImageUrl || null,
+        });
+        setProfileImageUrl(memberProfile.profileImageUrl || null);
+        return;
+      }
+      // If not a member, try athlete profile
+      const athleteProfile = await getAthleteProfile(auth.currentUser.uid);
+      if (athleteProfile) {
+        const athletePhoto = athleteProfile.profilePhotoUrl || athleteProfile.profileImageUrl || athleteProfile.profilePicture || athleteProfile.avatar || null;
+        setUserProfile({
+          ...athleteProfile,
+          profileImageUrl: athletePhoto,
+        });
+        setProfileImageUrl(athletePhoto);
+      }
+    };
+    loadProfile();
+  }, []);
+
+  useEffect(() => {
+    const fetchExistingVideos = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      const db = getFirestore();
+      const videosQ = query(collection(db, "videos"), orderBy("createdAt", "desc"));
+      const videosSnapshot = await getDocs(videosQ);
+      const userVideos = videosSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter((video: any) => video.authorId === user.uid);
+      setExistingVideos(userVideos.map((v: any) => ({
+        id: v.id,
+        title: v.title || "Untitled Video",
+        duration: v.duration || "",
+      })));
+    };
+    fetchExistingVideos();
+  }, [showCourseModal]);
 
   // Content categories
   const categories = useMemo(
@@ -133,20 +184,8 @@ export default function ContentPage() {
   // State for real content
   const [content, setContent] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState<any>(null);
   // Creator profile cache: { [userId]: { firstName, lastName, profileImageUrl, isVerified } }
   const [creatorProfiles, setCreatorProfiles] = useState<Record<string, any>>({});
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      const userId = auth.currentUser?.uid;
-      if (userId) {
-        const profile = await getAthleteProfile(userId);
-        setUserProfile(profile);
-      }
-    };
-    fetchProfile();
-  }, []);
 
   // Fetch videos and courses from Firestore
   useEffect(() => {
@@ -339,6 +378,22 @@ export default function ContentPage() {
           `videos/${athleteId}_${Date.now()}_${createForm.file.name}`,
           createForm.file
         );
+        // Get video duration
+        const getVideoDuration = (file: File): Promise<string> => {
+          return new Promise((resolve) => {
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.onloadedmetadata = function () {
+              window.URL.revokeObjectURL(video.src);
+              const duration = video.duration;
+              const minutes = Math.floor(duration / 60);
+              const seconds = Math.floor(duration % 60);
+              resolve(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+            };
+            video.src = URL.createObjectURL(file);
+          });
+        };
+        const duration = await getVideoDuration(createForm.file);
         let thumbnailUrl = null;
         if (createForm.thumbnail) {
           thumbnailUrl = await uploadFileToStorage(
@@ -353,6 +408,7 @@ export default function ContentPage() {
           type: createForm.type,
           videoUrl,
           thumbnailUrl,
+          duration,
           authorId: athleteId,
           isPrivate: createForm.isPrivate,
           createdAt: serverTimestamp(),
@@ -360,7 +416,7 @@ export default function ContentPage() {
           likes: 0,
           comments: 0,
           creator: userProfile && userProfile.firstName && userProfile.lastName ? `${userProfile.firstName} ${userProfile.lastName}` : "Anonymous",
-          creatorProfileImageUrl: userProfile?.coverPhotoUrl || null,
+          creatorProfileImageUrl: userProfile?.profileImageUrl || null,
           creatorVerified: false,
           publishedAt: new Date().toLocaleDateString(),
           isNew: true,
@@ -411,7 +467,7 @@ export default function ContentPage() {
           isPrivate: createForm.isPrivate,
           createdAt: serverTimestamp(),
           creator: userProfile && userProfile.firstName && userProfile.lastName ? `${userProfile.firstName} ${userProfile.lastName}` : "Anonymous",
-          creatorProfileImageUrl: userProfile?.coverPhotoUrl || null,
+          creatorProfileImageUrl: userProfile?.profileImageUrl || null,
         });
         setCreateForm({
           title: "",
@@ -692,10 +748,16 @@ export default function ContentPage() {
         let profile = await getAthleteProfile(id);
         if (!profile) profile = await getMemberProfile(id);
         if (profile) {
+          let profileImageUrl = null;
+          if (profile.profilePhotoUrl) profileImageUrl = profile.profilePhotoUrl;
+          else if (profile.profileImageUrl) profileImageUrl = profile.profileImageUrl;
+          else if (profile.profilePicture) profileImageUrl = profile.profilePicture;
+          else if (profile.avatar) profileImageUrl = profile.avatar;
+          else if (profile.coverPhotoUrl) profileImageUrl = profile.coverPhotoUrl;
           newProfiles[id] = {
             firstName: profile.firstName || "",
             lastName: profile.lastName || "",
-            profileImageUrl: profile.profileImageUrl || profile.coverPhotoUrl || "",
+            profileImageUrl,
             isVerified: profile.isVerified || false,
           };
         } else {
@@ -713,6 +775,89 @@ export default function ContentPage() {
     // Only run when filteredContent or creatorProfiles changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredContent]);
+
+  // Add delete handler
+  const handleDeleteContent = useCallback(async (item: any) => {
+    if (!window.confirm("Are you sure you want to permanently delete this content?")) return;
+    const db = getFirestore();
+    if (item.type === "video" || !item.type) {
+      await deleteDoc(doc(db, "videos", item.id));
+      // Optionally: delete from Firebase Storage as well
+    } else if (item.type === "course") {
+      await deleteDoc(doc(db, "courses", item.id));
+    }
+    setContent((prev) => prev.filter((c) => c.id !== item.id));
+  }, []);
+
+  const handleEditContent = useCallback((item: any) => {
+    setEditingItem(item);
+    setEditForm({
+      title: item.title || '',
+      description: item.description || '',
+      category: item.category || '',
+      type: item.type || 'video',
+      file: null,
+      thumbnail: null,
+      isPrivate: item.isPrivate || false,
+    });
+    setShowEditModal(true);
+  }, []);
+
+  const handleEditFormChange = useCallback((field: string, value: any) => {
+    setEditForm((prev: any) => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingItem) return;
+    setEditUploading(true);
+    const db = getFirestore();
+    const docRef = doc(db, editingItem.type === 'course' ? 'courses' : 'videos', editingItem.id);
+    let updateData: any = {
+      title: editForm.title,
+      description: editForm.description,
+      category: editForm.category,
+      isPrivate: editForm.isPrivate,
+    };
+    // If video, handle file and thumbnail re-upload
+    if ((editingItem.type === 'video' || !editingItem.type)) {
+      if (editForm.file && editForm.file instanceof File) {
+        // Upload new video file
+        const videoUrl = await uploadFileToStorage(
+          `videos/${editingItem.authorId}_${Date.now()}_${editForm.file.name}`,
+          editForm.file
+        );
+        // Get duration
+        const getVideoDuration = (file: File): Promise<string> => {
+          return new Promise((resolve) => {
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.onloadedmetadata = function () {
+              window.URL.revokeObjectURL(video.src);
+              const duration = video.duration;
+              const minutes = Math.floor(duration / 60);
+              const seconds = Math.floor(duration % 60);
+              resolve(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+            };
+            video.src = URL.createObjectURL(file);
+          });
+        };
+        updateData.videoUrl = videoUrl;
+        updateData.duration = await getVideoDuration(editForm.file);
+      }
+      if (editForm.thumbnail && editForm.thumbnail instanceof File) {
+        const thumbnailUrl = await uploadFileToStorage(
+          `video-thumbnails/${editingItem.authorId}_${Date.now()}_${editForm.thumbnail.name}`,
+          editForm.thumbnail
+        );
+        updateData.thumbnailUrl = thumbnailUrl;
+      }
+    }
+    await updateDoc(docRef, updateData);
+    setContent((prev) => prev.map((c) => c.id === editingItem.id ? { ...c, ...editForm, ...updateData } : c));
+    setShowEditModal(false);
+    setEditingItem(null);
+    setEditUploading(false);
+  }, [editForm, editingItem]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -756,8 +901,8 @@ export default function ContentPage() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center space-x-2 p-2" disabled={loadingState.isLoading}>
                   <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                    {userProfile?.profileImageUrl ? (
-                      <Image src={userProfile.profileImageUrl} alt="Profile" width={32} height={32} className="w-full h-full object-cover" />
+                    {userProfile?.profileImageUrl || userProfile?.coverPhotoUrl ? (
+                      <Image src={userProfile.profileImageUrl || userProfile.coverPhotoUrl} alt="Profile" width={32} height={32} className="w-full h-full object-cover" />
                     ) : (
                       <User className="w-full h-full text-gray-500 p-1" />
                     )}
@@ -767,7 +912,7 @@ export default function ContentPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem asChild>
-                  <Link href="/dashboard" className="flex items-center w-full cursor-pointer">
+                  <Link href="/athleteDashboard" className="flex items-center w-full cursor-pointer">
                     <LayoutDashboard className="h-4 w-4 mr-2" />
                     Profile
                   </Link>
@@ -945,8 +1090,8 @@ export default function ContentPage() {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="flex items-center space-x-2 p-2" disabled={loadingState.isLoading}>
                       <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                        {userProfile?.profileImageUrl ? (
-                          <Image src={userProfile.profileImageUrl} alt="Profile" width={32} height={32} className="w-full h-full object-cover" />
+                        {userProfile?.profileImageUrl || userProfile?.coverPhotoUrl ? (
+                          <Image src={userProfile.profileImageUrl || userProfile.coverPhotoUrl} alt="Profile" width={32} height={32} className="w-full h-full object-cover" />
                         ) : (
                           <User className="w-full h-full text-gray-500 p-1" />
                         )}
@@ -956,7 +1101,7 @@ export default function ContentPage() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
                     <DropdownMenuItem asChild>
-                      <Link href="/dashboard" className="flex items-center w-full cursor-pointer">
+                      <Link href="/athleteDashboard" className="flex items-center w-full cursor-pointer">
                         <LayoutDashboard className="h-4 w-4 mr-2" />
                         Profile
                       </Link>
@@ -1026,44 +1171,40 @@ export default function ContentPage() {
 
           {/* Create Content/Course Buttons - Desktop */}
           <div className="hidden sm:flex items-center space-x-2">
-            {activeTab === "courses" && (
-              <Button
-                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 text-sm font-medium flex items-center space-x-2"
-                onClick={handleCreateCourse}
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span>Create Course</span>
-              </Button>
-            )}
+            <Button
+              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 text-sm font-medium flex items-center space-x-2"
+              onClick={handleCreateCourse}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Create Course</span>
+            </Button>
             <Button
               className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 text-sm font-medium"
               onClick={handleCreateContent}
             >
-              Create Content
+              Create Video
             </Button>
           </div>
         </div>
 
         {/* Create Content/Course Buttons - Mobile */}
         <div className="sm:hidden flex flex-col space-y-2 mb-6">
-          {activeTab === "courses" && (
-            <Button
-              className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 text-base font-semibold w-full max-w-xs mx-auto flex items-center justify-center space-x-2"
-              onClick={handleCreateCourse}
-            >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span>Create Course</span>
-            </Button>
-          )}
+          <Button
+            className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 text-base font-semibold w-full max-w-xs mx-auto flex items-center justify-center space-x-2"
+            onClick={handleCreateCourse}
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Create Course</span>
+          </Button>
           <Button
             className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 text-base font-semibold w-full max-w-xs mx-auto"
             onClick={handleCreateContent}
           >
-            Create Content
+            Create Video
           </Button>
         </div>
 
@@ -1287,7 +1428,19 @@ export default function ContentPage() {
                         </div>
                       </div>
                       <Button variant="ghost" size="sm" className="text-gray-400 hover:text-gray-600">
-                        <MoreHorizontal className="h-4 w-4" />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <span><MoreHorizontal className="h-4 w-4 cursor-pointer" /></span>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {item.authorId === auth.currentUser?.uid && (
+                              <>
+                                <DropdownMenuItem onClick={() => handleEditContent(item)}>Edit</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDeleteContent(item)} className="text-red-600">Delete</DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </Button>
                     </div>
 
@@ -1730,8 +1883,8 @@ export default function ContentPage() {
                                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-3">
                                   <input
                                     type="file"
-                                    accept="video/*,image/*"
-                                    multiple
+                                    accept="video/*"
+                                    multiple={false}
                                     onChange={(e) => updateCourseVideo(video.id, "files", Array.from(e.target.files || []))}
                                     className="hidden"
                                     id={`video-upload-${video.id}`}
@@ -1861,6 +2014,151 @@ export default function ContentPage() {
                       ) : (
                         "Create Course"
                       )}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Content Modal */}
+        {showEditModal && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">Edit {editingItem?.type === 'course' ? 'Course' : 'Video'}</h2>
+                  <Button variant="ghost" size="sm" onClick={() => setShowEditModal(false)}>
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Title *</label>
+                    <input
+                      type="text"
+                      value={editForm.title}
+                      onChange={(e) => handleEditFormChange('title', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter title"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
+                    <textarea
+                      value={editForm.description}
+                      onChange={(e) => handleEditFormChange('description', e.target.value)}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter description"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
+                    <select
+                      value={editForm.category}
+                      onChange={(e) => handleEditFormChange('category', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select a category</option>
+                      {categories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {(editingItem?.type === 'video' || !editingItem?.type) && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Video File</label>
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                          <input
+                            type="file"
+                            accept="video/*"
+                            onChange={(e) => handleEditFormChange('file', e.target.files?.[0] || null)}
+                            className="hidden"
+                            id="edit-file-upload"
+                          />
+                          <label htmlFor="edit-file-upload" className="cursor-pointer">
+                            <div className="space-y-2">
+                              <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                                <FileText className="h-6 w-6 text-gray-400" />
+                              </div>
+                              <div>
+                                <span className="text-blue-500 hover:text-blue-600">Click to upload</span>
+                                <span className="text-gray-500"> or drag and drop</span>
+                              </div>
+                              {editForm.file && (
+                                <p className="text-sm text-green-600">Selected: {editForm.file.name}</p>
+                              )}
+                              {!editForm.file && editingItem?.videoUrl && (
+                                <a href={editingItem.videoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">Current Video</a>
+                              )}
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Thumbnail (Optional)</label>
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleEditFormChange('thumbnail', e.target.files?.[0] || null)}
+                            className="hidden"
+                            id="edit-thumbnail-upload"
+                          />
+                          <label htmlFor="edit-thumbnail-upload" className="cursor-pointer">
+                            <div className="space-y-2">
+                              <div className="mx-auto w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                                <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <span className="text-blue-500 hover:text-blue-600 text-sm">Upload thumbnail</span>
+                              </div>
+                              {editForm.thumbnail && (
+                                <p className="text-xs text-green-600">Selected: {editForm.thumbnail.name}</p>
+                              )}
+                              {!editForm.thumbnail && editingItem?.thumbnailUrl && (
+                                <a href={editingItem.thumbnailUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 underline">Current Thumbnail</a>
+                              )}
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          id="edit-private-content"
+                          checked={editForm.isPrivate}
+                          onChange={(e) => handleEditFormChange('isPrivate', e.target.checked)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <label htmlFor="edit-private-content" className="text-sm text-gray-700">
+                          Make this content private (only visible to subscribers)
+                        </label>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex space-x-4 pt-4">
+                    <Button
+                      onClick={() => setShowEditModal(false)}
+                      variant="outline"
+                      className="flex-1 bg-transparent"
+                      disabled={editUploading}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSaveEdit}
+                      className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+                      disabled={editUploading}
+                    >
+                      {editUploading ? 'Saving...' : 'Save Changes'}
                     </Button>
                   </div>
                 </div>
