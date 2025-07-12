@@ -57,6 +57,7 @@ import MobileLayout from "@/components/mobile/mobile-layout"
 import { AthleteHeader } from "@/components/navigation/athlete-header"
 import AthleteMobileNavigation from "@/components/mobile/athlete-mobile-navigation"
 import AthleteDashboardMobileLayout from "@/components/mobile/athlete-dashboard-mobile-layout"
+import { AutoplayVideo } from "@/components/ui/autoplay-video"
 
 export default function MemberHomePage() {
   // Mobile detection
@@ -966,7 +967,14 @@ export default function MemberHomePage() {
                         )}
                         {item.mediaUrl && item.mediaType === 'video' && (
                           <div className="w-full max-h-96 bg-black flex items-center justify-center">
-                            <video src={item.mediaUrl} controls className="object-contain max-h-96 w-full" />
+                            <AutoplayVideo 
+                              src={item.mediaUrl} 
+                              controls={true}
+                              autoplay={false}
+                              muted={true}
+                              playsInline={true}
+                              className="object-contain max-h-96 w-full"
+                            />
                           </div>
                         )}
                         {/* Engagement Stats Row */}

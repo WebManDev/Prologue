@@ -54,6 +54,7 @@ import LexicalRichTextEditor from "@/components/LexicalRichTextEditor"
 import { formatDistanceToNow, parseISO, isValid } from "date-fns";
 import CommentSection from "@/components/ui/comment-section"
 import { useToast } from "@/hooks/use-toast"
+import { AutoplayVideo } from "@/components/ui/autoplay-video"
 
 export default function MemberHomePage() {
   // Mobile detection
@@ -944,7 +945,14 @@ export default function MemberHomePage() {
                               {item.mediaUrl && item.mediaType === 'video' && (
                                 <div className="relative">
                                   <div className="aspect-video bg-gray-200 overflow-hidden">
-                                    <video src={item.mediaUrl} controls className="object-contain max-h-96 w-full" />
+                                    <AutoplayVideo 
+                                      src={item.mediaUrl} 
+                                      controls={true}
+                                      autoplay={false}
+                                      muted={true}
+                                      playsInline={true}
+                                      className="object-contain max-h-96 w-full"
+                                    />
                                   </div>
                                 </div>
                               )}

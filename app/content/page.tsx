@@ -48,6 +48,7 @@ import { getFirestore, collection, getDocs, query, orderBy, addDoc, serverTimest
 import { getAthleteProfile, getMemberProfile } from "@/lib/firebase"
 import AthleteMobileNavigation from "@/components/mobile/athlete-mobile-navigation"
 import { usePathname } from "next/navigation"
+import { AutoplayVideo } from "@/components/ui/autoplay-video"
 
 // Helper: Upload a file to Firebase Storage and return the download URL
 async function uploadFileToStorage(path: string, file: File): Promise<string> {
@@ -584,39 +585,29 @@ export default function ContentPage() {
     })
   }, [])
 
-  // Update handleSubmitCourse to upload videos/thumbnails and save to Firestore
-  const handleSubmitCourse = useCallback(async (e?: React.MouseEvent) => {
-    if (e && typeof e.preventDefault === "function") e.preventDefault();
-    if (!courseForm.title || !courseForm.description || courseForm.videos.length === 0) {
-      alert("Please fill in all required fields and add at least one video")
-      return
+  // Refactor handleSubmitCourse to accept a course object
+  const handleSubmitCourse = useCallback(async (courseData?: typeof courseForm) => {
+    const course = courseData || courseForm;
+    if (!course.title || !course.description || course.videos.length === 0) {
+      alert("Please fill in all required fields and add at least one video");
+      return;
     }
-
-    setIsCreatingCourse(true)
+    setIsCreatingCourse(true);
     try {
-      // Get current user (athlete)
       const user = auth.currentUser;
-      console.log("Current user:", user);
       if (!user) {
         alert("You must be logged in to create a course.");
         throw new Error("Not logged in");
       }
       const athleteId = user.uid;
-
-      // 1. Upload thumbnail if present
       let thumbnailUrl = null;
-      if (courseForm.thumbnail) {
-        console.log("Uploading thumbnail...");
-        thumbnailUrl = await uploadFileToStorage(`course-thumbnails/${athleteId}_${Date.now()}_${courseForm.thumbnail.name}`, courseForm.thumbnail);
-        console.log("Thumbnail uploaded:", thumbnailUrl);
+      if (course.thumbnail) {
+        thumbnailUrl = await uploadFileToStorage(`course-thumbnails/${athleteId}_${Date.now()}_${course.thumbnail.name}`, course.thumbnail);
       }
-
-      // 2. Upload new videos and collect video doc refs
       const db = getFirestore();
       const videoRefs: Array<{ videoId: string; order: number; title: string }> = [];
-      for (const video of courseForm.videos) {
+      for (const video of course.videos) {
         if (video.existingVideoId) {
-          // Reference existing video
           videoRefs.push({ videoId: video.existingVideoId, order: video.order, title: video.title });
         } else if (video.files && video.files.length > 0) {
           const fileUrls = [];
@@ -636,39 +627,34 @@ export default function ContentPage() {
           videoRefs.push({ videoId: videoDoc.id, order: video.order, title: video.title });
         }
       }
-
-      // 3. Save course to Firestore
-      console.log("Saving course to Firestore...");
       const courseDoc = await addDoc(collection(db, "courses"), {
-        title: courseForm.title,
-        description: courseForm.description,
+        title: course.title,
+        description: course.description,
         thumbnailUrl,
         athleteId,
         createdAt: serverTimestamp(),
         videos: videoRefs,
       });
-      console.log("Course doc created:", courseDoc.id);
-
       setCourseForm({
         title: "",
         description: "",
         thumbnail: null,
         videos: [],
-      })
-      setShowCourseModal(false)
-      alert("Course created successfully!")
+      });
+      setShowCreateModal(false);
+      alert("Course created successfully!");
     } catch (error) {
       if (error instanceof Error) {
-        console.error("Course creation failed:", error.message, error.stack)
-        alert("Course creation failed: " + error.message)
+        console.error("Course creation failed:", error.message, error.stack);
+        alert("Course creation failed: " + error.message);
       } else {
-        console.error("Course creation failed:", error)
-        alert("Course creation failed. Please try again.")
+        console.error("Course creation failed:", error);
+        alert("Course creation failed. Please try again.");
       }
     } finally {
-      setIsCreatingCourse(false)
+      setIsCreatingCourse(false);
     }
-  }, [courseForm])
+  }, [courseForm]);
 
   const closeCourseModal = useCallback(() => {
     setShowCourseModal(false)
@@ -1175,15 +1161,7 @@ export default function ContentPage() {
 
           {/* Create Content/Course Buttons - Desktop */}
           <div className="hidden sm:flex items-center space-x-2">
-            <Button
-              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 text-sm font-medium flex items-center space-x-2"
-              onClick={handleCreateCourse}
-            >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span>Create Course</span>
-            </Button>
+            {/* Remove Create Course Button */}
             <Button
               className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 text-sm font-medium"
               onClick={handleCreateContent}
@@ -1195,15 +1173,7 @@ export default function ContentPage() {
 
         {/* Create Content/Course Buttons - Mobile */}
         <div className="sm:hidden flex flex-col space-y-2 mb-6">
-          <Button
-            className="bg-green-500 hover:bg-green-600 text-white px-6 py-3 text-base font-semibold w-full max-w-xs mx-auto flex items-center justify-center space-x-2"
-            onClick={handleCreateCourse}
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Create Course</span>
-          </Button>
+          {/* Remove Create Course Button */}
           <Button
             className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 text-base font-semibold w-full max-w-xs mx-auto"
             onClick={handleCreateContent}
@@ -1641,55 +1611,168 @@ export default function ContentPage() {
                     </select>
                   </div>
 
-                  {/* File Upload */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {createForm.type === "video" ? "Video File" : "Course Materials"} *
-                    </label>
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                      <input
-                        type="file"
-                        accept={createForm.type === "video" ? "video/*" : "video/*,image/*"}
-                        multiple={createForm.type === "course"}
-                        onChange={(e) => {
-                          if (createForm.type === "course") {
-                            const newFiles = Array.from(e.target.files || []);
-                            handleFileUpload(
-                              "file",
-                              Array.isArray(createForm.file)
-                                ? [...createForm.file, ...newFiles]
-                                : newFiles
-                            );
-                          } else {
-                            handleFileUpload("file", e.target.files?.[0] || null);
-                          }
-                        }}
-                        className="hidden"
-                        id="file-upload"
-                      />
-                      <label htmlFor="file-upload" className="cursor-pointer">
-                        <div className="space-y-2">
-                          <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                            <FileText className="h-6 w-6 text-gray-400" />
+                  {/* File Upload or Course Videos Section */}
+                  {createForm.type === "video" ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Video File *</label>
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                        <input
+                          type="file"
+                          accept="video/*"
+                          onChange={(e) => handleFileUpload("file", e.target.files?.[0] || null)}
+                          className="hidden"
+                          id="file-upload"
+                        />
+                        <label htmlFor="file-upload" className="cursor-pointer">
+                          <div className="space-y-2">
+                            <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                              <FileText className="h-6 w-6 text-gray-400" />
+                            </div>
+                            <div>
+                              <span className="text-blue-500 hover:text-blue-600">Click to upload</span>
+                              <span className="text-gray-500"> or drag and drop</span>
+                            </div>
+                            {createForm.file && (
+                              <p className="text-sm text-green-600">Selected: {(createForm.file as File).name}</p>
+                            )}
                           </div>
-                          <div>
-                            <span className="text-blue-500 hover:text-blue-600">Click to upload</span>
-                            <span className="text-gray-500"> or drag and drop</span>
-                          </div>
-                          {createForm.type === "course" && Array.isArray(createForm.file) && createForm.file.length > 0 && (
-                            <ul className="text-xs text-green-600 mt-2">
-                              {createForm.file.map((f, idx) => (
-                                <li key={idx}>{f.name}</li>
-                              ))}
-                            </ul>
-                          )}
-                          {createForm.type === "video" && createForm.file && (
-                            <p className="text-sm text-green-600">Selected: {(createForm.file as File).name}</p>
-                          )}
-                        </div>
-                      </label>
+                        </label>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    // Course Videos Section for Course Type
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Course Videos *</label>
+                      <div className="mb-4 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={addVideoToCourse}
+                          className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                        >
+                          <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Add New Video
+                        </Button>
+                        <span className="text-sm text-gray-500">or add from existing:</span>
+                        {existingVideos.map((video) => (
+                          <Button
+                            key={video.id}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => addExistingVideoToCourse(video.id, video.title)}
+                            className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                          >
+                            {video.title} ({video.duration})
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="space-y-3 max-h-60 overflow-y-auto">
+                        {courseForm.videos.map((video, index) => (
+                          <div key={video.id} className="border border-gray-200 rounded-lg p-4">
+                            <div className="flex items-start space-x-4">
+                              <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium text-gray-600">
+                                {video.order}
+                              </div>
+                              <div className="flex-1 space-y-3">
+                                <input
+                                  type="text"
+                                  value={video.title}
+                                  onChange={(e) => updateCourseVideo(video.id, "title", e.target.value)}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  placeholder="Video title"
+                                  disabled={!!video.existingVideoId}
+                                />
+                                {!video.existingVideoId && (
+                                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-3">
+                                    <input
+                                      type="file"
+                                      accept="video/*"
+                                      multiple={false}
+                                      onChange={(e) => updateCourseVideo(video.id, "files", Array.from(e.target.files || []))}
+                                      className="hidden"
+                                      id={`video-upload-${video.id}`}
+                                    />
+                                    <label htmlFor={`video-upload-${video.id}`} className="cursor-pointer">
+                                      <div className="text-center">
+                                        <PlayCircle className="h-6 w-6 text-gray-400 mx-auto mb-1" />
+                                        <span className="text-sm text-blue-500 hover:text-blue-600">
+                                          {video.files && video.files.length > 0 && (
+                                            <ul className="mt-2 text-left">
+                                              {video.files.map((file, idx) => (
+                                                <li key={idx} className="flex items-center space-x-2 text-xs text-gray-700">
+                                                  <span className="inline-block w-4 h-4 bg-gray-200 rounded-full flex items-center justify-center">
+                                                    <Play className="w-3 h-3 text-green-500" />
+                                                  </span>
+                                                  <span>{file.name}</span>
+                                                </li>
+                                              ))}
+                                            </ul>
+                                          )}
+                                        </span>
+                                      </div>
+                                    </label>
+                                  </div>
+                                )}
+                                {video.existingVideoId && (
+                                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                    <div className="flex items-center space-x-2">
+                                      <PlayCircle className="h-4 w-4 text-blue-600" />
+                                      <span className="text-sm text-blue-600">Using existing video</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex flex-col space-y-2">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => reorderCourseVideos(index, Math.max(0, index - 1))}
+                                  disabled={index === 0}
+                                  className="text-gray-400 hover:text-gray-600"
+                                >
+                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                  </svg>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => reorderCourseVideos(index, Math.min(courseForm.videos.length - 1, index + 1))}
+                                  disabled={index === courseForm.videos.length - 1}
+                                  className="text-gray-400 hover:text-gray-600"
+                                >
+                                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeCourseVideo(video.id)}
+                                  className="text-red-400 hover:text-red-600"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {courseForm.videos.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                          <BookOpen className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                          <p>No videos added yet. Add videos to create your course.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Thumbnail Upload */}
                   <div>
@@ -1740,22 +1823,34 @@ export default function ContentPage() {
                       onClick={closeCreateModal}
                       variant="outline"
                       className="flex-1 bg-transparent"
-                      disabled={isUploading}
+                      disabled={isUploading || isCreatingCourse}
                     >
                       Cancel
                     </Button>
                     <Button
-                      onClick={handleSubmitContent}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (createForm.type === "course") {
+                          handleSubmitCourse({
+                            title: createForm.title,
+                            description: createForm.description,
+                            thumbnail: createForm.thumbnail,
+                            videos: courseForm.videos,
+                          });
+                        } else {
+                          handleSubmitContent();
+                        }
+                      }}
                       className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
-                      disabled={isUploading}
+                      disabled={isUploading || isCreatingCourse}
                     >
-                      {isUploading ? (
+                      {(isUploading || isCreatingCourse) ? (
                         <div className="flex items-center space-x-2">
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          <span>Uploading Video...</span>
+                          <span>{createForm.type === "course" ? "Creating Course..." : "Uploading Video..."}</span>
                         </div>
                       ) : (
-                        "Create Video"
+                        createForm.type === "course" ? "Create Course" : "Create Video"
                       )}
                     </Button>
                   </div>
@@ -2189,7 +2284,15 @@ export default function ContentPage() {
               <span className="text-xl">&times;</span>
             </button>
             <h2 className="text-lg font-semibold mb-4">{selectedVideo.title}</h2>
-            <video src={selectedVideo.videoUrl} controls className="w-full rounded-lg" style={{ maxHeight: 400 }} />
+            <AutoplayVideo 
+              src={selectedVideo.videoUrl} 
+              controls={true}
+              autoplay={false}
+              muted={true}
+              playsInline={true}
+              className="w-full rounded-lg"
+              style={{ maxHeight: 400 }}
+            />
             <p className="mt-2 text-gray-600">{selectedVideo.description}</p>
           </div>
         </div>

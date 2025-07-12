@@ -11,6 +11,7 @@ import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { getFirestore, doc, getDoc } from "firebase/firestore"
 import { getAthleteProfile, getMemberProfile } from "@/lib/firebase"
 import React from "react"
+import { AutoplayVideo } from "@/components/ui/autoplay-video"
 
 interface VideoPageProps {
   params: {
@@ -140,7 +141,15 @@ export default function VideoPage({ params }: VideoPageProps) {
             <Card className="overflow-hidden">
               <CardContent className="p-0 relative">
                 <div className="aspect-video bg-black rounded-lg overflow-hidden">
-                  <iframe src={video.videoUrl} title={video.title} className="w-full h-full" allowFullScreen />
+                  <AutoplayVideo
+                    src={video.videoUrl}
+                    poster={video.thumbnailUrl}
+                    controls={true}
+                    autoplay={false}
+                    muted={false}
+                    playsInline={true}
+                    className="w-full h-full"
+                  />
                 </div>
               </CardContent>
             </Card>

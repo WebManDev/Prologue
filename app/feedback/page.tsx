@@ -41,6 +41,7 @@ import { Toaster } from "@/components/ui/toaster"
 import AthleteMobileNavigation from "@/components/mobile/athlete-mobile-navigation"
 import { usePathname } from "next/navigation"
 import { AthleteHeader } from "@/components/navigation/athlete-header"
+import { AutoplayVideo } from "@/components/ui/autoplay-video"
 
 // Types for feedback
 interface FeedbackRequest {
@@ -543,14 +544,15 @@ export default function FeedbackPage() {
                               }
                               // Fallback for direct video links (Firebase Storage, etc.)
                               return (
-                                <video
-                                  controls
+                                <AutoplayVideo
                                   src={request.videoUrl}
+                                  controls={true}
+                                  autoplay={false}
+                                  muted={false}
+                                  playsInline={true}
                                   className="w-full h-full"
                                   style={{ background: "#222" }}
-                                >
-                                  Your browser does not support the video tag.
-                                </video>
+                                />
                               )
                             })()}
                           </div>
