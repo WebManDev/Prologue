@@ -43,7 +43,7 @@ import { useNotifications } from "@/contexts/notification-context"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
 import { auth } from "@/lib/firebase"
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage"
 import { getFirestore, collection, getDocs, query, orderBy, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from "firebase/firestore"
 import { getAthleteProfile, getMemberProfile } from "@/lib/firebase"
 import AthleteMobileNavigation from "@/components/mobile/athlete-mobile-navigation"
@@ -53,7 +53,7 @@ import { AutoplayVideo } from "@/components/ui/autoplay-video"
 // Helper: Upload a file to Firebase Storage and return the download URL
 async function uploadFileToStorage(path: string, file: File): Promise<string> {
   const storage = getStorage();
-  const fileRef = storageRef(storage, path);
+  const fileRef = ref(storage, path);
   await uploadBytes(fileRef, file);
   return await getDownloadURL(fileRef);
 }
@@ -589,7 +589,7 @@ export default function ContentPage() {
   const handleSubmitCourse = useCallback(async (courseData?: typeof courseForm) => {
     const course = courseData || courseForm;
     if (!course.title || !course.description || course.videos.length === 0) {
-      alert("Please fill in all required fields and add at least one video");
+      alert("Please fill in all required fields and add at least one lesson");
       return;
     }
     setIsCreatingCourse(true);
@@ -604,36 +604,33 @@ export default function ContentPage() {
       if (course.thumbnail) {
         thumbnailUrl = await uploadFileToStorage(`course-thumbnails/${athleteId}_${Date.now()}_${course.thumbnail.name}`, course.thumbnail);
       }
-      const db = getFirestore();
-      const videoRefs: Array<{ videoId: string; order: number; title: string }> = [];
-      for (const video of course.videos) {
-        if (video.existingVideoId) {
-          videoRefs.push({ videoId: video.existingVideoId, order: video.order, title: video.title });
-        } else if (video.files && video.files.length > 0) {
-          const fileUrls = [];
-          for (const file of video.files) {
-            const ext = file.name.split('.').pop();
-            const fileType = file.type.startsWith('image/') ? 'image' : 'video';
-            const fileUrl = await uploadFileToStorage(`course-materials/${athleteId}_${Date.now()}_${file.name}`, file);
-            fileUrls.push({ url: fileUrl, type: fileType, name: file.name, ext });
-          }
-          const videoDoc = await addDoc(collection(db, "videos"), {
-            title: video.title,
-            files: fileUrls,
-            authorId: athleteId,
-            createdAt: serverTimestamp(),
-            order: video.order,
-          });
-          videoRefs.push({ videoId: videoDoc.id, order: video.order, title: video.title });
+      const storage = getStorage();
+      // Upload each lesson's video file (if present) and get download URL
+      const videos = [];
+      for (let idx = 0; idx < course.videos.length; idx++) {
+        const video = course.videos[idx];
+        let videoUrl = "";
+        if (video.files && video.files.length > 0) {
+          const file = video.files[0];
+          const fileRef = ref(storage, `course-videos/${athleteId}_${Date.now()}_${file.name}`);
+          await uploadBytes(fileRef, file);
+          videoUrl = await getDownloadURL(fileRef);
         }
+        videos.push({
+          order: idx + 1,
+          title: video.title,
+          description: (video as any).description || "",
+          videoUrl,
+        });
       }
-      const courseDoc = await addDoc(collection(db, "courses"), {
+      const db = getFirestore();
+      await addDoc(collection(db, "courses"), {
         title: course.title,
         description: course.description,
         thumbnailUrl,
         athleteId,
         createdAt: serverTimestamp(),
-        videos: videoRefs,
+        videos,
       });
       setCourseForm({
         title: "",
@@ -2104,7 +2101,15 @@ export default function ContentPage() {
                       Cancel
                     </Button>
                     <Button
-                      onClick={handleSubmitCourse}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleSubmitCourse({
+                          title: courseForm.title,
+                          description: courseForm.description,
+                          thumbnail: courseForm.thumbnail,
+                          videos: courseForm.videos,
+                        });
+                      }}
                       className="flex-1 bg-green-500 hover:bg-green-600 text-white"
                       disabled={isCreatingCourse}
                       type="button"
