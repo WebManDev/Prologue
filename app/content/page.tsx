@@ -1486,10 +1486,12 @@ export default function ContentPage() {
                           </Button>
                         ) : (
                           item.type === 'course' ? (
-                            <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white" onClick={() => { setSelectedVideo(item); setShowVideoModal(true); }}>
-                              <Play className="h-3 w-3 mr-1" />
-                              Watch
-                            </Button>
+                            <Link href={`/course/${item.id}`}>
+                              <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white">
+                                <Play className="h-3 w-3 mr-1" />
+                                Watch
+                              </Button>
+                            </Link>
                           ) : (
                             <Link href={`/video/${item.id}`}>
                               <Button size="sm" className="bg-blue-500 hover:bg-blue-600 text-white">
