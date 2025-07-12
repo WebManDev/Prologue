@@ -6,13 +6,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Upload, User, Trophy, Target } from "lucide-react"
+import { Upload, User, Trophy, Target, ArrowLeft } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { auth, saveAthleteProfile, uploadProfilePicture } from "@/lib/firebase"
-import { Logo } from "@/components/logo"
 
 const sports = [
   "Tennis",
@@ -85,11 +84,11 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
         profilePictureUrl = await uploadProfilePicture(auth.currentUser.uid, formData.profileImage)
       }
 
-      // Save profile data to Firebase
+      // Save profile data to Firestore under 'athletes' collection
       await saveAthleteProfile(auth.currentUser.uid, {
         firstName: formData.firstName,
         lastName: formData.lastName,
-        name: `${formData.firstName} ${formData.lastName}`,
+        name: `${formData.firstName} ${formData.lastName}`.trim(),
         email: auth.currentUser.email || "",
         phone: "",
         bio: formData.bio,
@@ -111,294 +110,310 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
         }
       })
 
-      // Call the onComplete callback to proceed to dashboard
       router.push("/athleteDashboard")
     } catch (error) {
       console.error("Error saving profile:", error)
-      // You might want to show an error message to the user here
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-slate-900" style={{ backgroundColor: "#0f172a" }}>
+      {/* Fixed background layer */}
+      <div className="fixed inset-0 bg-slate-900" style={{ backgroundColor: "#0f172a", zIndex: -2 }}></div>
+      <div
+        className="fixed inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"
+        style={{ zIndex: -1 }}
+      ></div>
+
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-3 group cursor-pointer">
-              <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
-                <Image
-                  src="/Prologue LOGO-1.png"
-                  alt="PROLOGUE"
-                  width={32}
-                  height={32}
-                  className="w-full h-full object-contain"
-                />
-              </div>
-              <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-prologue-electric transition-colors tracking-wider">
-                PROLOGUE
-              </span>
-            </div>
-            <Button onClick={onLogout} variant="outline">
-              Logout
-            </Button>
+      <header className="px-6 lg:px-8 h-16 flex items-center justify-between backdrop-blur-md border-b border-gray-700/50 relative z-10">
+        <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
+          <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
+            <Image
+              src="/Prologue LOGO-1.png"
+              alt="PROLOGUE"
+              width={32}
+              height={32}
+              className="w-full h-full object-contain"
+            />
           </div>
+          <span className="text-xl font-athletic font-bold text-white group-hover:text-prologue-electric transition-colors tracking-wider">
+            PROLOGUE
+          </span>
+        </Link>
+
+        <div className="flex items-center space-x-4">
+          <Link
+            href="/home"
+            className="flex items-center space-x-2 text-gray-300 hover:text-white transition-all duration-300 group"
+          >
+            <ArrowLeft className="h-4 w-4 group-hover:-translate-x-1 transition-transform" />
+            <span className="text-sm font-medium tracking-wide">BACK TO HOME</span>
+          </Link>
+          <Button onClick={onLogout} variant="outline" className="text-gray-300 border-gray-600 hover:bg-gray-700 hover:text-white">
+            Logout
+          </Button>
         </div>
       </header>
 
-      {/* Progress Steps */}
-      <div className="bg-gray-50 border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <div className="flex items-center space-x-8">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-prologue-electric text-white rounded-full flex items-center justify-center text-sm font-bold shadow-lg">
-                1
-              </div>
-              <span className="text-prologue-electric font-semibold">Profile Setup</span>
-            </div>
-            <div className="flex-1 h-px bg-gray-300"></div>
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gray-300 text-gray-500 rounded-full flex items-center justify-center text-sm font-bold">
-                2
-              </div>
-              <span className="text-gray-500 font-semibold">Dashboard</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-6 py-12">
-        <div className="text-center mb-12">
-          <div className="w-16 h-16 bg-gradient-to-r from-prologue-electric to-prologue-fire rounded-full flex items-center justify-center mx-auto mb-6">
-            <Trophy className="h-8 w-8 text-white" />
-          </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Build Your Champion Profile</h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Create your professional profile to start sharing your expertise and connecting with aspiring athletes
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
-          {/* Athlete Profile Section */}
-          <div className="p-8 border-b border-gray-200">
-            <div className="flex items-center space-x-3 mb-8">
-              <div className="w-12 h-12 bg-gradient-to-r from-prologue-electric to-prologue-fire rounded-lg flex items-center justify-center">
-                <User className="h-6 w-6 text-white" />
+      <main className="flex-1 flex items-center justify-center px-6 lg:px-8 py-8 relative z-10">
+        <div className="max-w-2xl w-full relative">
+          <div className="bg-gray-50 rounded-3xl shadow-2xl border border-gray-200 overflow-hidden">
+            {/* Progress Steps */}
+            <div className="bg-white border-b border-gray-200 px-8 py-6">
+              <div className="flex items-center space-x-8 justify-center">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-prologue-electric text-white rounded-full flex items-center justify-center text-sm font-bold shadow-lg">
+                    1
+                  </div>
+                  <span className="text-prologue-electric font-semibold text-sm">Profile Setup</span>
+                </div>
+                <div className="flex-1 h-px bg-gray-300 max-w-16"></div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-gray-300 text-gray-500 rounded-full flex items-center justify-center text-sm font-bold">
+                    2
+                  </div>
+                  <span className="text-gray-500 font-semibold text-sm">Dashboard</span>
+                </div>
               </div>
-              <h2 className="text-2xl font-bold text-gray-900">Athlete Profile</h2>
             </div>
 
-            {/* Profile Picture Upload */}
-            <div className="flex flex-col items-center mb-8">
-              <div className="relative">
-                <div className="w-32 h-32 bg-gray-100 rounded-full border-4 border-white shadow-lg flex items-center justify-center overflow-hidden">
-                  {formData.profileImage ? (
-                    <Image
-                      src={URL.createObjectURL(formData.profileImage) || "/placeholder.svg"}
-                      alt="Profile"
-                      width={128}
-                      height={128}
-                      className="w-full h-full object-cover"
+            {/* Title Section */}
+            <div className="text-center px-8 py-8">
+              <div className="w-16 h-16 bg-gradient-to-r from-prologue-electric to-prologue-fire rounded-full flex items-center justify-center mx-auto mb-6">
+                <Trophy className="h-8 w-8 text-white" />
+              </div>
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-4">Build Your Champion Profile</h1>
+              <p className="text-sm lg:text-base text-gray-600 max-w-xl mx-auto">
+                Create your professional profile to start sharing your expertise and connecting with aspiring athletes
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="px-8 pb-8">
+              {/* Athlete Profile Section */}
+              <div className="mb-8">
+                <div className="flex items-center space-x-3 mb-6">
+                  <div className="w-10 h-10 bg-gradient-to-r from-prologue-electric to-prologue-fire rounded-lg flex items-center justify-center">
+                    <User className="h-5 w-5 text-white" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900">Athlete Profile</h2>
+                </div>
+
+                {/* Profile Picture Upload */}
+                <div className="flex flex-col items-center mb-6">
+                  <div className="relative">
+                    <div className="w-24 h-24 bg-gray-100 rounded-full border-4 border-white shadow-lg flex items-center justify-center overflow-hidden">
+                      {formData.profileImage ? (
+                        <Image
+                          src={URL.createObjectURL(formData.profileImage) || "/placeholder.svg"}
+                          alt="Profile"
+                          width={96}
+                          height={96}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <User className="h-12 w-12 text-gray-400" />
+                      )}
+                    </div>
+                    <label className="absolute bottom-0 right-0 w-8 h-8 bg-prologue-electric hover:bg-prologue-blue rounded-full flex items-center justify-center cursor-pointer transition-colors shadow-lg border-4 border-white">
+                      <Upload className="h-4 w-4 text-white" />
+                      <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2 font-medium">Upload Your Profile Picture</p>
+                </div>
+
+                {/* Form Fields */}
+                <div className="space-y-5">
+                  {/* First Name */}
+                  <div>
+                    <Label htmlFor="firstName" className="text-xs font-semibold text-gray-900 mb-2 block">
+                      First Name <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="firstName"
+                      type="text"
+                      placeholder="Enter your first name"
+                      value={formData.firstName}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, firstName: e.target.value }))}
+                      className="w-full h-12 px-4 border-0 bg-white rounded-3xl focus:ring-2 focus:ring-prologue-electric focus:border-transparent text-xs shadow-sm"
+                      style={{ backgroundColor: "#ffffff" }}
+                      required
                     />
+                  </div>
+                  {/* Last Name */}
+                  <div>
+                    <Label htmlFor="lastName" className="text-xs font-semibold text-gray-900 mb-2 block">
+                      Last Name <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="lastName"
+                      type="text"
+                      placeholder="Enter your last name"
+                      value={formData.lastName}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, lastName: e.target.value }))}
+                      className="w-full h-12 px-4 border-0 bg-white rounded-3xl focus:ring-2 focus:ring-prologue-electric focus:border-transparent text-xs shadow-sm"
+                      style={{ backgroundColor: "#ffffff" }}
+                      required
+                    />
+                  </div>
+
+                  {/* Bio */}
+                  <div>
+                    <Label htmlFor="bio" className="text-xs font-semibold text-gray-900 mb-2 block">
+                      Bio <span className="text-red-500">*</span>
+                    </Label>
+                    <Textarea
+                      id="bio"
+                      placeholder="Tell potential students about your background, achievements, and coaching philosophy..."
+                      value={formData.bio}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, bio: e.target.value }))}
+                      className="min-h-[100px] text-xs resize-none border-0 bg-white rounded-3xl focus:ring-2 focus:ring-prologue-electric focus:border-transparent px-4 py-3 shadow-sm"
+                      style={{ backgroundColor: "#ffffff" }}
+                      maxLength={500}
+                      required
+                    />
+                    <p className="text-xs text-gray-500 mt-1">{formData.bio.length}/500 characters</p>
+                  </div>
+
+                  {/* Sports Specialties */}
+                  <div>
+                    <Label className="text-xs font-semibold text-gray-900 mb-2 block">
+                      Sports Specialties <span className="text-red-500">*</span>
+                    </Label>
+                    <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto border border-gray-300 rounded-2xl p-3 bg-white">
+                      {sports.map((sport) => (
+                        <button
+                          key={sport}
+                          type="button"
+                          onClick={() => handleSportToggle(sport)}
+                          className={`p-2 text-xs border rounded-xl text-center font-medium transition-all duration-200 ${
+                            formData.selectedSports.includes(sport)
+                              ? "border-prologue-electric bg-prologue-electric/10 text-prologue-electric"
+                              : "border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50"
+                          }`}
+                        >
+                          {sport}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Subscription Pricing Section */}
+              <div className="mb-8">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="w-10 h-10 bg-gradient-to-r from-prologue-fire to-prologue-orange rounded-lg flex items-center justify-center">
+                    <Target className="h-5 w-5 text-white" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900">Subscription Pricing</h2>
+                </div>
+                <p className="text-xs text-gray-600 mb-4">
+                  Set your custom pricing for Pro and Premium tiers. Basic tier remains at $4.99/month.
+                </p>
+
+                <div className="grid md:grid-cols-3 gap-4 mb-4">
+                  <div>
+                    <Label htmlFor="basicTierPrice" className="text-xs font-semibold text-gray-900 mb-2 block">
+                      Basic Tier Price ($/month)
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold text-xs">
+                        $
+                      </span>
+                      <Input
+                        id="basicTierPrice"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.basicTierPrice}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, basicTierPrice: e.target.value }))}
+                        className="w-full h-12 pl-8 pr-4 border-0 bg-white rounded-3xl focus:ring-2 focus:ring-prologue-electric focus:border-transparent text-xs shadow-sm"
+                        style={{ backgroundColor: "#ffffff" }}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="proTierPrice" className="text-xs font-semibold text-gray-900 mb-2 block">
+                      Pro Tier Price ($/month)
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold text-xs">
+                        $
+                      </span>
+                      <Input
+                        id="proTierPrice"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.proTierPrice}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, proTierPrice: e.target.value }))}
+                        className="w-full h-12 pl-8 pr-4 border-0 bg-white rounded-3xl focus:ring-2 focus:ring-prologue-electric focus:border-transparent text-xs shadow-sm"
+                        style={{ backgroundColor: "#ffffff" }}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="premiumTierPrice" className="text-xs font-semibold text-gray-900 mb-2 block">
+                      Premium Tier Price ($/month)
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold text-xs">
+                        $
+                      </span>
+                      <Input
+                        id="premiumTierPrice"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.premiumTierPrice}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, premiumTierPrice: e.target.value }))}
+                        className="w-full h-12 pl-8 pr-4 border-0 bg-white rounded-3xl focus:ring-2 focus:ring-prologue-electric focus:border-transparent text-xs shadow-sm"
+                        style={{ backgroundColor: "#ffffff" }}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 border-l-4 border-amber-400 rounded-lg p-3 mb-6">
+                  <p className="text-xs text-amber-800">
+                    <strong>Note:</strong> Your pricing will be visible to potential subscribers. Consider your
+                    expertise, content quality, and market rates when setting your prices.
+                  </p>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <div className="text-center">
+                <Button
+                  type="submit"
+                  className="w-full h-12 text-xs font-bold rounded-3xl transition-all duration-300 transform hover:scale-[1.02] bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white shadow-lg hover:shadow-xl mb-4"
+                  disabled={!formData.firstName || !formData.lastName || !formData.bio || formData.selectedSports.length === 0 || isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Saving Profile...
+                    </>
                   ) : (
-                    <User className="h-16 w-16 text-gray-400" />
+                    "Save & Continue to Dashboard"
                   )}
-                </div>
-                <label className="absolute bottom-0 right-0 w-10 h-10 bg-prologue-electric hover:bg-prologue-blue rounded-full flex items-center justify-center cursor-pointer transition-colors shadow-lg border-4 border-white">
-                  <Upload className="h-5 w-5 text-white" />
-                  <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                </label>
-              </div>
-              <p className="text-sm text-gray-600 mt-3 font-medium">Upload Your Profile Picture</p>
-            </div>
+                </Button>
 
-            {/* Vertical Form Layout */}
-            <div className="space-y-8">
-              {/* First Name */}
-              <div>
-                <Label htmlFor="firstName" className="text-base font-semibold text-gray-900 mb-3 block">
-                  First Name <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="firstName"
-                  type="text"
-                  placeholder="Enter your first name"
-                  value={formData.firstName}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, firstName: e.target.value }))}
-                  className="h-12 text-base border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
-                  required
-                />
+                <p className="text-xs text-gray-500">
+                  You can always update your profile information later from your dashboard
+                </p>
               </div>
-
-              {/* Last Name */}
-              <div>
-                <Label htmlFor="lastName" className="text-base font-semibold text-gray-900 mb-3 block">
-                  Last Name <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="lastName"
-                  type="text"
-                  placeholder="Enter your last name"
-                  value={formData.lastName}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, lastName: e.target.value }))}
-                  className="h-12 text-base border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
-                  required
-                />
-              </div>
-
-              {/* Bio */}
-              <div>
-                <Label htmlFor="bio" className="text-base font-semibold text-gray-900 mb-3 block">
-                  Bio <span className="text-red-500">*</span>
-                </Label>
-                <Textarea
-                  id="bio"
-                  placeholder="Tell potential students about your background, achievements, and coaching philosophy..."
-                  value={formData.bio}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, bio: e.target.value }))}
-                  className="min-h-[120px] text-base resize-none border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
-                  maxLength={500}
-                  required
-                />
-                <p className="text-sm text-gray-500 mt-2">{formData.bio.length}/500 characters</p>
-              </div>
-
-              {/* Sports Specialties */}
-              <div>
-                <Label className="text-base font-semibold text-gray-900 mb-3 block">
-                  Sports Specialties <span className="text-red-500">*</span>
-                </Label>
-                <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto border border-gray-300 rounded-lg p-3">
-                  {sports.map((sport) => (
-                    <button
-                      key={sport}
-                      type="button"
-                      onClick={() => handleSportToggle(sport)}
-                      className={`p-2 text-sm border rounded-lg text-center font-medium transition-all duration-200 ${
-                        formData.selectedSports.includes(sport)
-                          ? "border-prologue-electric bg-prologue-electric/10 text-prologue-electric"
-                          : "border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50"
-                      }`}
-                    >
-                      {sport}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
+            </form>
           </div>
-
-          {/* Subscription Pricing Section */}
-          <div className="p-8">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-r from-prologue-fire to-prologue-orange rounded-lg flex items-center justify-center">
-                <Target className="h-6 w-6 text-white" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900">Subscription Pricing</h2>
-            </div>
-            <p className="text-gray-600 mb-6">
-              Set your custom pricing for all three subscription tiers. Consider your expertise, content quality, and market rates when setting your prices.
-            </p>
-
-            <div className="grid md:grid-cols-3 gap-6 mb-6">
-              <div>
-                <Label htmlFor="basicTierPrice" className="text-base font-semibold text-gray-900 mb-3 block">
-                  Basic Tier Price ($/month)
-                </Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold">
-                    $
-                  </span>
-                  <Input
-                    id="basicTierPrice"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.basicTierPrice}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, basicTierPrice: e.target.value }))}
-                    className="h-12 pl-8 text-base border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="proTierPrice" className="text-base font-semibold text-gray-900 mb-3 block">
-                  Pro Tier Price ($/month)
-                </Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold">
-                    $
-                  </span>
-                  <Input
-                    id="proTierPrice"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.proTierPrice}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, proTierPrice: e.target.value }))}
-                    className="h-12 pl-8 text-base border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="premiumTierPrice" className="text-base font-semibold text-gray-900 mb-3 block">
-                  Premium Tier Price ($/month)
-                </Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold">
-                    $
-                  </span>
-                  <Input
-                    id="premiumTierPrice"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.premiumTierPrice}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, premiumTierPrice: e.target.value }))}
-                    className="h-12 pl-8 text-base border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-amber-50 border-l-4 border-amber-400 rounded-lg p-4 mb-8">
-              <p className="text-sm text-amber-800">
-                <strong>Note:</strong> Your pricing will be visible to potential subscribers. Consider your expertise,
-                content quality, and market rates when setting your prices.
-              </p>
-            </div>
-
-            {/* Submit Button */}
-            <div className="text-center">
-              <Button
-                type="submit"
-                size="lg"
-                className="bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white px-12 py-4 text-lg font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
-                disabled={!formData.firstName || !formData.lastName || !formData.bio || formData.selectedSports.length === 0 || isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    Saving Profile...
-                  </>
-                ) : (
-                  "Save & Continue to Dashboard"
-                )}
-              </Button>
-
-              <p className="text-sm text-gray-500 mt-4">
-                You can always update your profile information later from your dashboard
-              </p>
-            </div>
-          </div>
-        </form>
+        </div>
       </main>
     </div>
   )
