@@ -6,7 +6,7 @@ import { useMemo } from "react"
 import AthleteMobileNavigation from "@/components/mobile/athlete-mobile-navigation"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
-import { User, Settings, Search, LogOut, Bell, ChevronDown, TrendingUp } from "lucide-react"
+import { User, Settings, Search, LogOut, ChevronDown } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useUnifiedLogout } from "@/hooks/use-unified-logout"
@@ -70,22 +70,6 @@ export default function AthleteDashboardMobileLayout({
             >
               <Search className="h-5 w-5 text-gray-600" />
             </Button>
-
-            {/* Notification Bell */}
-            <Link href="/notifications" className="relative">
-              <Button variant="ghost" size="sm" className="touch-target p-2 h-10 w-10 relative">
-                <Bell className="h-5 w-5 text-gray-600" />
-                {unreadNotifications > 0 && (
-                  <div className="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
-                    {unreadNotifications > 9 ? (
-                      <span className="text-xs text-white font-bold">9+</span>
-                    ) : (
-                      <span className="text-xs text-white font-bold">{unreadNotifications}</span>
-                    )}
-                  </div>
-                )}
-              </Button>
-            </Link>
 
             {/* User Dropdown - Enhanced for mobile */}
             <DropdownMenu>

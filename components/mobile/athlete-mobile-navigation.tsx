@@ -35,13 +35,13 @@ export default function AthleteMobileNavigation({
       name: "Content",
       href: "/content",
       icon: BookOpen,
-      badge: hasNewContent ? "New" : null,
+      badge: null, // Remove 'New' badge
     },
     {
       name: "Messages",
       href: "/messaging",
       icon: MessageCircle,
-      badge: unreadMessages > 0 ? unreadMessages : null,
+      badge: unreadMessages > 0 ? unreadMessages : null, // Only show number badge
     },
     {
       name: "Feedback",
@@ -82,12 +82,9 @@ export default function AthleteMobileNavigation({
                 {item.badge && (
                   <Badge
                     variant="destructive"
-                    className={cn(
-                      "absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center",
-                      typeof item.badge === "string" && "bg-green-500"
-                    )}
+                    className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center"
                   >
-                    {item.badge}
+                    <span className="text-[10px] font-bold leading-none">{item.badge}</span>
                   </Badge>
                 )}
               </div>
