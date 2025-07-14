@@ -880,13 +880,19 @@ export default function MemberHomePage() {
                                 <span>
                                   {item.createdAt
                                     ? (() => {
-                                        const date =
-                                          typeof item.createdAt === "string"
-                                            ? parseISO(item.createdAt)
-                                            : item.createdAt;
-                                        return !isValid(date) ? "Just now" : formatDistanceToNow(date, { addSuffix: true });
+                                        let date;
+                                        if (item.createdAt.toDate) {
+                                          date = item.createdAt.toDate(); // Firestore Timestamp
+                                        } else if (typeof item.createdAt === "string") {
+                                          date = parseISO(item.createdAt);
+                                        } else {
+                                          date = item.createdAt;
+                                        }
+                                        return isValid(date)
+                                          ? date.toLocaleString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+                                          : "";
                                       })()
-                                    : "Just now"}
+                                    : ""}
                                 </span>
                                 <span>•</span>
                                 <div className="flex items-center space-x-1">
