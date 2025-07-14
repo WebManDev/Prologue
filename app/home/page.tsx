@@ -762,10 +762,6 @@ export default function MemberHomePage() {
                   </div>
                   <div className="flex items-center justify-between mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100">
                     <div className="flex items-center space-x-2 sm:space-x-4">
-                      <Button variant="ghost" size="sm" className="text-gray-600 hover:text-prologue-electric px-2 sm:px-3">
-                        <Video className="h-4 w-4 mr-1 sm:mr-2" />
-                        <span className="text-xs sm:text-sm">Live Video</span>
-                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
