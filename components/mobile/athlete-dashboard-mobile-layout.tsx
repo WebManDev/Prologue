@@ -19,6 +19,8 @@ interface AthleteDashboardMobileLayoutProps {
   unreadMessages?: number
   hasNewContent?: boolean
   profilePhotoUrl?: string
+  firstName?: string
+  lastName?: string
 }
 
 export default function AthleteDashboardMobileLayout({
@@ -29,6 +31,8 @@ export default function AthleteDashboardMobileLayout({
   unreadMessages = 0,
   hasNewContent = false,
   profilePhotoUrl,
+  firstName,
+  lastName,
 }: AthleteDashboardMobileLayoutProps) {
   const pathname = usePathname()
 
@@ -84,6 +88,8 @@ export default function AthleteDashboardMobileLayout({
                         height={28}
                         className="w-full h-full object-cover"
                       />
+                    ) : firstName && lastName ? (
+                      <span className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-700">{`${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase()}</span>
                     ) : (
                       <User className="w-full h-full text-gray-500 p-1" />
                     )}
@@ -123,7 +129,6 @@ export default function AthleteDashboardMobileLayout({
         <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg">
           <AthleteMobileNavigation
             currentPath={currentPath}
-            unreadNotifications={unreadNotifications}
             unreadMessages={unreadMessages}
             hasNewContent={hasNewContent}
           />

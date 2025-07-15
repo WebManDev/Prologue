@@ -744,6 +744,9 @@ export default function MemberHomePage() {
                         const profileImageUrl = profileData.profileImageUrl && profileData.profileImageUrl.trim() !== '' ? profileData.profileImageUrl : (profileData.profilePic && profileData.profilePic.trim() !== '' ? profileData.profilePic : (profileData.profilePicture && profileData.profilePicture.trim() !== '' ? profileData.profilePicture : null));
                         if (profileImageUrl) {
                           return <img src={profileImageUrl} alt="Profile" className="w-full h-full object-cover" />;
+                        } else if (profileData.firstName && profileData.lastName) {
+                          const initials = `${profileData.firstName[0] || ''}${profileData.lastName[0] || ''}`.toUpperCase();
+                          return <span className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-700">{initials}</span>;
                         } else {
                           return <User className="w-full h-full text-gray-500 p-2" />;
                         }
@@ -866,6 +869,8 @@ export default function MemberHomePage() {
                             <div className="w-12 h-12 bg-gray-200 rounded-full overflow-hidden">
                               {profile.profileImageUrl ? (
                                 <img src={profile.profileImageUrl} alt={profile.firstName || "User"} className="w-full h-full object-cover" />
+                              ) : profile.firstName && profile.lastName ? (
+                                <span className="w-full h-full flex items-center justify-center text-xs font-bold text-gray-700">{`${profile.firstName[0] || ''}${profile.lastName[0] || ''}`.toUpperCase()}</span>
                               ) : (
                                 <User className="w-full h-full text-gray-500 p-2" />
                               )}
@@ -1465,6 +1470,8 @@ export default function MemberHomePage() {
         unreadMessages={unreadMessagesCount}
         hasNewContent={hasNewTrainingContent}
         profilePhotoUrl={profileImageUrl || undefined}
+        firstName={profileData.firstName}
+        lastName={profileData.lastName}
       >
         {mainContent}
       </AthleteDashboardMobileLayout>

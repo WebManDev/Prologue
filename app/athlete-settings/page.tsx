@@ -17,7 +17,7 @@ import { useUnifiedLogout } from "@/hooks/use-unified-logout"
 import { LogoutLoadingScreen } from "@/components/ui/logout-loading-screen"
 import { AthleteNav } from "@/components/navigation/athlete-nav"
 import { getFirestore, doc, updateDoc } from "firebase/firestore";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getAuth, onAuthStateChanged, fetchSignInMethodsForEmail, updateEmail, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { app as firebaseApp, getAthleteProfile } from "@/lib/firebase";
 import { AthleteStripeConnect } from "@/components/athlete-stripe-connect";
 import { AthletePricingManager } from "@/components/athlete-pricing-manager";
@@ -169,23 +169,60 @@ const AthleteSettingsPage = () => {
 
   const handleSaveAccount = async () => {
     setIsLoading({ ...isLoading, account: true })
-
     await new Promise((resolve) => setTimeout(resolve, 1500))
-
     try {
-      console.log("Saving account settings:", accountData)
-
+      const auth = getAuth()
+      const user = auth.currentUser
+      if (!user) throw new Error("Not authenticated")
+      const oldEmail = user.email || ""
+      const newEmail = accountData.email.trim()
+      // If email changed, update in Auth first
+      if (newEmail !== oldEmail) {
+        // Check if email is already in use
+        const signInMethods = await fetchSignInMethodsForEmail(auth, newEmail)
+        if (signInMethods.length > 0) {
+          toast({
+            title: "Email Already In Use",
+            description: "That email address is already registered. Please use a different one.",
+            variant: "destructive",
+            duration: 4000,
+          })
+          setIsLoading({ ...isLoading, account: false })
+          return
+        }
+        // Try to update email in Firebase Auth
+        try {
+          await updateEmail(user, newEmail)
+        } catch (err: any) {
+          if (err.code === "auth/requires-recent-login") {
+            // Prompt for password and re-authenticate
+            const password = prompt("For security, please re-enter your password to change your email:")
+            if (!password) throw new Error("Password required to re-authenticate.")
+            const credential = EmailAuthProvider.credential(oldEmail, password)
+            await reauthenticateWithCredential(user, credential)
+            await updateEmail(user, newEmail)
+          } else {
+            throw err
+          }
+        }
+      }
+      // Always update Firestore with all fields
+      const db = getFirestore()
+      await updateDoc(doc(db, "athletes", user.uid), {
+        ...accountData,
+        email: newEmail, // ensure email is up to date
+      })
       toast({
         title: "Profile Updated",
         description: "Your profile has been saved successfully.",
         duration: 3000,
       })
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to save profile. Please try again.",
+        description: error.message || "Failed to save profile. Please try again.",
         variant: "destructive",
-        duration: 3000,
+        duration: 4000,
       })
     } finally {
       setIsLoading({ ...isLoading, account: false })

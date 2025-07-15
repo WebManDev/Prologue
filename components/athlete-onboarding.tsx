@@ -323,7 +323,7 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
                   <h2 className="text-xl font-bold text-gray-900">Subscription Pricing</h2>
                 </div>
                 <p className="text-xs text-gray-600 mb-4">
-                  Set your custom pricing for Pro and Premium tiers. Basic tier remains at $4.99/month.
+                  Set your custom pricing for all tiers. <b>Basic tier must be at least $4.99/month.</b>
                 </p>
 
                 <div className="grid md:grid-cols-3 gap-4 mb-4">
@@ -339,7 +339,7 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
                         id="basicTierPrice"
                         type="number"
                         step="0.01"
-                        min="0"
+                        min="4.99"
                         value={formData.basicTierPrice}
                         onChange={(e) => setFormData((prev) => ({ ...prev, basicTierPrice: e.target.value }))}
                         className="w-full h-12 pl-8 pr-4 border-0 bg-white rounded-3xl focus:ring-2 focus:ring-prologue-electric focus:border-transparent text-xs shadow-sm"
