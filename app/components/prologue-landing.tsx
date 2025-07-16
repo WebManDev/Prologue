@@ -231,11 +231,24 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
             transition: "transform 0.1s ease-out",
           }}
         >
+          {/* Video Background */}
+          <video
+            className="absolute inset-0 w-full h-full object-cover z-0"
+            src="/0715.mov"
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            aria-hidden="true"
+          />
+          {/* Optional dark overlay for readability */}
+          <div className="absolute inset-0 bg-black/60 z-0 pointer-events-none" />
           <div className="z-10">
-            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-white mb-4 leading-tight">
-              TRAIN WITH <br />
-              <span className="text-prologue-electric block">CHAMPIONS</span>
-              <span className="text-prologue-fire block">BECOME ONE</span>
+            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-white mb-4 leading-tight font-athletic">
+              <span className="font-athletic">TRAIN WITH</span> <br />
+              <span className="text-prologue-electric block font-athletic">CHAMPIONS</span>
+              <span className="text-prologue-fire block font-athletic">BECOME ONE</span>
             </h1>
             <p className="text-base md:text-xl text-blue-200 font-medium mb-8 max-w-2xl mx-auto">
               Transform your game with coaching from top college athletes—because greatness is built, not born.
@@ -243,7 +256,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
             <Button
               size="lg"
               className="bg-gradient-to-r from-blue-500 to-orange-500 hover:from-blue-600 hover:to-orange-600 text-white px-8 py-3 text-lg font-bold rounded shadow-lg transition-all duration-300"
-              onClick={() => setShowRoleSelection(true)}
+              onClick={onSignUpClick}
             >
               START TRAINING NOW <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
