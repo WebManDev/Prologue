@@ -6,6 +6,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
+import RoleSelectionLogin from "./RoleSelectionLogin"
 
 interface PrologueLandingProps {
   onLoginClick: () => void
@@ -20,6 +21,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
   const observerRef = useRef<IntersectionObserver>(null)
   const heroRef = useRef<HTMLElement>(null)
   const [isLoaded, setIsLoaded] = useState(false)
+  const [showRoleSelection, setShowRoleSelection] = useState(false)
 
   // Enhanced scroll handler with direction detection
   const handleScroll = useCallback(() => {
@@ -224,108 +226,28 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
         {/* Hero Section with Parallax */}
         <section
           ref={heroRef}
-          className="athletic-hero py-20 lg:py-32 relative overflow-hidden hero-section"
+          className="relative flex flex-col items-center justify-center min-h-[60vh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-center px-4"
           style={{
             transition: "transform 0.1s ease-out",
           }}
         >
-          {/* Video Background */}
-          <video autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover opacity-50">
-            <source src="/training-video-new.mov" type="video/mp4" />
-          </video>
-          <div
-            className="absolute inset-0 bg-gradient-to-br from-slate-900/60 via-slate-800/60 to-slate-900/60"
-            style={{
-              transform: `translateY(calc(var(--parallax-y, 0px) * 0.5))`,
-              transition: "transform 0.1s ease-out",
-            }}
-          ></div>
-          <div
-            className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-transparent to-orange-600/10"
-            style={{
-              transform: `translateY(calc(var(--parallax-y, 0px) * 0.3))`,
-              transition: "transform 0.1s ease-out",
-            }}
-          ></div>
-
-          {/* Diagonal Energy Lines with Parallax */}
-          <div className="absolute inset-0 overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-full">
-              <div
-                className="absolute top-10 -left-20 w-96 h-2 bg-gradient-to-r from-transparent via-prologue-electric/30 to-transparent rotate-12 animate-pulse"
-                style={{
-                  transform: `translateY(calc(var(--parallax-y, 0px) * 0.7))`,
-                  transition: "transform 0.1s ease-out",
-                }}
-              ></div>
-              <div
-                className="absolute top-32 -right-20 w-80 h-1 bg-gradient-to-r from-transparent via-prologue-fire/40 to-transparent -rotate-12 animate-pulse animation-delay-1000"
-                style={{
-                  transform: `translateY(calc(var(--parallax-y, 0px) * 0.4))`,
-                  transition: "transform 0.1s ease-out",
-                }}
-              ></div>
-              <div
-                className="absolute bottom-20 -left-32 w-72 h-1.5 bg-gradient-to-r from-transparent via-white/20 to-transparent rotate-6 animate-pulse animation-delay-500"
-                style={{
-                  transform: `translateY(calc(var(--parallax-y, 0px) * 0.6))`,
-                  transition: "transform 0.1s ease-out",
-                }}
-              ></div>
-            </div>
+          <div className="z-10">
+            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-white mb-4 leading-tight">
+              TRAIN WITH <br />
+              <span className="text-prologue-electric block">CHAMPIONS</span>
+              <span className="text-prologue-fire block">BECOME ONE</span>
+            </h1>
+            <p className="text-base md:text-xl text-blue-200 font-medium mb-8 max-w-2xl mx-auto">
+              Transform your game with coaching from top college athletes—because greatness is built, not born.
+            </p>
+            <Button
+              size="lg"
+              className="bg-gradient-to-r from-blue-500 to-orange-500 hover:from-blue-600 hover:to-orange-600 text-white px-8 py-3 text-lg font-bold rounded shadow-lg transition-all duration-300"
+              onClick={() => setShowRoleSelection(true)}
+            >
+              START TRAINING NOW <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
           </div>
-
-          <div className="container mx-auto px-6 lg:px-8 relative z-10">
-            <div className="max-w-6xl mx-auto">
-              {/* Centered Athletic Layout */}
-              <div className="text-center space-y-8">
-                {/* Main Athletic Headline */}
-                <div className="space-y-4">
-                  <h1 className="text-5xl lg:text-8xl font-athletic font-black text-white leading-none tracking-tight hero-title">
-                    {/* "TRAIN WITH" and "CHAMPIONS" load together */}
-                    <span className="block hero-line-1">TRAIN WITH</span>
-                    <span className="block text-prologue-electric hero-line-2">CHAMPIONS</span>
-                    {/* "BECOME ONE" loads after */}
-                    <span className="block text-prologue-fire hero-line-3">BECOME ONE</span>
-                  </h1>
-                </div>
-
-                <div className="max-w-4xl mx-auto hero-subtitle">
-                  <p className="text-lg lg:text-xl text-gray-300 font-body font-medium leading-relaxed">
-                    Transform your game with coaching from top college athletes—because greatness is built, not born.
-                  </p>
-                </div>
-
-                {/* Single CTA Button */}
-                <div className="flex justify-center items-center pt-4 hero-cta">
-                  <Button
-                    onClick={onSignUpClick}
-                    size="lg"
-                    className="bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white px-10 py-6 text-lg font-athletic font-bold tracking-wider shadow-2xl hover:shadow-3xl transition-all duration-300 hover:scale-110 group rounded-none border-2 border-transparent hover:border-white/30"
-                  >
-                    START TRAINING NOW
-                    <ArrowRight className="ml-3 h-5 w-5 group-hover:translate-x-2 transition-transform" />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Athletic Accent Elements with Parallax */}
-          <div
-            className="absolute bottom-0 right-0 w-64 h-64 bg-gradient-to-tl from-prologue-fire/10 to-transparent rounded-full blur-3xl"
-            style={{
-              transform: `translateY(calc(var(--parallax-y, 0px) * 0.2))`,
-              transition: "transform 0.1s ease-out",
-            }}
-          ></div>
-          <div
-            className="absolute top-0 left-0 w-96 h-96 bg-gradient-to-br from-prologue-electric/10 to-transparent rounded-full blur-3xl"
-            style={{
-              transform: `translateY(calc(var(--parallax-y, 0px) * 0.4))`,
-              transition: "transform 0.1s ease-out",
-            }}
-          ></div>
         </section>
 
         {/* Angled Divider */}
@@ -716,6 +638,22 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
           </div>
         </div>
       </footer>
+
+      {/* Role Selection Modal */}
+      {showRoleSelection && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+          <div className="bg-white rounded-2xl shadow-2xl p-0 max-w-md w-full relative">
+            <RoleSelectionLogin />
+            <button
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+              onClick={() => setShowRoleSelection(false)}
+              aria-label="Close role selection"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
