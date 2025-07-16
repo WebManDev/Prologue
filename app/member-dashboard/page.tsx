@@ -8,7 +8,6 @@ import MemberDashboardPage from "@/components/member-dashboard-page"
 export default function MemberDashboardPageWrapper() {
   return (
     <>
-      <div className="font-athletic font-black uppercase text-lg tracking-wide text-center my-4">Still in Development</div>
       <Suspense fallback={<div>Loading...</div>}>
         <MemberDashboardContent />
       </Suspense>
@@ -23,7 +22,7 @@ function MemberDashboardContent() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
       if (!user) {
         router.push("/")
         return

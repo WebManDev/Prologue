@@ -58,39 +58,6 @@ interface WeeklyGoal {
   icon: React.ComponentType<{ className?: string }>
 }
 
-const trainingPrograms = [
-  {
-    id: "1",
-    title: "Basic Strength Program",
-    category: "strength",
-    sessions: 10,
-    completed: 5,
-    difficulty: "Basic",
-    thumbnail: "/placeholder.svg",
-    coach: "John Doe",
-    coachAvatar: "/placeholder.svg",
-    rating: 4.5,
-    students: 100,
-    description: "A comprehensive strength training program designed for athletes looking to build foundational power and muscle.",
-    duration: "8 weeks",
-  },
-  {
-    id: "2",
-    title: "Advanced Cardio Plan",
-    category: "cardio",
-    sessions: 8,
-    completed: 8,
-    difficulty: "Advanced",
-    thumbnail: "/placeholder.svg",
-    coach: "Jane Smith",
-    coachAvatar: "/placeholder.svg",
-    rating: 4.8,
-    students: 150,
-    description: "High-intensity cardiovascular training to improve endurance and athletic performance.",
-    duration: "6 weeks",
-  },
-]
-
 export default function MemberTrainingPage() {
   const { isMobile, isTablet } = useMobileDetection()
   const { unreadMessagesCount, unreadNotificationsCount, hasNewTrainingContent, markTrainingAsVisited } = useMemberNotifications()
@@ -120,6 +87,9 @@ export default function MemberTrainingPage() {
   const [error, setError] = useState<string | null>(null)
   const [profileData, setProfileData] = useState<any>(null)
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null)
+
+  // Add dynamic programs state
+  const [programs, setPrograms] = useState<any[]>([]);
 
   // Mark training as visited on mount
   useEffect(() => {
@@ -523,6 +493,48 @@ export default function MemberTrainingPage() {
     fetchContent()
   }, [athleteIds])
 
+  // Fetch programs (courses and videos) from Firestore for subscribed athletes
+  useEffect(() => {
+    const fetchPrograms = async () => {
+      if (!athleteIds.length) {
+        setPrograms([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        // Fetch courses
+        const coursesQ = query(
+          collection(db, "courses"),
+          where("authorId", "in", athleteIds)
+        );
+        const coursesSnapshot = await getDocs(coursesQ);
+        const courses = coursesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), type: "course" }));
+
+        // Fetch videos
+        const videosQ = query(
+          collection(db, "videos"),
+          where("authorId", "in", athleteIds)
+        );
+        const videosSnapshot = await getDocs(videosQ);
+        const videos = videosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), type: "video" }));
+
+        // Combine and sort by createdAt (desc)
+        const allPrograms = [...courses, ...videos].sort((a: any, b: any) => {
+          const aTime = a.createdAt?.seconds || 0;
+          const bTime = b.createdAt?.seconds || 0;
+          return bTime - aTime;
+        });
+        setPrograms(allPrograms);
+      } catch (error) {
+        console.error("Error fetching programs:", error);
+        setPrograms([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPrograms();
+  }, [athleteIds]);
+
   const fetchAuthorProfile = async (uid: string) => {
     try {
       const docRef = doc(db, "athletes", uid)
@@ -565,11 +577,11 @@ export default function MemberTrainingPage() {
 
   // Filter programs based on selected filter
   const filteredPrograms = useMemo(() => {
-    if (selectedFilter === "all") return trainingPrograms
-    if (selectedFilter === "in-progress") return trainingPrograms.filter((p) => p.completed < p.sessions)
-    if (selectedFilter === "completed") return trainingPrograms.filter((p) => p.completed === p.sessions)
-    return trainingPrograms.filter((p) => p.category.toLowerCase() === selectedFilter)
-  }, [selectedFilter])
+    if (selectedFilter === "all") return programs;
+    if (selectedFilter === "in-progress") return programs.filter((p) => p.completed < (p.sessions || p.totalSessions || 1));
+    if (selectedFilter === "completed") return programs.filter((p) => p.completed === (p.sessions || p.totalSessions || 1));
+    return programs.filter((p) => (p.category || "").toLowerCase() === selectedFilter);
+  }, [selectedFilter, programs]);
 
   // Filter training sessions based on selected filters
   const filteredSessions = useMemo(() => {
