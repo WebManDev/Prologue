@@ -204,7 +204,9 @@ export function ProfileEditorMobile({
                     />
                     <Input
                       value={localData.experience}
-                      onChange={(e) => handleFieldChange("experience", e.target.value)}
+                      type="number"
+                      min={0}
+                      onChange={(e) => handleFieldChange("experience", e.target.value.replace(/[^0-9]/g, ''))}
                       placeholder="Experience"
                       className="text-sm"
                       disabled={isSaving}

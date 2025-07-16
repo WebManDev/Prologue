@@ -42,6 +42,7 @@ import { useState, useRef, useEffect } from "react"
 import { AthleteNav } from "@/components/navigation/athlete-nav"
 import MobileLayout from "@/components/mobile/mobile-layout"
 import { useMobileDetection } from "@/hooks/use-mobile-detection"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 export default function PromotePage() {
   const { isMobile, isTablet } = useMobileDetection()
@@ -51,6 +52,9 @@ export default function PromotePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [postContent, setPostContent] = useState("")
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["instagram"])
+  const [showPromoteModal, setShowPromoteModal] = useState(false)
+  const [promotionType, setPromotionType] = useState("boost")
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
   // Quick search suggestions for athletes
@@ -208,6 +212,39 @@ export default function PromotePage() {
     }
   }
 
+  const handlePromotePayment = async () => {
+    setIsProcessingPayment(true)
+    
+    try {
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: 'user123', // In a real app, get this from auth context
+          amount: 20,
+          description: `${promotionType.charAt(0).toUpperCase() + promotionType.slice(1)} Promotion`,
+        }),
+      })
+
+      const { url, error } = await response.json()
+
+      if (error) {
+        alert(`Payment error: ${error}`)
+        setIsProcessingPayment(false)
+        return
+      }
+
+      // Redirect to Stripe Checkout
+      window.location.href = url
+    } catch (error) {
+      console.error('Payment error:', error)
+      alert('Payment failed. Please try again.')
+      setIsProcessingPayment(false)
+    }
+  }
+
   const DesktopHeader = () => (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-6">
@@ -346,6 +383,13 @@ export default function PromotePage() {
             >
               <Plus className="h-4 w-4 mr-2" />
               {isMobile ? "Create" : "Create Post"}
+            </Button>
+            <Button
+              className={`bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white ${isMobile ? "flex-1" : ""}`}
+              size={isMobile ? "sm" : "default"}
+              onClick={() => setShowPromoteModal(true)}
+            >
+              Promote
             </Button>
           </div>
         </div>
@@ -651,6 +695,56 @@ export default function PromotePage() {
           </Card>
         </TabsContent>
       </Tabs>
+      <Dialog open={showPromoteModal} onOpenChange={setShowPromoteModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Promote Your Content</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-3">
+              <Label htmlFor="promotion-type">Promotion Type</Label>
+              <select
+                id="promotion-type"
+                value={promotionType}
+                onChange={(e) => setPromotionType(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
+              >
+                <option value="boost">Content Boost ($20)</option>
+                <option value="featured">Featured Post ($20)</option>
+                <option value="sponsored">Sponsored Content ($20)</option>
+              </select>
+            </div>
+            
+            <div className="space-y-2">
+              <p className="text-sm text-gray-600">
+                Boost your content visibility and reach more athletes with our promotion service.
+              </p>
+              <div className="bg-gray-50 p-3 rounded-md">
+                <p className="text-lg font-semibold text-gray-900">$20.00</p>
+                <p className="text-sm text-gray-600">One-time payment</p>
+              </div>
+            </div>
+
+            <div className="flex space-x-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setShowPromoteModal(false)}
+                className="flex-1"
+                disabled={isProcessingPayment}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handlePromotePayment}
+                disabled={isProcessingPayment}
+                className="flex-1 bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange text-white"
+              >
+                {isProcessingPayment ? "Processing..." : "Pay $20"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </main>
   )
 

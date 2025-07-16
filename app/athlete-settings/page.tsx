@@ -533,9 +533,11 @@ const AthleteSettingsPage = () => {
                   <Label htmlFor="experience">Experience</Label>
                   <Input
                     id="experience"
+                    type="number"
+                    min={0}
                     value={accountData.experience}
-                    onChange={(e) => setAccountData({ ...accountData, experience: e.target.value })}
-                    placeholder="Years of experience or level"
+                    onChange={(e) => setAccountData({ ...accountData, experience: e.target.value.replace(/[^0-9]/g, '') })}
+                    placeholder="Years of experience"
                   />
                 </div>
 

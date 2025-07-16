@@ -32,7 +32,7 @@ export default function Sidebar({ profileData }: SidebarProps) {
           </div>
           <div className="flex items-center space-x-2 text-sm">
             <Trophy className="h-4 w-4 text-gray-500" />
-            <span className="text-gray-700">{profileData.experience} experience</span>
+            <span className="text-gray-700">{Number(profileData.experience) || 0} years experience</span>
           </div>
         </CardContent>
       </Card>

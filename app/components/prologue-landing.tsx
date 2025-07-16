@@ -17,7 +17,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
   const [scrollY, setScrollY] = useState(0)
   const [lastScrollY, setLastScrollY] = useState(0)
   const [scrollDirection, setScrollDirection] = useState<"down" | "up">("down")
-  const observerRef = useRef<IntersectionObserver>()
+  const observerRef = useRef<IntersectionObserver>(null)
   const heroRef = useRef<HTMLElement>(null)
   const [isLoaded, setIsLoaded] = useState(false)
 
@@ -39,10 +39,6 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
         const heroHeight = heroRef.current.offsetHeight
         const scrollProgress = Math.min(currentScrollY / heroHeight, 1)
         const parallaxOffset = scrollProgress * 50 // Adjust parallax intensity
-
-        // Apply parallax to hero background elements
-        const heroBackground = heroRef.current.querySelector(".athletic-hero::before") as HTMLElement
-        const heroBackgroundAfter = heroRef.current.querySelector(".athletic-hero::after") as HTMLElement
 
         // Use CSS custom properties for smooth parallax
         heroRef.current.style.setProperty("--parallax-y", `${parallaxOffset}px`)
@@ -233,16 +229,19 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
             transition: "transform 0.1s ease-out",
           }}
         >
-          {/* Dynamic Athletic Background with Parallax */}
+          {/* Video Background */}
+          <video autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover opacity-50">
+            <source src="/training-video-new.mov" type="video/mp4" />
+          </video>
           <div
-            className="absolute inset-0 bg-gradient-to-br from-prologue-blue via-slate-800 to-prologue-orange opacity-90"
+            className="absolute inset-0 bg-gradient-to-br from-slate-900/60 via-slate-800/60 to-slate-900/60"
             style={{
               transform: `translateY(calc(var(--parallax-y, 0px) * 0.5))`,
               transition: "transform 0.1s ease-out",
             }}
           ></div>
           <div
-            className="absolute inset-0 bg-gradient-to-r from-prologue-electric/20 via-transparent to-prologue-fire/20"
+            className="absolute inset-0 bg-gradient-to-r from-blue-600/10 via-transparent to-orange-600/10"
             style={{
               transform: `translateY(calc(var(--parallax-y, 0px) * 0.3))`,
               transition: "transform 0.1s ease-out",

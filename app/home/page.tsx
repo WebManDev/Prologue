@@ -39,6 +39,7 @@ import {
   Edit,
   Trash2,
   FileText,
+  RotateCcw,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
@@ -398,6 +399,21 @@ export default function MemberHomePage() {
   const [profileCache, setProfileCache] = useState<Record<string, any>>({})
   const [commentInputs, setCommentInputs] = useState<{ [postId: string]: string }>({})
   const [comments, setComments] = useState<{ [postId: string]: any[] }>({})
+  const [refreshing, setRefreshing] = useState(false)
+
+  // Function to manually refresh posts
+  const handleRefreshFeed = async () => {
+    setRefreshing(true)
+    try {
+      const q = query(collection(db, "posts"), orderBy("createdAt", "desc"))
+      const snapshot = await getDocs(q)
+      setFirebasePosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+    } catch (err) {
+      console.error("Failed to refresh feed:", err)
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   // Fetch posts
   useEffect(() => {
@@ -732,6 +748,19 @@ export default function MemberHomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8">
           {/* Main Feed */}
           <div className="lg:col-span-8">
+            {/* Refresh Feed Button */}
+            <div className="flex justify-end mb-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefreshFeed}
+                disabled={refreshing}
+                className="flex items-center space-x-2"
+              >
+                <RotateCcw className={refreshing ? "animate-spin h-4 w-4 mr-2" : "h-4 w-4 mr-2"} />
+                <span>{refreshing ? "Refreshing..." : "Refresh Feed"}</span>
+              </Button>
+            </div>
             {/* Stories Section */}
 
             {/* Create Post Section */}

@@ -222,8 +222,10 @@ const ProfileHeader = forwardRef<ProfileHeaderHandle, ProfileHeaderProps>(
                     {isEditing ? (
                       <Input
                         ref={el => { inputRefs.current["experience"] = el }}
+                        type="number"
+                        min={0}
                         value={formData.experience}
-                        onChange={e => handleInputChange("experience", e.target.value)}
+                        onChange={e => handleInputChange("experience", e.target.value.replace(/[^0-9]/g, ''))}
                         onBlur={handleFieldBlur}
                         onKeyDown={handleFieldKeyDown}
                         className="text-sm"
