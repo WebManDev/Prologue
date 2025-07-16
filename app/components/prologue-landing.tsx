@@ -7,6 +7,7 @@ import Link from "next/link"
 import { useEffect, useState, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import RoleSelectionLogin from "./RoleSelectionLogin"
+import { ContactPopup } from "./ui/contact-popup"
 
 interface PrologueLandingProps {
   onLoginClick: () => void
@@ -22,6 +23,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
   const heroRef = useRef<HTMLElement>(null)
   const [isLoaded, setIsLoaded] = useState(false)
   const [showRoleSelection, setShowRoleSelection] = useState(false)
+  const [showContactPopup, setShowContactPopup] = useState(false)
 
   // Enhanced scroll handler with direction detection
   const handleScroll = useCallback(() => {
@@ -194,12 +196,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
 
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-8">
-          <Link
-            href="#mentors"
-            className="text-sm font-athletic font-medium text-gray-300 hover:text-prologue-electric transition-all duration-300 hover:scale-105 tracking-wide"
-          >
-            VIEW MENTORS
-          </Link>
+          {/* Removed VIEW MENTORS link */}
           <Link
             href="/for-creators"
             className="text-sm font-athletic font-medium text-gray-300 hover:text-prologue-electric transition-all duration-300 hover:scale-105 tracking-wide"
@@ -599,12 +596,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
               <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-8">
                 {/* Mobile-only navigation */}
                 <div className="flex md:hidden items-center space-x-6 mb-2">
-                  <Link
-                    href="#mentors"
-                    className="text-gray-300 hover:text-white text-sm font-athletic font-medium tracking-wide transition-all duration-300 hover:scale-105"
-                  >
-                    VIEW MENTORS
-                  </Link>
+                  {/* Removed VIEW MENTORS link */}
                   <Link
                     href="/for-creators"
                     className="text-gray-300 hover:text-white text-sm font-athletic font-medium tracking-wide transition-all duration-300 hover:scale-105"
@@ -622,7 +614,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
                     SIGN UP
                   </button>
                   <Link
-                    href="#terms"
+                    href="/terms"
                     className="text-gray-300 hover:text-white text-sm font-athletic font-medium tracking-wide transition-all duration-300 hover:scale-105"
                   >
                     TERMS
@@ -643,6 +635,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
                   variant="outline"
                   size="sm"
                   className="border-slate-600 text-gray-300 hover:bg-slate-700 hover:text-white hover:border-slate-500 transition-all duration-300 hover:scale-105 font-athletic font-medium tracking-wide rounded-none"
+                  onClick={() => setShowContactPopup(true)}
                 >
                   CONTACT US
                 </Button>
@@ -667,6 +660,9 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
           </div>
         </div>
       )}
+
+      {/* Contact Popup */}
+      <ContactPopup isOpen={showContactPopup} onClose={() => setShowContactPopup(false)} />
     </div>
   )
-} 
+}
