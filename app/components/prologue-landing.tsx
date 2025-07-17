@@ -53,6 +53,17 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
     }
   }, [lastScrollY])
 
+  // Dynamically set hero height for mobile browsers (full viewport, including behind header)
+  useEffect(() => {
+    function setHeroHeightVar() {
+      const vh = window.innerHeight;
+      document.documentElement.style.setProperty('--hero-mobile-height', `${vh}px`);
+    }
+    setHeroHeightVar();
+    window.addEventListener('resize', setHeroHeightVar);
+    return () => window.removeEventListener('resize', setHeroHeightVar);
+  }, []);
+
   useEffect(() => {
     // Simple page load
     const handlePageLoad = () => {
@@ -219,13 +230,16 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
         </nav>
       </header>
 
-      <main className="flex-1 pt-16">
+      <main className="flex-1 pt-0 md:pt-16">
         {/* Hero Section with Parallax */}
         <section
           ref={heroRef}
-          className="relative flex flex-col items-center justify-center min-h-[60vh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-center px-4"
+          className="relative flex flex-col items-center justify-center md:min-h-[60vh] bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-center px-4"
           style={{
             transition: "transform 0.1s ease-out",
+            height: 'var(--hero-mobile-height)',
+            minHeight: 'var(--hero-mobile-height)',
+            // On desktop, fallback to min-h-[60vh] via Tailwind
           }}
         >
           {/* Video Background */}
@@ -241,21 +255,23 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
           />
           {/* Optional dark overlay for readability */}
           <div className="absolute inset-0 bg-black/60 z-0 pointer-events-none" />
+          {/* Bigger white blur behind text */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] h-[40vw] max-w-[600px] max-h-[250px] bg-white/40 blur-2xl rounded-full z-0" style={{opacity:0.7}} />
           <div className="z-10">
-            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-white mb-4 leading-tight font-athletic">
+            <h1 className="text-6xl md:text-7xl font-extrabold tracking-tight text-white mb-2 leading-tight font-athletic">
               <span className="font-athletic">TRAIN WITH</span> <br />
-              <span className="text-prologue-electric block font-athletic">CHAMPIONS</span>
-              <span className="text-prologue-fire block font-athletic">BECOME ONE</span>
+              <span className="text-prologue-electric block font-athletic text-7xl md:text-8xl">CHAMPIONS</span>
+              <span className="text-prologue-fire block font-athletic text-7xl md:text-8xl">BECOME ONE</span>
             </h1>
-            <p className="text-base md:text-xl text-blue-200 font-medium mb-8 max-w-2xl mx-auto">
+            <p className="text-base md:text-xl text-blue-200 font-medium mb-4 max-w-2xl mx-auto">
               Transform your game with coaching from top college athletes—because greatness is built, not born.
             </p>
             <Button
               size="lg"
-              className="bg-gradient-to-r from-blue-500 to-orange-500 hover:from-blue-600 hover:to-orange-600 text-white px-8 py-3 text-lg font-bold rounded shadow-lg transition-all duration-300"
+              className="bg-gradient-to-r from-blue-500 to-orange-500 hover:from-blue-600 hover:to-orange-600 text-white px-10 py-5 text-xl font-bold rounded shadow-lg transition-all duration-300 mt-2 mb-0"
               onClick={onSignUpClick}
             >
-              START TRAINING NOW <ArrowRight className="ml-2 h-5 w-5" />
+              START TRAINING NOW <ArrowRight className="ml-2 h-6 w-6" />
             </Button>
           </div>
         </section>
