@@ -45,6 +45,10 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, comments, onAdd
   const [editingComment, setEditingComment] = useState<string | null>(null)
   const [editInput, setEditInput] = useState<{ [key: string]: string }>({})
   const [profileCache, setProfileCache] = useState<Record<string, any>>({});
+  const [showAllComments, setShowAllComments] = useState(false); // NEW
+  const [expandedReplies, setExpandedReplies] = useState<{ [commentId: string]: boolean }>({}); // NEW
+  const [expandedDepthReplies, setExpandedDepthReplies] = useState<{ [commentId: string]: boolean }>({}); // NEW for depth-based expansion
+  const maxDepth = 2; // Change this value to set how many levels deep to show by default
 
   // Add this line to fix the linter error
   const replyInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
@@ -92,19 +96,20 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, comments, onAdd
     return 'User';
   }
 
-  // Helper to build nested comment tree
+  // Helper to robustly build nested comment tree from flat array
   function buildCommentTree(comments: Comment[]): Comment[] {
+    if (!Array.isArray(comments)) return [];
     const commentMap: { [id: string]: Comment & { replies: Comment[] } } = {};
     const roots: Comment[] = [];
     comments.forEach(comment => {
+      if (!comment || !comment.id) return;
       commentMap[comment.id] = { ...comment, replies: [] };
     });
     comments.forEach(comment => {
-      if (comment.parentId) {
-        if (commentMap[comment.parentId]) {
-          commentMap[comment.parentId].replies.push(commentMap[comment.id]);
-        }
-      } else {
+      if (!comment || !comment.id) return;
+      if (comment.parentId && commentMap[comment.parentId]) {
+        commentMap[comment.parentId].replies.push(commentMap[comment.id]);
+      } else if (!comment.parentId) {
         roots.push(commentMap[comment.id]);
       }
     });
@@ -147,124 +152,254 @@ const CommentSection: React.FC<CommentSectionProps> = ({ postId, comments, onAdd
     setEditInput({})
   }
 
-  // Enhanced renderComment to support deeper nesting
-  const renderComment = (comment: Comment, level = 0) => (
-    <div key={comment.id} className={`flex items-start space-x-3 ${level > 0 ? `ml-[${Math.min(level * 16, 64)}px] border-l-2 border-gray-200 pl-4` : "mt-4"}`}>
-      <div className="w-9 h-9 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
-        {(() => {
-          const profile = profileCache[comment.createdBy as string] || {};
-          const profileImageUrl = comment.userAvatar || profile.profileImageUrl || profile.profilePic || profile.profilePicture;
-          
-          if (profileImageUrl) {
-            return <Image src={profileImageUrl} alt={getDisplayName(comment)} width={36} height={36} />;
-          } else {
-            return <User className="w-full h-full text-gray-500 p-2" />;
-          }
-        })()}
-      </div>
-      <div className="flex-1">
-        <div className="flex items-center space-x-2">
-          {/* Only show name if at least one of first or last is valid */}
+  // Enhanced renderComment to support deeper nesting and reply limiting
+  const renderComment = (comment: Comment, level = 0) => {
+    if (!comment) return null;
+    const replies = Array.isArray(comment.replies) ? comment.replies : [];
+    const showAll = !!expandedReplies[comment.id];
+    const showDeeper = !!expandedDepthReplies[comment.id];
+    // If we've reached maxDepth and not expanded, show 'Load more replies' button
+    if (level >= maxDepth && !showDeeper && replies.length > 0) {
+      return (
+        <div key={comment.id} className={`flex items-start space-x-3 ${level > 0 ? `ml-[${Math.min(level * 16, 64)}px] border-l-2 border-gray-200 pl-4` : "mt-4"}`}>
+          <div className="w-9 h-9 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
+            {(() => {
+              const profile = profileCache[comment.createdBy as string] || {};
+              const profileImageUrl = comment.userAvatar || profile.profileImageUrl || profile.profilePic || profile.profilePicture;
+              if (profileImageUrl) {
+                return <Image src={profileImageUrl} alt={getDisplayName(comment)} width={36} height={36} />;
+              } else {
+                return <User className="w-full h-full text-gray-500 p-2" />;
+              }
+            })()}
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center space-x-2">
+              {(() => {
+                const profile = profileCache[comment.createdBy as string] || {};
+                const firstName = profile.firstName && typeof profile.firstName === 'string' ? profile.firstName : '';
+                const lastName = profile.lastName && typeof profile.lastName === 'string' ? profile.lastName : '';
+                if (firstName || lastName) {
+                  return <span className="font-semibold text-gray-900 text-sm">{`${firstName}${firstName && lastName ? ' ' : ''}${lastName}`}</span>;
+                }
+                return null;
+              })()}
+            </div>
+            {editingComment === comment.id ? (
+              <form className="mt-2 flex items-center space-x-2" onSubmit={(e) => handleEditComment(comment.id, e)}>
+                <input
+                  type="text"
+                  className="flex-1 bg-gray-100 rounded-full px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
+                  placeholder="Edit your comment..."
+                  value={editInput[comment.id] || ""}
+                  onChange={e => setEditInput(prev => ({ ...prev, [comment.id]: e.target.value }))}
+                />
+                <Button type="submit" size="sm" className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white">Save</Button>
+                <Button type="button" size="sm" variant="outline" className="px-3 py-1 text-xs" onClick={handleCancelEdit}>Cancel</Button>
+              </form>
+            ) : (
+              <div className="text-gray-800 text-sm mb-1 whitespace-pre-line">
+                {comment.content}
+                {comment.editedAt && (
+                  <span className="text-xs text-gray-500 ml-2">(edited)</span>
+                )}
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4 text-xs text-gray-500">
+                <button
+                  className={`flex items-center space-x-1 ${comment.isLiked ? "text-red-500" : "hover:text-red-500"}`}
+                  onClick={() => onLikeComment(comment.id)}
+                  type="button"
+                >
+                  <Heart className={`h-4 w-4 ${comment.isLiked ? "fill-current text-red-500" : ""}`} />
+                  <span>{comment.likes}</span>
+                </button>
+                <button
+                  className="hover:text-prologue-electric"
+                  onClick={() => setReplyingTo(comment.id)}
+                  type="button"
+                >
+                  Reply
+                </button>
+              </div>
+              {currentUserId && comment.createdBy === currentUserId && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="p-1 rounded hover:bg-gray-100">
+                      <MoreHorizontal className="h-4 w-4 text-gray-400" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleStartEdit(comment.id, comment.content)}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onDeleteComment(comment.id)} className="text-red-600">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+            {/* Reply input */}
+            {replyingTo === comment.id && (
+              <form className="mt-2 flex items-center space-x-2" onSubmit={(e) => handleAddReply(comment.id, e)}>
+                <input
+                  type="text"
+                  className="flex-1 bg-gray-100 rounded-full px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
+                  placeholder="Add a reply..."
+                  value={replyInput[comment.id] || ""}
+                  onChange={e => setReplyInput(prev => ({ ...prev, [comment.id]: e.target.value }))}
+                  ref={el => { replyInputRefs.current[comment.id] = el; }}
+                />
+                <Button type="submit" size="sm" className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white">Post</Button>
+              </form>
+            )}
+            {/* Show load more replies button if at maxDepth */}
+            <div className="mt-2">
+              <button
+                className="text-blue-500 hover:underline text-xs mb-1 ml-2"
+                onClick={() => setExpandedDepthReplies(prev => ({ ...prev, [comment.id]: true }))}
+              >
+                Load more replies
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    // Otherwise, render as usual
+    return (
+      <div key={comment.id} className={`flex items-start space-x-3 ${level > 0 ? `ml-[${Math.min(level * 16, 64)}px] border-l-2 border-gray-200 pl-4` : "mt-4"}`}>
+        <div className="w-9 h-9 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
           {(() => {
             const profile = profileCache[comment.createdBy as string] || {};
-            const firstName = profile.firstName && typeof profile.firstName === 'string' ? profile.firstName : '';
-            const lastName = profile.lastName && typeof profile.lastName === 'string' ? profile.lastName : '';
-            if (firstName || lastName) {
-              return <span className="font-semibold text-gray-900 text-sm">{`${firstName}${firstName && lastName ? ' ' : ''}${lastName}`}</span>;
+            const profileImageUrl = comment.userAvatar || profile.profileImageUrl || profile.profilePic || profile.profilePicture;
+            if (profileImageUrl) {
+              return <Image src={profileImageUrl} alt={getDisplayName(comment)} width={36} height={36} />;
+            } else {
+              return <User className="w-full h-full text-gray-500 p-2" />;
             }
-            return null;
           })()}
-          {/* Removed time-ago display */}
         </div>
-        {editingComment === comment.id ? (
-          <form className="mt-2 flex items-center space-x-2" onSubmit={(e) => handleEditComment(comment.id, e)}>
-            <input
-              type="text"
-              className="flex-1 bg-gray-100 rounded-full px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
-              placeholder="Edit your comment..."
-              value={editInput[comment.id] || ""}
-              onChange={e => setEditInput(prev => ({ ...prev, [comment.id]: e.target.value }))}
-            />
-            <Button type="submit" size="sm" className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white">Save</Button>
-            <Button type="button" size="sm" variant="outline" className="px-3 py-1 text-xs" onClick={handleCancelEdit}>Cancel</Button>
-          </form>
-        ) : (
-          <div className="text-gray-800 text-sm mb-1 whitespace-pre-line">
-            {comment.content}
-            {comment.editedAt && (
-              <span className="text-xs text-gray-500 ml-2">(edited)</span>
+        <div className="flex-1">
+          <div className="flex items-center space-x-2">
+            {(() => {
+              const profile = profileCache[comment.createdBy as string] || {};
+              const firstName = profile.firstName && typeof profile.firstName === 'string' ? profile.firstName : '';
+              const lastName = profile.lastName && typeof profile.lastName === 'string' ? profile.lastName : '';
+              if (firstName || lastName) {
+                return <span className="font-semibold text-gray-900 text-sm">{`${firstName}${firstName && lastName ? ' ' : ''}${lastName}`}</span>;
+              }
+              return null;
+            })()}
+          </div>
+          {editingComment === comment.id ? (
+            <form className="mt-2 flex items-center space-x-2" onSubmit={(e) => handleEditComment(comment.id, e)}>
+              <input
+                type="text"
+                className="flex-1 bg-gray-100 rounded-full px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
+                placeholder="Edit your comment..."
+                value={editInput[comment.id] || ""}
+                onChange={e => setEditInput(prev => ({ ...prev, [comment.id]: e.target.value }))}
+              />
+              <Button type="submit" size="sm" className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white">Save</Button>
+              <Button type="button" size="sm" variant="outline" className="px-3 py-1 text-xs" onClick={handleCancelEdit}>Cancel</Button>
+            </form>
+          ) : (
+            <div className="text-gray-800 text-sm mb-1 whitespace-pre-line">
+              {comment.content}
+              {comment.editedAt && (
+                <span className="text-xs text-gray-500 ml-2">(edited)</span>
+              )}
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4 text-xs text-gray-500">
+              <button
+                className={`flex items-center space-x-1 ${comment.isLiked ? "text-red-500" : "hover:text-red-500"}`}
+                onClick={() => onLikeComment(comment.id)}
+                type="button"
+              >
+                <Heart className={`h-4 w-4 ${comment.isLiked ? "fill-current text-red-500" : ""}`} />
+                <span>{comment.likes}</span>
+              </button>
+              <button
+                className="hover:text-prologue-electric"
+                onClick={() => setReplyingTo(comment.id)}
+                type="button"
+              >
+                Reply
+              </button>
+            </div>
+            {currentUserId && comment.createdBy === currentUserId && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="p-1 rounded hover:bg-gray-100">
+                    <MoreHorizontal className="h-4 w-4 text-gray-400" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleStartEdit(comment.id, comment.content)}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onDeleteComment(comment.id)} className="text-red-600">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
-        )}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4 text-xs text-gray-500">
-            <button
-              className={`flex items-center space-x-1 ${comment.isLiked ? "text-red-500" : "hover:text-red-500"}`}
-              onClick={() => onLikeComment(comment.id)}
-              type="button"
-            >
-              <Heart className={`h-4 w-4 ${comment.isLiked ? "fill-current text-red-500" : ""}`} />
-              <span>{comment.likes}</span>
-            </button>
-            <button
-              className="hover:text-prologue-electric"
-              onClick={() => setReplyingTo(comment.id)}
-              type="button"
-            >
-              Reply
-            </button>
-          </div>
-          {currentUserId && comment.createdBy === currentUserId && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="p-1 rounded hover:bg-gray-100">
-                  <MoreHorizontal className="h-4 w-4 text-gray-400" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handleStartEdit(comment.id, comment.content)}>
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onDeleteComment(comment.id)} className="text-red-600">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          {/* Reply input */}
+          {replyingTo === comment.id && (
+            <form className="mt-2 flex items-center space-x-2" onSubmit={(e) => handleAddReply(comment.id, e)}>
+              <input
+                type="text"
+                className="flex-1 bg-gray-100 rounded-full px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
+                placeholder="Add a reply..."
+                value={replyInput[comment.id] || ""}
+                onChange={e => setReplyInput(prev => ({ ...prev, [comment.id]: e.target.value }))}
+              />
+              <Button type="submit" size="sm" className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white">Post</Button>
+            </form>
+          )}
+          {/* Render replies with depth limit */}
+          {replies.length > 0 && (
+            <div className="mt-2 space-y-2">
+              {replies.map((reply) => renderComment(reply, level + 1))}
+            </div>
           )}
         </div>
-        {/* Reply input */}
-        {replyingTo === comment.id && (
-          <form className="mt-2 flex items-center space-x-2" onSubmit={(e) => handleAddReply(comment.id, e)}>
-            <input
-              type="text"
-              className="flex-1 bg-gray-100 rounded-full px-3 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-prologue-electric/20"
-              placeholder="Add a reply..."
-              value={replyInput[comment.id] || ""}
-              onChange={e => setReplyInput(prev => ({ ...prev, [comment.id]: e.target.value }))}
-              ref={el => { replyInputRefs.current[comment.id] = el; }}
-            />
-            <Button type="submit" size="sm" className="px-3 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white">Post</Button>
-          </form>
-        )}
-        {/* Render replies */}
-        {comment.replies && comment.replies.length > 0 && (
-          <div className="mt-2 space-y-2">
-            {comment.replies.map(reply => renderComment(reply, level + 1))}
-          </div>
-        )}
       </div>
-    </div>
-  )
+    );
+  };
+
+  // --- Instagram-like comment preview logic ---
+  const commentTree = buildCommentTree(comments);
+  const topLevelCount = commentTree.length;
+  const commentsToShow = showAllComments ? commentTree : commentTree.slice(0, 2);
 
   return (
     <div>
       <div className="mb-4">
-        {comments.length === 0 ? (
+        {topLevelCount === 0 ? (
           <div className="text-gray-500 text-sm">No comments yet. Be the first to comment!</div>
         ) : (
-          buildCommentTree(comments).map(comment => renderComment(comment, 0))
+          <>
+            {!showAllComments && topLevelCount > 2 && (
+              <button
+                className="text-blue-500 hover:underline text-sm mb-2"
+                onClick={() => setShowAllComments(true)}
+              >
+                View all {topLevelCount} comments
+              </button>
+            )}
+            {commentsToShow.map(comment => renderComment(comment, 0))}
+          </>
         )}
       </div>
       <form className="flex items-center space-x-2" onSubmit={handleAddComment}>
