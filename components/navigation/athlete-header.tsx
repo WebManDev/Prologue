@@ -134,17 +134,16 @@ export function AthleteHeader({
                 }`}></div>
               </Link>
               <Link
-                href="/notifications"
+                href="/athleteDashboard"
                 className={`flex flex-col items-center space-y-1 transition-colors group ${
-                  currentPath === "/notifications" ? "text-blue-500" : "text-gray-700 hover:text-blue-500"
+                  currentPath === "/athleteDashboard" ? "text-blue-500" : "text-gray-700 hover:text-blue-500"
                 }`}
               >
-                <Bell className="h-5 w-5" />
-                <span className="text-xs font-medium">Notifications</span>
+                <User className="h-5 w-5" />
+                <span className="text-xs font-medium">Profile</span>
                 <div className={`w-full h-0.5 bg-blue-500 transition-opacity ${
-                  currentPath === "/notifications" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                  currentPath === "/athleteDashboard" ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                 }`}></div>
-                {unreadNotifications > 0 && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
               </Link>
             </nav>
 
