@@ -49,6 +49,7 @@ import { getAthleteProfile, getMemberProfile } from "@/lib/firebase"
 import AthleteMobileNavigation from "@/components/mobile/athlete-mobile-navigation"
 import { usePathname } from "next/navigation"
 import { AutoplayVideo } from "@/components/ui/autoplay-video"
+import { AthleteHeader } from "@/components/navigation/athlete-header"
 
 // Helper: Upload a file to Firebase Storage and return the download URL
 async function uploadFileToStorage(path: string, file: File): Promise<string> {
@@ -846,8 +847,21 @@ export default function ContentPage() {
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<any>(null);
 
+  // Desktop header (web version)
+  const isWeb = !(isMobile || isTablet)
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {isWeb && (
+        <AthleteHeader
+          currentPath="/content"
+          onLogout={logout}
+          unreadNotifications={0} // Replace with actual notification count if available
+          unreadMessages={0} // Replace with actual message count if available
+          profileImageUrl={profileImageUrl}
+          profileData={userProfile}
+        />
+      )}
       {/* Mobile Header - Fixed Navigation */}
       <header className="lg:hidden bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="flex items-center justify-between h-16 px-4">
@@ -961,160 +975,6 @@ export default function ContentPage() {
             </div>
           </div>
         )}
-      </header>
-
-      {/* Desktop Header */}
-      <header className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
-                <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
-                  <Image
-                    src="/Prologue LOGO-1.png"
-                    alt="PROLOGUE"
-                    width={32}
-                    height={32}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
-                  PROLOGUE
-                </span>
-              </Link>
-
-              <div className="flex items-center space-x-1 relative" ref={searchRef}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search content..."
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="w-80 pl-10 pr-10 py-2 bg-gray-100 rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    onFocus={handleSearchFocus}
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={clearSearch}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Search Dropdown */}
-                {showSearchDropdown && (
-                  <div className="absolute top-full left-0 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                    <div className="p-3 border-b border-gray-100">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2">Quick Searches</h4>
-                      <div className="space-y-1">
-                        {quickSearches.slice(0, 8).map((search, index) => (
-                          <button
-                            key={index}
-                            className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-blue-500 rounded transition-colors"
-                            onClick={() => handleSearchSelect(search)}
-                          >
-                            {search}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-6">
-              <nav className="flex items-center space-x-6">
-                <Link
-                  href="/home"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
-                >
-                  <Home className="h-5 w-5" />
-                  <span className="text-xs font-medium">Home</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/content"
-                  className="flex flex-col items-center space-y-1 text-blue-500 transition-colors group relative"
-                >
-                  <FileText className="h-5 w-5" />
-                  <span className="text-xs font-medium">Content</span>
-                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-500 rounded-full"></div>
-                </Link>
-                <Link
-                  href="/feedback"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
-                >
-                  <MessageSquare className="h-5 w-5" />
-                  <span className="text-xs font-medium">Feedback</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </Link>
-                <Link
-                  href="/messaging"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  <span className="text-xs font-medium">Messages</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
-                </Link>
-                <Link
-                  href="/notifications"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group"
-                >
-                  <Bell className="h-5 w-5" />
-                  <span className="text-xs font-medium">Notifications</span>
-                  <div className="w-full h-0.5 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
-                </Link>
-              </nav>
-
-              <div className="flex items-center space-x-3">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center space-x-2 p-2" disabled={loadingState.isLoading}>
-                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                        {userProfile?.profileImageUrl || userProfile?.coverPhotoUrl ? (
-                          <Image src={userProfile.profileImageUrl || userProfile.coverPhotoUrl} alt="Profile" width={32} height={32} className="w-full h-full object-cover" />
-                        ) : (
-                          <User className="w-full h-full text-gray-500 p-1" />
-                        )}
-                      </div>
-                      <ChevronDown className="h-4 w-4 text-gray-500" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem asChild>
-                      <Link href="/athleteDashboard" className="flex items-center w-full cursor-pointer">
-                        <LayoutDashboard className="h-4 w-4 mr-2" />
-                        Profile
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/promote" className="flex items-center w-full cursor-pointer">
-                        <TrendingUp className="h-4 w-4 mr-2" />
-                        Promote
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/settings" className="flex items-center w-full cursor-pointer">
-                        <Settings className="h-4 w-4 mr-2" />
-                        Settings
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer" disabled={loadingState.isLoading}>
-                      <LogOut className="h-4 w-4 mr-2" />
-                      {loadingState.isLoading ? "Logging out..." : "Logout"}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-        </div>
       </header>
 
       {/* Main Content */}

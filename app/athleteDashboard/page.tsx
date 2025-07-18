@@ -48,6 +48,7 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth } from "@/lib/firebase";
 import AthleteDashboardMobileLayout from "@/components/mobile/athlete-dashboard-mobile-layout"
+import { AthleteHeader } from "@/components/navigation/athlete-header"
 
 const initialProfileData = {
   firstName: "",
@@ -344,119 +345,6 @@ export default function DashboardPage() {
     ],
   )
 
-  const DesktopHeader = useMemo(
-    () => (
-      <header className="hidden lg:block bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/home" className="flex items-center space-x-3 group cursor-pointer">
-                <div className="w-8 h-8 relative transition-transform group-hover:scale-110">
-                  <Image
-                    src="/prologue-logo.png"
-                    alt="PROLOGUE"
-                    width={32}
-                    height={32}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <span className="text-xl font-athletic font-bold text-gray-900 group-hover:text-blue-500 transition-colors tracking-wider">
-                  PROLOGUE
-                </span>
-              </Link>
-              {SearchComponent}
-            </div>
-            <div className="flex items-center space-x-6">
-              <nav className="flex items-center space-x-6">
-                <Link
-                  href="/home"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
-                >
-                  <Home className="h-5 w-5" />
-                  <span className="text-xs font-medium">Home</span>
-                </Link>
-                <Link
-                  href="/content"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
-                >
-                  <FileText className="h-5 w-5" />
-                  <span className="text-xs font-medium">Content</span>
-                </Link>
-                <Link
-                  href="/feedback"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
-                >
-                  <MessageSquare className="h-5 w-5" />
-                  <span className="text-xs font-medium">Feedback</span>
-                </Link>
-                <Link
-                  href="/messaging"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors group"
-                >
-                  <MessageCircle className="h-5 w-5" />
-                  <span className="text-xs font-medium">Messages</span>
-                </Link>
-                <Link
-                  href="/notifications"
-                  className="flex flex-col items-center space-y-1 text-gray-700 hover:text-blue-500 transition-colors relative group"
-                >
-                  <Bell className="h-5 w-5" />
-                  <span className="text-xs font-medium">Notifications</span>
-                  {hasUnreadMessages && <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>}
-                </Link>
-              </nav>
-              <div className="flex items-center space-x-3">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="flex items-center space-x-2 p-2"
-                      disabled={loadingState.isLoading}
-                    >
-                      <div className="w-8 h-8 bg-gray-300 rounded-full overflow-hidden">
-                        <User className="w-full h-full text-gray-500 p-1" />
-                      </div>
-                      <ChevronDown className="h-4 w-4 text-gray-500" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem>
-                      <Link href="/dashboard" className="flex items-center w-full">
-                        <LayoutDashboard className="h-4 w-4 mr-2" />
-                        Profile
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Link href="/promote" className="flex items-center w-full">
-                        <TrendingUp className="h-4 w-4 mr-2" />
-                        Promote
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Link href="/athlete-settings" className="flex items-center w-full">
-                        <Settings className="h-4 w-4 mr-2" />
-                        Settings
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={handleLogout}
-                      className="cursor-pointer"
-                      disabled={loadingState.isLoading}
-                    >
-                      <LogOut className="h-4 w-4 mr-2" />
-                      {loadingState.isLoading ? "Logging out..." : "Logout"}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-    ),
-    [SearchComponent, hasUnreadMessages, loadingState.isLoading, handleLogout],
-  )
-
   const DesktopContent = () => (
     <main className="max-w-7xl mx-auto px-6 py-8">
       <div className="relative">
@@ -518,7 +406,14 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {DesktopHeader}
+      <AthleteHeader
+        currentPath="/athleteDashboard"
+        onLogout={handleLogout}
+        unreadNotifications={hasUnreadMessages ? 1 : 0}
+        unreadMessages={hasUnreadMessages ? 1 : 0}
+        profileImageUrl={profileData.profilePhotoUrl}
+        profileData={profileData}
+      />
       <DesktopContent />
       <LogoutNotification
         isVisible={loadingState.isVisible}
