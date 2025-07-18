@@ -11,7 +11,8 @@ import { useRouter } from "next/navigation"
 import { doc, updateDoc, arrayUnion, setDoc } from "firebase/firestore"
 
 // Initialize Stripe with publishable key
-const stripePromise = loadStripe("pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu")
+if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) throw new Error('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY env var not set');
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
 
 interface SubscriptionCheckoutProps {
   athlete: {

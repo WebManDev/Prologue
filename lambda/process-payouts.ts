@@ -15,7 +15,8 @@ if (!getApps().length) {
 }
 
 const db = getFirestore();
-const stripe = new Stripe('sk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu', {
+if (!process.env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY env var not set');
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2025-05-28.basil',
 });
 

@@ -17,7 +17,8 @@ interface MemberMessagingInterfaceProps {
   onBack: () => void
 }
 
-const STRIPE_PUBLISHABLE_KEY = "pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu";
+if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) throw new Error('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY env var not set');
+const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
 export function MemberMessagingInterface({ coach, onBack }: MemberMessagingInterfaceProps) {
   const [message, setMessage] = useState("")

@@ -1,7 +1,9 @@
 import Stripe from "stripe"
 
-const STRIPE_SECRET_KEY = "sk_test_51RTKV905oLGlYeZ0Xn4UdqK51tP3a8yUFs0fqHUQr56s7AKx2uUeNjbgb9K2g0EL4suY05tfROpWYhasGgL3Rec400yiOHmTON";
-const STRIPE_PUBLISHABLE_KEY = "pk_test_51RTKV905oLGlYeZ0j3Dl8jKIYNYIFU1kuNMLZhvXECRhTVNIqdAHQTe5Dq5AEZ0eVMI7HRyopowo34ZAtFWp8V9H00pznHlYqu";
+if (!process.env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY env var not set');
+if (!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) throw new Error('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY env var not set');
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
 // Initialize Stripe with the secret key
 export const stripe = new Stripe(
@@ -12,7 +14,7 @@ export const stripe = new Stripe(
 // Stripe configuration
 export const STRIPE_CONFIG = {
   publishableKey: STRIPE_PUBLISHABLE_KEY,
-  webhookSecret: process.env.STRIPE_WEBHOOK_SECRET!,
+  webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
   currency: "usd",
   platformFeePercentage: 15, // 15% platform fee (athlete's share is 85%)
   monthlySubscriptionPrice: 10, // $10/month for athlete subscriptions

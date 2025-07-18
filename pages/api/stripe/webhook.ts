@@ -48,7 +48,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   let event
   try {
-    const webhookSecret = 'whsec_7d57fc81975a16070864998d4bc838507ac1927b909384951a78c54a84e71ba0';
+    if (!process.env.STRIPE_WEBHOOK_SECRET) throw new Error('STRIPE_WEBHOOK_SECRET env var not set');
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     event = stripe.webhooks.constructEvent(buf, sig!, webhookSecret)
     
     // DEBUG: Webhook signature verified successfully
