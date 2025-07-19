@@ -62,74 +62,67 @@ export function AthleteStripeConnect({ athleteData }: AthleteStripeConnectProps)
 
       const idToken = await user.getIdToken()
 
-      if (!stripeAccountId) {
-        // Create new Stripe Connect account
-        const createResponse = await fetch('/api/stripe/create-connect-account', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({
-            email: athleteData.email,
-            firstName: athleteData.firstName,
-            lastName: athleteData.lastName,
-            country: 'US',
-          }),
-        })
-
-        const createText = await createResponse.text();
-        const createData = createText ? JSON.parse(createText) : {};
-        if (!createResponse.ok) {
-          throw new Error(createData.error || 'Failed to create Stripe account')
-        }
-
-        // Create account link for onboarding
-        const linkResponse = await fetch('/api/stripe/create-account-link', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ account: createData.account }),
-        })
-
-        const linkText = await linkResponse.text();
-        const linkData = linkText ? JSON.parse(linkText) : {};
-        if (!linkResponse.ok) {
-          throw new Error(linkData.error || 'Failed to create account link')
-        }
-
-        // Save the account ID to the athlete's profile
+      // Clear existing Stripe account ID to force creation of new account with proper branding
+      if (stripeAccountId) {
         await fetch('/api/athlete/save-stripe-id', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${idToken}`,
           },
-          body: JSON.stringify({ stripeAccountId: createData.account }),
+          body: JSON.stringify({ stripeAccountId: null }),
         })
-
-        // Redirect to Stripe onboarding
-        window.location.href = linkData.url
-      } else {
-        // Create login link for existing account
-        const loginResponse = await fetch('/api/stripe/create-login-link', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ accountId: stripeAccountId }),
-        })
-
-        const loginText = await loginResponse.text();
-        const loginData = loginText ? JSON.parse(loginText) : {};
-        if (!loginResponse.ok) {
-          throw new Error(loginData.error || 'Failed to create login link')
-        }
-
-        // Redirect to Stripe dashboard
-        window.location.href = loginData.loginUrl
+        setStripeAccountId(null)
       }
+
+      // Create new Stripe Connect account
+      const createResponse = await fetch('/api/stripe/create-connect-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          email: athleteData.email,
+          firstName: athleteData.firstName,
+          lastName: athleteData.lastName,
+          country: 'US',
+        }),
+      })
+
+      const createText = await createResponse.text();
+      const createData = createText ? JSON.parse(createText) : {};
+      if (!createResponse.ok) {
+        throw new Error(createData.error || 'Failed to create Stripe account')
+      }
+
+      // Create account link for onboarding
+      const linkResponse = await fetch('/api/stripe/create-account-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ account: createData.account }),
+      })
+
+      const linkText = await linkResponse.text();
+      const linkData = linkText ? JSON.parse(linkText) : {};
+      if (!linkResponse.ok) {
+        throw new Error(linkData.error || 'Failed to create account link')
+      }
+
+      // Save the account ID to the athlete's profile
+      await fetch('/api/athlete/save-stripe-id', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ stripeAccountId: createData.account }),
+      })
+
+      // Redirect to Stripe onboarding
+      window.location.href = linkData.url
     } catch (error: any) {
       console.error('Stripe Connect error:', error)
       setError(error.message || 'Failed to manage payment account')
