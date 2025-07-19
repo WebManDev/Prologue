@@ -40,6 +40,7 @@ export async function createAthleteStripeAccount(athleteData: {
         product_description: "Athletic coaching and training content subscriptions",
         url: "https://prologuehq.com",
         mcc: "7997", // Athletic and Recreational Services
+        name: "Prologue", // This should show in the onboarding interface
       },
       business_type: "individual",
       individual: {

@@ -137,6 +137,51 @@ export function AthleteStripeConnect({ athleteData }: AthleteStripeConnectProps)
     }
   }
 
+  const handleUpdateBranding = async () => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const auth = getAuth()
+      const user = auth.currentUser
+      if (!user) {
+        throw new Error('User not authenticated')
+      }
+
+      const idToken = await user.getIdToken()
+
+      const response = await fetch('/api/stripe/update-account-branding', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update branding')
+      }
+
+      toast({
+        title: "Success",
+        description: "Account branding updated to Prologue",
+        duration: 3000,
+      })
+    } catch (error: any) {
+      console.error('Branding update error:', error)
+      setError(error.message || 'Failed to update branding')
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to update branding',
+        variant: "destructive",
+        duration: 3000,
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -173,9 +218,26 @@ export function AthleteStripeConnect({ athleteData }: AthleteStripeConnectProps)
           )}
         </Button>
         {stripeAccountId && (
-          <p className="text-xs text-gray-500 mt-2">
-            Account ID: {stripeAccountId.substring(0, 8)}...
-          </p>
+          <>
+            <Button
+              onClick={handleUpdateBranding}
+              variant="outline"
+              className="mt-2 w-full"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Updating Branding...
+                </>
+              ) : (
+                "Update to Prologue Branding"
+              )}
+            </Button>
+            <p className="text-xs text-gray-500 mt-2">
+              Account ID: {stripeAccountId.substring(0, 8)}...
+            </p>
+          </>
         )}
       </CardContent>
     </Card>
