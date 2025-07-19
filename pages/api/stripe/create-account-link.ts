@@ -13,12 +13,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Missing account ID' })
     }
 
+    // Ensure we're using HTTPS URLs for live mode
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://prologuehq.com'
+    
     // Create account link for onboarding
     const accountLink = await stripe.accountLinks.create({
       account: account,
-      refresh_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/athlete-settings?refresh=true`,
-      return_url: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/athlete-settings?success=true`,
+      refresh_url: `${baseUrl}/athlete-settings?refresh=true`,
+      return_url: `${baseUrl}/athlete-settings?success=true`,
       type: 'account_onboarding',
+      collect: 'eventually_due',
     })
 
     res.status(200).json({ 

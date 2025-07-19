@@ -38,11 +38,27 @@ export async function createAthleteStripeAccount(athleteData: {
       },
       business_profile: {
         product_description: "Athletic coaching and training content subscriptions",
+        url: "https://prologuehq.com",
+        mcc: "7997", // Athletic and Recreational Services
+      },
+      business_type: "company",
+      company: {
+        name: "Prologue",
       },
       individual: {
         first_name: athleteData.firstName,
         last_name: athleteData.lastName,
         email: athleteData.email,
+        address: {
+          country: athleteData.country,
+        },
+      },
+      settings: {
+        payouts: {
+          schedule: {
+            interval: "manual",
+          },
+        },
       },
     })
 

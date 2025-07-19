@@ -25,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Missing required fields' })
     }
 
-    // Create Stripe Connect account
+    // Create Stripe Connect account with Prologue business information
     const account = await stripe.accounts.create({
       type: 'express',
       country: country,
@@ -36,12 +36,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       business_profile: {
         product_description: 'Athletic coaching and training content subscriptions',
+        url: 'https://prologuehq.com',
+        mcc: '7997', // Athletic and Recreational Services
       },
-      business_type: 'individual',
+      business_type: 'company',
+      company: {
+        name: 'Prologue',
+        tax_id: '', // Add your business tax ID if available
+      },
       individual: {
         first_name: firstName,
         last_name: lastName,
         email: email,
+        // Add additional verification info as needed
+        address: {
+          country: country,
+        },
+      },
+      settings: {
+        payouts: {
+          schedule: {
+            interval: 'manual',
+          },
+        },
       },
     })
 
