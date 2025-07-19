@@ -39,11 +39,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         url: 'https://prologuehq.com',
         mcc: '7997', // Athletic and Recreational Services
       },
-      business_type: 'company',
-      company: {
-        name: 'Prologue',
-        tax_id: '', // Add your business tax ID if available
-      },
+      business_type: 'individual',
       individual: {
         first_name: firstName,
         last_name: lastName,

@@ -41,10 +41,7 @@ export async function createAthleteStripeAccount(athleteData: {
         url: "https://prologuehq.com",
         mcc: "7997", // Athletic and Recreational Services
       },
-      business_type: "company",
-      company: {
-        name: "Prologue",
-      },
+      business_type: "individual",
       individual: {
         first_name: athleteData.firstName,
         last_name: athleteData.lastName,
