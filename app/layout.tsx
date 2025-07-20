@@ -7,7 +7,7 @@ import { AdvancedNotificationProvider } from '@/contexts/advanced-notification-c
 import { Toaster } from '@/components/ui/toaster'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
+  title: 'Prologue | Home',
   description: 'Created with v0',
   generator: 'v0.dev',
 }
