@@ -4,7 +4,7 @@ import { useState, useEffect, forwardRef, useImperativeHandle, useCallback, useR
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Camera, Edit3, GraduationCap, Loader2, MapPin, Save, Star, Upload, User } from "lucide-react"
+import { Camera, Edit3, GraduationCap, Loader2, MapPin, Save, Star, Upload, User, CheckCircle } from "lucide-react"
 
 export type ProfileHeaderData = {
   firstName: string
@@ -16,6 +16,7 @@ export type ProfileHeaderData = {
   bio: string
   profilePhotoUrl?: string
   coverPhotoUrl?: string
+  isVerified?: boolean
 }
 
 export interface ProfileHeaderHandle {
@@ -188,6 +189,15 @@ const ProfileHeader = forwardRef<ProfileHeaderHandle, ProfileHeaderProps>(
                       <span className="text-2xl font-bold h-10">
                         {formData.lastName || <span className="text-gray-400">Last Name</span>}
                       </span>
+                    )}
+                    {/* Verification Badge */}
+                    {!isEditing && profileData.isVerified && (
+                      <div className="flex items-center ml-2">
+                        <div className="flex items-center bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Verified
+                        </div>
+                      </div>
                     )}
                     {/* Action Buttons (right of name, always in same row) */}
                     {!isEditing && (

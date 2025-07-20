@@ -67,6 +67,7 @@ const initialProfileData = {
   achievements: [],
   profilePhotoUrl: "",
   coverPhotoUrl: "",
+  stripeAccountId: "",
 };
 
 export type ProfileData = typeof initialProfileData
@@ -135,7 +136,7 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
       if (!user) {
         // Optionally redirect or show login
         return;
@@ -350,21 +351,62 @@ export default function DashboardPage() {
       <div className="relative">
         <ProfileHeader
           ref={headerRef}
-          profileData={profileData}
+          profileData={{
+            firstName: profileData.firstName,
+            lastName: profileData.lastName,
+            sport: profileData.sport,
+            experience: profileData.experience,
+            location: profileData.location,
+            school: profileData.school,
+            bio: profileData.bio,
+            profilePhotoUrl: profileData.profilePhotoUrl,
+            coverPhotoUrl: profileData.coverPhotoUrl,
+            isVerified: !!profileData.stripeAccountId,
+          }}
           isEditing={isEditing}
           isLoading={isSaving}
           onEditToggle={handleEditToggle}
-          onSave={handleSaveProfile}
+          onSave={(data) => {
+            const updatedData = {
+              ...profileData,
+              firstName: data.firstName,
+              lastName: data.lastName,
+              sport: data.sport,
+              experience: data.experience,
+              location: data.location,
+              school: data.school,
+              bio: data.bio,
+            };
+            handleSaveProfile(updatedData);
+          }}
           onProfilePicChange={handleProfilePicChange}
           onCoverChange={handleCoverChange}
         />
         {isEditing && (
           <div className="flex space-x-2 mt-4">
             <Button onClick={() => {
-              const headerData = headerRef.current?.getFormData() || {};
-              const editorData = editorRef.current?.getFormData() || {};
-              const merged = { ...headerData, ...editorData };
-              handleSaveProfile(merged);
+              const headerData = headerRef.current?.getFormData();
+              const editorData = editorRef.current?.getFormData();
+              if (headerData && editorData) {
+                const merged = { 
+                  ...profileData,
+                  firstName: headerData.firstName,
+                  lastName: headerData.lastName,
+                  sport: headerData.sport,
+                  experience: headerData.experience,
+                  location: headerData.location,
+                  school: headerData.school,
+                  bio: headerData.bio,
+                  email: editorData.email,
+                  phone: editorData.phone,
+                  graduationYear: editorData.graduationYear,
+                  position: editorData.position,
+                  certifications: editorData.certifications,
+                  specialties: editorData.specialties,
+                  achievements: editorData.achievements,
+                };
+                handleSaveProfile(merged);
+              }
             }} disabled={isSaving} size="sm" className="bg-blue-600 hover:bg-blue-700">
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               <span className="ml-2">Save Changes</span>
@@ -377,7 +419,13 @@ export default function DashboardPage() {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8 mt-8">
         <div className="lg:col-span-2">
-          <ProfileEditor ref={editorRef} isEditing={isEditing} initialData={profileData} isLoading={isSaving} />
+          <ProfileEditor 
+            ref={editorRef} 
+            isEditing={isEditing} 
+            initialData={profileData} 
+            isLoading={isSaving}
+            onSave={handleSaveProfile}
+          />
         </div>
         <Sidebar profileData={profileData} />
       </div>
