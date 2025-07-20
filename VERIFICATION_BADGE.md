@@ -58,6 +58,17 @@ export type ProfileHeaderData = {
 />
 ```
 
+#### 4. Added Mobile Support
+```tsx
+{/* Verification Badge for Mobile */}
+{currentData.stripeAccountId && (
+  <div className="flex items-center bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium">
+    <CheckCircle className="h-3 w-3 mr-1" />
+    Verified
+  </div>
+)}
+```
+
 ### Styling
 - **Background**: `bg-blue-100` (light blue background)
 - **Text Color**: `text-blue-700` (dark blue text)
@@ -81,6 +92,17 @@ To test the verification badge:
 3. **Edit Mode**: Click "Edit Profile" to see the badge disappear
 4. **View Mode**: Exit edit mode to see the badge reappear (if verified)
 
+### Current Status
+- ✅ **Desktop**: Verification badge implemented and functional
+- ✅ **Mobile**: Verification badge implemented and functional
+- ⚠️ **Testing**: Badge not visible because current athlete profile doesn't have `stripeAccountId`
+
+### To Test the Badge
+1. **Add test data**: Set a `stripeAccountId` in the athlete's profile
+2. **Check desktop**: Visit `http://localhost:3001/athleteDashboard`
+3. **Check mobile**: Resize browser or use mobile view
+4. **Verify behavior**: Badge should appear next to name when verified
+
 ### Example Usage
 ```typescript
 // Athlete with verification
@@ -103,11 +125,13 @@ const unverifiedAthlete = {
 ## Files Modified
 1. `components/dashboard/profile-header.tsx` - Added verification badge
 2. `app/athleteDashboard/page.tsx` - Updated to pass verification status
-3. `test-verification-badge.js` - Created test script
-4. `VERIFICATION_BADGE.md` - This documentation
+3. `components/dashboard/mobile-profile-layout.tsx` - Added mobile verification badge
+4. `test-verification-badge.js` - Created test script
+5. `VERIFICATION_BADGE.md` - This documentation
 
 ## Next Steps
-- The verification badge is now functional
+- The verification badge is now functional on both desktop and mobile
 - Athletes with Stripe accounts will see the badge next to their name
-- The badge provides visual confirmation of account verification
-- The implementation follows the existing design patterns in the codebase 
+- The badge provides clear visual confirmation of account verification
+- The implementation follows the existing design patterns in the codebase
+- To see the badge in action, an athlete needs to have a `stripeAccountId` in their profile 

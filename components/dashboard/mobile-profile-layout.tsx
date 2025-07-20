@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import type { ProfileData } from "@/app/dashboard/page"
+import type { ProfileData } from "@/app/athleteDashboard/page"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -215,9 +215,18 @@ export function ProfileEditorMobile({
                 </div>
               ) : (
                 <>
-                  <h1 className="text-xl font-bold text-gray-900 mb-1">
-                    {currentData.firstName} {currentData.lastName}
-                  </h1>
+                  <div className="flex items-center space-x-2 mb-1">
+                    <h1 className="text-xl font-bold text-gray-900">
+                      {currentData.firstName} {currentData.lastName}
+                    </h1>
+                    {/* Verification Badge for Mobile */}
+                    {currentData.stripeAccountId && (
+                      <div className="flex items-center bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Verified
+                      </div>
+                    )}
+                  </div>
                   <p className="text-gray-600 text-sm mb-2">
                     {currentData.sport} Coach • {currentData.experience} Experience
                   </p>
