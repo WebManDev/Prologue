@@ -480,8 +480,8 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
         </section>
 
         {/* Video/Image Section */}
+        {/*
         <section className="py-20 lg:py-28 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
-          {/* Athletic background elements */}
           <div className="absolute inset-0 pointer-events-none">
             <div className="absolute top-20 left-20 w-32 h-32 bg-gradient-to-br from-prologue-electric/20 to-purple-400/20 rounded-full blur-2xl animate-pulse"></div>
             <div className="absolute bottom-20 right-20 w-40 h-40 bg-gradient-to-br from-prologue-fire/20 to-red-400/20 rounded-full blur-2xl animate-pulse animation-delay-1000"></div>
@@ -489,18 +489,15 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
 
           <div className="container mx-auto px-6 lg:px-8 relative z-10">
             <div className="max-w-6xl mx-auto scroll-trigger">
-              {/* Left-Aligned Header */}
               <div className="mb-12">
                 <h2 className="text-4xl lg:text-5xl font-athletic font-black text-white mb-4 tracking-tight">
                   SEE THE DIFFERENCE
                 </h2>
                 <div className="w-24 h-1 bg-gradient-to-r from-prologue-electric to-prologue-fire mb-6"></div>
                 <p className="text-lg font-body text-gray-300 max-w-2xl">
-                  Watch how our elite mentors transform athletes into winners through personalized training and proven
-                  strategies.
+                  Watch how our elite mentors transform athletes into winners through personalized training and proven strategies.
                 </p>
               </div>
-
               <div className="relative group">
                 <div className="aspect-video bg-gradient-to-br from-slate-800 to-slate-700 rounded-none overflow-hidden shadow-2xl group-hover:shadow-3xl transition-all duration-500 hover:scale-105 border-l-4 border-prologue-electric">
                   <Image
@@ -510,15 +507,12 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
                     height={600}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                   />
-                  {/* Enhanced Play button overlay */}
                   <div className="absolute inset-0 flex items-center justify-center bg-black/40 group-hover:bg-black/50 transition-all duration-300">
                     <button className="w-24 h-24 bg-gradient-to-r from-prologue-electric to-prologue-fire hover:from-prologue-blue hover:to-prologue-orange rounded-none flex items-center justify-center shadow-2xl transition-all duration-300 hover:scale-125 border-2 border-white/30">
                       <Play className="h-10 w-10 text-white ml-1" fill="currentColor" />
                     </button>
                   </div>
                 </div>
-
-                {/* Athletic decorative elements */}
                 <div className="absolute -top-4 -left-4 w-8 h-8 bg-prologue-electric rounded-none opacity-80"></div>
                 <div className="absolute -bottom-4 -right-4 w-6 h-6 bg-prologue-fire rounded-none opacity-60"></div>
                 <div className="absolute top-1/2 -right-8 w-4 h-4 bg-purple-500 rotate-45 opacity-70"></div>
@@ -526,6 +520,7 @@ export default function PrologueLanding({ onLoginClick, onSignUpClick }: Prologu
             </div>
           </div>
         </section>
+        */}
       </main>
 
       {/* Footer */}
