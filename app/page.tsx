@@ -10,13 +10,12 @@ import Link from "next/link"
 import { MemberDashboard } from "../components/member-dashboard"
 import { CoachDashboard } from "../components/coach-dashboard"
 import { AthleteOnboarding } from "../components/athlete-onboarding"
-import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider, getMemberProfile, resetPassword } from "@/lib/firebase"
+import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, saveAthleteProfile, saveMemberProfile, getAthleteProfile, initializeFirebase, smartSignIn, handleRedirectResult, GoogleAuthProvider, getMemberProfile, resetPassword, handleReferral } from "@/lib/firebase"
 import { Logo } from "@/components/logo"
 import PrologueLanding from "./components/prologue-landing"
 import { useRouter } from "next/navigation"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import MemberLoginPage from "./member/login/page"
 import { signInWithPersistence } from "@/lib/auth-persistence"
 
 export default function LandingPage() {
@@ -50,7 +49,7 @@ export default function LandingPage() {
       try {
         await initializeFirebase();
         
-        const unsubscribe = auth.onAuthStateChanged(async (user) => {
+        const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
           console.log("Auth state changed, user:", user?.uid)
           if (user) {
             // User is logged in, check their role and redirect accordingly
@@ -319,6 +318,9 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password)
       
+      // Check for referral in localStorage
+      const referrer = typeof window !== 'undefined' ? localStorage.getItem("prologue_referrer") : null
+      
       // Save profile to Firestore based on role
       if (selectedRole === "athlete") {
         await saveAthleteProfile(userCredential.user.uid, {
@@ -352,6 +354,19 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
         }
       }
 
+      // Handle referral if present
+      if (referrer) {
+        console.log("Processing referral for:", referrer)
+        try {
+          await handleReferral(userCredential.user.uid, referrer)
+          // Clear the referral from localStorage after processing
+          localStorage.removeItem("prologue_referrer")
+        } catch (error) {
+          console.error("Error processing referral:", error)
+          // Don't fail the signup if referral processing fails
+        }
+      }
+
       // After successful signup, redirect to home page which will handle auth state
       console.log("Redirecting to home page")
       window.location.href = "/"
@@ -371,6 +386,22 @@ function LoginPage({ onBack, initialIsSignUp, onBackToLanding }: { onBack: () =>
       const provider = new GoogleAuthProvider();
       const result = await smartSignIn(provider);
       if (result) {
+        // Check for referral in localStorage
+        const referrer = typeof window !== 'undefined' ? localStorage.getItem("prologue_referrer") : null
+        
+        // Handle referral if present
+        if (referrer) {
+          console.log("Processing referral for Google sign-in:", referrer)
+          try {
+            await handleReferral(result.user.uid, referrer)
+            // Clear the referral from localStorage after processing
+            localStorage.removeItem("prologue_referrer")
+          } catch (error) {
+            console.error("Error processing referral:", error)
+            // Don't fail the signup if referral processing fails
+          }
+        }
+        
         // After successful Google sign-in, redirect to home page which will handle auth state
         window.location.href = "/"
       }

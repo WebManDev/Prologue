@@ -117,30 +117,8 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
           basic: parseFloat(formData.basicTierPrice),
           pro: parseFloat(formData.proTierPrice),
           premium: parseFloat(formData.premiumTierPrice)
-        },
-        referralCode: formData.referralCode || null, // Save referral code
-      })
-
-      // Create referral tracking document if referral code is provided
-      if (formData.referralCode && formData.referralCode.trim()) {
-        try {
-          const { doc, setDoc } = await import('firebase/firestore')
-          const { db } = await import('@/lib/firebase')
-          
-          await setDoc(doc(db, "referrals", auth.currentUser.uid), {
-            userId: auth.currentUser.uid,
-            referralCode: formData.referralCode.trim().toUpperCase(),
-            userEmail: auth.currentUser.email || "",
-            userName: `${formData.firstName} ${formData.lastName}`.trim(),
-            createdAt: new Date().toISOString(),
-            userType: "athlete",
-            status: "active"
-          })
-        } catch (error) {
-          console.error("Error saving referral data:", error)
-          // Don't fail the entire signup if referral tracking fails
         }
-      }
+      })
 
       // Show choice between setting up Stripe now or going to dashboard
       setShowStripeChoice(true)
@@ -310,22 +288,6 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
                       required
                     />
                     <p className="text-xs text-gray-500 mt-1">{formData.bio.length}/500 characters</p>
-                  </div>
-
-                  {/* Referral Code */}
-                  <div>
-                    <Label htmlFor="referralCode" className="text-xs font-semibold text-gray-900 mb-2 block">
-                      Referral Code (Optional)
-                    </Label>
-                    <Input
-                      id="referralCode"
-                      type="text"
-                      placeholder="Enter a referral code if you received one"
-                      value={formData.referralCode}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, referralCode: e.target.value }))}
-                      className="w-full h-12 px-4 border-0 bg-white rounded-3xl focus:ring-2 focus:ring-prologue-electric focus:border-transparent text-xs shadow-sm"
-                      style={{ backgroundColor: "#ffffff" }}
-                    />
                   </div>
 
                   {/* Sports Specialties */}

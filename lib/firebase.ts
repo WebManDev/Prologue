@@ -395,6 +395,85 @@ const saveMemberProfile = async (userId: string, profileData: {
   }
 };
 
+// Function to handle referral tracking
+const handleReferral = async (userId: string, referrerName: string) => {
+  try {
+    // Check if this is a self-referral
+    const userDoc = await getDoc(doc(db, "athletes", userId));
+    const memberDoc = await getDoc(doc(db, "members", userId));
+    
+    let userData = null;
+    if (userDoc.exists()) {
+      userData = userDoc.data();
+    } else if (memberDoc.exists()) {
+      userData = memberDoc.data();
+    }
+    
+    // Prevent self-referrals
+    if (userData && (userData.name === referrerName || userData.firstName === referrerName)) {
+      console.log("Self-referral detected, skipping");
+      return false;
+    }
+    
+    // Check if user already has a referrer (one-time reward protection)
+    if (userData && userData.referrer) {
+      console.log("User already has a referrer, skipping");
+      return false;
+    }
+    
+    // Try to find the referrer in athletes collection first
+    const athletesQuery = query(collection(db, "athletes"), where("name", "==", referrerName));
+    const athletesSnapshot = await getDocs(athletesQuery);
+    
+    let referrerId = null;
+    
+    if (!athletesSnapshot.empty) {
+      // Referrer exists as an athlete
+      const referrerDoc = athletesSnapshot.docs[0];
+      referrerId = referrerDoc.id;
+      
+      // Update referrer's stats
+      const referrerRef = doc(db, "athletes", referrerId);
+      await updateDoc(referrerRef, {
+        totalReferrals: increment(1),
+        lastReferralAt: new Date().toISOString(),
+      });
+    }
+    
+    // Update user's profile with referrer (regardless of whether referrer exists as athlete)
+    const userRef = doc(db, userDoc.exists() ? "athletes" : "members", userId);
+    await updateDoc(userRef, {
+      referrer: referrerName,
+      referrerId: referrerId,
+      referredAt: new Date().toISOString(),
+    });
+    
+    console.log("Referral processed successfully");
+    return true;
+  } catch (error) {
+    console.error("Error handling referral:", error);
+    return false;
+  }
+};
+
+// Function to get referral stats for an athlete
+const getReferralStats = async (athleteId: string) => {
+  try {
+    const athleteDoc = await getDoc(doc(db, "athletes", athleteId));
+    if (athleteDoc.exists()) {
+      const data = athleteDoc.data();
+      return {
+        totalReferrals: data.totalReferrals || 0,
+        lastReferralAt: data.lastReferralAt || null,
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error("Error getting referral stats:", error);
+    return null;
+  }
+};
+
 // Function to get member profile
 const getMemberProfile = async (userId: string) => {
   try {
@@ -1358,5 +1437,7 @@ export {
   getComprehensiveAthleteProfile,
   getComprehensiveAthletesByIds,
   getAllComprehensiveAthletes,
-  getAthleteAnalytics
+  getAthleteAnalytics,
+  handleReferral,
+  getReferralStats
 };
