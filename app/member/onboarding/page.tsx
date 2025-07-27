@@ -53,6 +53,7 @@ export default function MemberProfileSetupPage() {
     selectedSports: [] as string[],
     selectedGoals: [] as string[],
     profileImage: null as File | null,
+    referralCode: "", // Add referral code field
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -120,6 +121,7 @@ export default function MemberProfileSetupPage() {
         selectedGoals: formData.selectedGoals,
         profileImageUrl,
         onboardingCompleted: true,
+        referralCode: formData.referralCode, // Add referral code to save
       })
       router.push("/member-dashboard")
     } catch (err: any) {
@@ -389,6 +391,24 @@ export default function MemberProfileSetupPage() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Referral Code */}
+            <div className="mt-6">
+              <Label htmlFor="referralCode" className="text-base font-semibold text-gray-900 mb-3 block">
+                Referral Code (Optional)
+              </Label>
+              <Input
+                id="referralCode"
+                type="text"
+                placeholder="Enter a referral code if you received one"
+                value={formData.referralCode}
+                onChange={(e) => setFormData((prev) => ({ ...prev, referralCode: e.target.value }))}
+                className="h-12 text-base border-gray-300 focus:border-prologue-electric focus:ring-prologue-electric/20"
+              />
+              <p className="text-sm text-gray-500 mt-2">
+                If you have a referral code, enter it here to earn rewards.
+              </p>
             </div>
 
             <div className="bg-blue-50 border-l-4 border-blue-400 rounded-lg p-4 mb-8 mt-6">
