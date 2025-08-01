@@ -50,6 +50,7 @@ const ProfileHeader = forwardRef<ProfileHeaderHandle, ProfileHeaderProps>(
     const coverInputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
+      console.log("ProfileHeader: profileData updated:", profileData);
       setFormData({
         firstName: profileData.firstName,
         lastName: profileData.lastName,
@@ -78,6 +79,21 @@ const ProfileHeader = forwardRef<ProfileHeaderHandle, ProfileHeaderProps>(
         setEditingField(null)
       }
     }
+
+    // Add debugging for file input handlers
+    const handleProfilePicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      console.log("ProfileHeader: Profile pic change event:", e.target.files);
+      if (onProfilePicChange) {
+        onProfilePicChange(e);
+      }
+    };
+
+    const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      console.log("ProfileHeader: Cover change event:", e.target.files);
+      if (onCoverChange) {
+        onCoverChange(e);
+      }
+    };
 
     const isAnyFieldEditing = editingField !== null
 
@@ -117,7 +133,7 @@ const ProfileHeader = forwardRef<ProfileHeaderHandle, ProfileHeaderProps>(
               accept="image/*"
               ref={coverInputRef}
               style={{ display: 'none' }}
-              onChange={onCoverChange}
+              onChange={handleCoverChange}
             />
           </div>
           {/* Main Card Area Below Cover */}
@@ -132,6 +148,8 @@ const ProfileHeader = forwardRef<ProfileHeaderHandle, ProfileHeaderProps>(
                       src={profileData.profilePhotoUrl}
                       alt="Profile"
                       className="w-full h-full object-cover"
+                      onLoad={() => console.log("Profile image loaded successfully")}
+                      onError={(e) => console.error("Profile image failed to load:", e)}
                     />
                   ) : (
                     <User className="w-20 h-20 text-white" />
@@ -150,7 +168,7 @@ const ProfileHeader = forwardRef<ProfileHeaderHandle, ProfileHeaderProps>(
                     accept="image/*"
                     ref={avatarInputRef}
                     style={{ display: 'none' }}
-                    onChange={onProfilePicChange}
+                    onChange={handleProfilePicChange}
                   />
                 </div>
               </div>

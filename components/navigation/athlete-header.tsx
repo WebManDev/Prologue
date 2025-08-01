@@ -154,15 +154,16 @@ export function AthleteHeader({
                   <Button variant="ghost" className="flex items-center space-x-1 lg:space-x-2 p-1 lg:p-2">
                     <Avatar className="w-7 h-7 lg:w-8 lg:h-8">
                       {(() => {
-                        const profileImageUrl =
+                        const finalProfileImageUrl =
+                          profileImageUrl ||
                           profileData?.profileImageUrl ||
                           profileData?.profilePicture ||
                           profileData?.profilePhotoUrl ||
                           profileData?.profilePic ||
                           profileData?.avatar ||
                           '/placeholder-user.jpg';
-                        if (profileImageUrl) {
-                          return <AvatarImage src={profileImageUrl} alt={profileData ? `${profileData.firstName} ${profileData.lastName}` : 'User'} />;
+                        if (finalProfileImageUrl) {
+                          return <AvatarImage src={finalProfileImageUrl} alt={profileData ? `${profileData.firstName} ${profileData.lastName}` : 'User'} />;
                         } else {
                           return <AvatarFallback>{profileData && profileData.firstName && profileData.lastName ? `${profileData.firstName[0]}${profileData.lastName[0]}`.toUpperCase() : <User className="w-full h-full text-gray-500 p-1" />}</AvatarFallback>;
                         }

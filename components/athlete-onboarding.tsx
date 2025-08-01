@@ -111,7 +111,8 @@ export function AthleteOnboarding({ onComplete, onLogout }: AthleteOnboardingPro
         specialties: formData.selectedSports,
         experience: "",
         achievements: [],
-        profilePicture: profilePictureUrl,
+        profilePhotoUrl: profilePictureUrl,
+        profilePicture: profilePictureUrl, // Keep both for backward compatibility
         role: "athlete",
         pricing: {
           basic: parseFloat(formData.basicTierPrice),

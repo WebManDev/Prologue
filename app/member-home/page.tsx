@@ -742,7 +742,7 @@ export default function MemberHomePage() {
               <CardContent className="p-3 sm:p-4">
                 <form onSubmit={handlePostSubmit}>
                   <div className="flex items-center space-x-3">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gray-200 rounded-full overflow-hidden flex-shrink-0">  
                       {(() => {
                         const profileImageUrl = profileData.profileImageUrl && profileData.profileImageUrl.trim() !== '' ? profileData.profileImageUrl : (profileData.profilePic && profileData.profilePic.trim() !== '' ? profileData.profilePic : (profileData.profilePicture && profileData.profilePicture.trim() !== '' ? profileData.profilePicture : null));
                         if (profileImageUrl) {

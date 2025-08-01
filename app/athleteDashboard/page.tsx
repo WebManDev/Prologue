@@ -61,10 +61,10 @@ const initialProfileData = {
   graduationYear: "",
   sport: "",
   position: "",
-  certifications: [],
-  specialties: [],
+  certifications: [] as string[],
+  specialties: [] as string[],
   experience: "",
-  achievements: [],
+  achievements: [] as string[],
   profilePhotoUrl: "",
   coverPhotoUrl: "",
   stripeAccountId: "",
@@ -151,10 +151,38 @@ export default function DashboardPage() {
         });
         // Stripe is now optional - no blocking required
         // Athletes can set up Stripe later through settings if needed
+      } else {
+        // Create a new athlete document if it doesn't exist
+        console.log("Creating new athlete document for user:", user.uid);
+        const newAthleteData = {
+          ...initialProfileData,
+          uid: user.uid,
+          email: user.email,
+          createdAt: new Date().toISOString(),
+          posts: 0,
+          subscribers: 0,
+          rating: 0,
+          subscriptionStatus: "inactive"
+        };
+        await setDoc(docRef, newAthleteData);
+        setProfileData(newAthleteData);
+        console.log("New athlete document created successfully");
       }
     });
     return () => unsubscribe();
   }, []);
+
+  // Cleanup preview URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (profileData.profilePhotoUrl && profileData.profilePhotoUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(profileData.profilePhotoUrl);
+      }
+      if (profileData.coverPhotoUrl && profileData.coverPhotoUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(profileData.coverPhotoUrl);
+      }
+    };
+  }, [profileData.profilePhotoUrl, profileData.coverPhotoUrl]);
 
   const { logout, loadingState, retryLogout, cancelLogout } = useUnifiedLogout()
 
@@ -184,17 +212,56 @@ export default function DashboardPage() {
 
   // Add handler for file input changes
   const handleProfilePicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    profilePicFileRef.current = e.target.files?.[0] || null;
+    const file = e.target.files?.[0] || null;
+    console.log("Profile pic file selected:", file);
+    profilePicFileRef.current = file;
+    // Show a toast to confirm file was captured
+    if (file) {
+      toast({
+        title: "File Selected",
+        description: `Profile photo selected: ${file.name}`,
+        duration: 2000,
+      });
+      // Create a preview URL for immediate UI update
+      const previewUrl = URL.createObjectURL(file);
+      console.log("Created preview URL:", previewUrl);
+      setProfileData(prev => {
+        const updated = {
+          ...prev,
+          profilePhotoUrl: previewUrl
+        };
+        console.log("Updated profile data:", updated);
+        return updated;
+      });
+    }
   };
   const handleCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    coverFileRef.current = e.target.files?.[0] || null;
+    const file = e.target.files?.[0] || null;
+    console.log("Cover file selected:", file);
+    coverFileRef.current = file;
+    // Show a toast to confirm file was captured
+    if (file) {
+      toast({
+        title: "File Selected",
+        description: `Cover photo selected: ${file.name}`,
+        duration: 2000,
+      });
+      // Create a preview URL for immediate UI update
+      const previewUrl = URL.createObjectURL(file);
+      setProfileData(prev => ({
+        ...prev,
+        coverPhotoUrl: previewUrl
+      }));
+    }
   };
 
   // Add this function inside DashboardPage, after hooks and before handlers
   const saveProfileData = useCallback(async (newProfileData: ProfileData, files?: { profilePhotoFile?: File | null, coverPhotoFile?: File | null }) => {
+    console.log("saveProfileData called with:", { newProfileData, files });
     setIsSaving(true);
     const uid = auth.currentUser?.uid;
     if (!uid) {
+      console.error("No user UID found");
       toast({
         title: "Error",
         description: "You must be logged in to save your profile.",
@@ -204,30 +271,48 @@ export default function DashboardPage() {
       setIsSaving(false);
       return;
     }
+    console.log("User UID:", uid);
     try {
       let profilePhotoUrl = newProfileData.profilePhotoUrl || "";
       let coverPhotoUrl = newProfileData.coverPhotoUrl || "";
+      
       // Upload profile photo if provided
       if (files?.profilePhotoFile) {
+        console.log("Uploading profile photo:", files.profilePhotoFile);
         const storage = getStorage();
         const profileRef = ref(storage, `athlete-profile-pics/${uid}-${Date.now()}`);
         await uploadBytes(profileRef, files.profilePhotoFile);
         profilePhotoUrl = await getDownloadURL(profileRef);
+        console.log("Profile photo uploaded, URL:", profilePhotoUrl);
       }
+      
       // Upload cover photo if provided
       if (files?.coverPhotoFile) {
+        console.log("Uploading cover photo:", files.coverPhotoFile);
         const storage = getStorage();
         const coverRef = ref(storage, `athlete-cover-pics/${uid}-${Date.now()}`);
         await uploadBytes(coverRef, files.coverPhotoFile);
         coverPhotoUrl = await getDownloadURL(coverRef);
+        console.log("Cover photo uploaded, URL:", coverPhotoUrl);
       }
+      
       const updatedProfile = {
         ...newProfileData,
         profilePhotoUrl,
         coverPhotoUrl,
+        lastProfileEdit: new Date().toISOString(),
       };
+      console.log("Saving to Firestore:", updatedProfile);
       await setDoc(doc(db, 'athletes', uid), updatedProfile, { merge: true });
+      console.log("Profile saved successfully");
       setProfileData(updatedProfile);
+      // Revoke the preview URLs to free memory
+      if (files?.profilePhotoFile) {
+        URL.revokeObjectURL(newProfileData.profilePhotoUrl || '');
+      }
+      if (files?.coverPhotoFile) {
+        URL.revokeObjectURL(newProfileData.coverPhotoUrl || '');
+      }
       setIsEditing(false);
       toast({
         title: "Profile Updated",
@@ -235,6 +320,7 @@ export default function DashboardPage() {
         duration: 3000,
       });
     } catch (e) {
+      console.error("Error saving profile:", e);
       toast({
         title: "Error",
         description: "Failed to save profile. Please try again.",
@@ -288,6 +374,28 @@ export default function DashboardPage() {
     },
     [saveProfileData]
   );
+
+  // Add a wrapper function for ProfileEditor's onSave
+  const handleProfileEditorSave = useCallback((editorData: any) => {
+    const updatedData = {
+      ...profileData,
+      firstName: editorData.firstName,
+      lastName: editorData.lastName,
+      email: editorData.email,
+      phone: editorData.phone,
+      bio: editorData.bio,
+      location: editorData.location,
+      school: editorData.school,
+      graduationYear: editorData.graduationYear,
+      sport: editorData.sport,
+      position: editorData.position,
+      certifications: editorData.certifications,
+      specialties: editorData.specialties,
+      experience: editorData.experience,
+      achievements: editorData.achievements,
+    };
+    handleSaveProfile(updatedData);
+  }, [profileData, handleSaveProfile]);
 
   const handleEditToggle = useCallback(() => {
     setIsEditing((prev) => !prev)
@@ -346,7 +454,9 @@ export default function DashboardPage() {
     ],
   )
 
-  const DesktopContent = () => (
+  const DesktopContent = () => {
+    console.log("DesktopContent render - profileData:", profileData);
+    return (
     <main className="max-w-7xl mx-auto px-6 py-8">
       <div className="relative">
         <ProfileHeader
@@ -387,6 +497,8 @@ export default function DashboardPage() {
             <Button onClick={() => {
               const headerData = headerRef.current?.getFormData();
               const editorData = editorRef.current?.getFormData();
+              console.log("Save button clicked, headerData:", headerData, "editorData:", editorData);
+              console.log("File refs:", { profilePic: profilePicFileRef.current, cover: coverFileRef.current });
               if (headerData && editorData) {
                 const merged = { 
                   ...profileData,
@@ -405,7 +517,15 @@ export default function DashboardPage() {
                   specialties: editorData.specialties,
                   achievements: editorData.achievements,
                 };
-                handleSaveProfile(merged);
+                console.log("Merged data:", merged);
+                // Use saveProfileData instead of handleSaveProfile to handle file uploads
+                saveProfileData(merged, {
+                  profilePhotoFile: profilePicFileRef.current,
+                  coverPhotoFile: coverFileRef.current
+                });
+                // Clear the file refs after saving
+                profilePicFileRef.current = null;
+                coverFileRef.current = null;
               }
             }} disabled={isSaving} size="sm" className="bg-blue-600 hover:bg-blue-700">
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -424,13 +544,14 @@ export default function DashboardPage() {
             isEditing={isEditing} 
             initialData={profileData} 
             isLoading={isSaving}
-            onSave={handleSaveProfile}
+            onSave={handleProfileEditorSave}
           />
         </div>
         <Sidebar profileData={profileData} />
       </div>
     </main>
-  )
+    )
+  }
 
   if (isMobile) {
     return (
