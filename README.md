@@ -1,4 +1,4 @@
-# PrologueIsReal
+# Prologue
 
 A platform connecting athletes with members for coaching and training content.
 
